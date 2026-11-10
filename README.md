@@ -51,7 +51,10 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - Ses doğrudan iki telefon arasında akar (WebRTC). Bağlantı bilgisi veritabanındaki arama kaydı üzerinden değiş tokuş edilir.
 - Aranan kişinin uygulaması açık olmalıdır (arka planda açık sekme de olur).
 - İlk aramada mikrofon izni istenir.
-- Bazı mobil operatör ağlarında doğrudan bağlantı kurulamayabilir; o durumda `app/config.js` içindeki `iceServers` listesine bir TURN sunucusu eklenmelidir. Ses bağlanmasa bile çalma, kayıt ve ikaz kuralı çalışır.
+- Bazı ağlarda (mobil veri, bazı modemler) telefonlar doğrudan bağlanamaz; sesi bir aktarma sunucusu (TURN) taşımalıdır. TURN bilgisi **Yönetim → Ayarlar → Sesli arama** alanına yapıştırılır (Metered Open Relay: ücretsiz 20 GB/ay). Tüm telefonlar otomatik kullanır.
+- Telefon gelen sesi otomatik çalmazsa arama ekranında **🔊 Sesi aç** butonu çıkar.
+- Her aramanın bağlantı teşhisi (doğrudan / aktarma / bağlanamadı ve aday türleri) **Yönetim → Aramalar** sekmesinde görünür.
+- Ses bağlanmasa bile çalma, kayıt ve ikaz kuralı çalışır.
 
 ## Kurallar
 

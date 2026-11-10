@@ -92,17 +92,29 @@ function renderCour(){
   return `<div class="card"><table><tr><th>Kurye</th><th>Giriş</th><th>Durum</th><th>Son sinyal</th><th>Teslimat</th><th>Kazanç</th></tr>${cs.map(c => `<tr><td>${J.esc(c.name)}</td><td class="tiny">${J.esc(c.login?c.login.user:'—')}</td><td>${c.busy?'<span class="pill blue">Teslimatta</span>':c.online&&J.isAlive(c)?'<span class="pill ok">Çevrimiçi</span>':'<span class="pill">Çevrimdışı</span>'}${c.notif_ok?'':' <span class="pill warn">bildirim yok</span>'}</td><td class="tiny">${c.seen_at?J.clock(c.seen_at):'—'}</td><td>${(c.jobs||[]).length}</td><td class="money">${J.tl(c.earnings||0)}</td></tr>`).join('')}</table></div>`;
 }
 
+const STATE_TR = {connected:'bağlandı', failed:'bağlanamadı', disconnected:'koptu', connecting:'bağlanıyor', 'mikrofon-yok':'mikrofon izni yok', desteklenmiyor:'tarayıcı desteklemiyor'};
+function diag(k){
+  const one = (d, who) => d ? `${who}: <b>${J.esc(STATE_TR[d.state]||d.state||'?')}</b>${d.path?' · '+J.esc(d.path):''} <span class="muted">[${Object.entries(d.cands||{}).map(([t,n]) => t+':'+n).join(' ')||'aday yok'}${d.turn?'':' · TURN yok'}]</span>` : '';
+  const parts = [one(k.diag_arayan,'arayan'), one(k.diag_aranan,'aranan')].filter(Boolean);
+  if(parts.length) return parts.join('<br>');
+  return k.answer_sdp ? 'el sıkışma tamam' : k.offer_sdp ? 'cevap bekleniyor' : '—';
+}
 function renderCalls(){
   const ks = J.calls().slice(0,40);
   if(!ks.length) return `<div class="card soft small">Arama yok.</div>`;
   const S = {caliyor:'<span class="pill warn">Çalıyor</span>', gorusme:'<span class="pill blue">Görüşmede</span>', bitti:'<span class="pill ok">Görüşüldü</span>', iptal:'<span class="pill">İptal</span>', cevapsiz:'<span class="pill bad">Cevapsız</span>', reddedildi:'<span class="pill bad">Reddedildi</span>'};
-  return `<div class="card"><h3>Arama kayıtları (kanıt)</h3><div style="overflow-x:auto"><table><tr><th>Saat</th><th>Arayan → Aranan</th><th>Sipariş</th><th>Sonuç</th><th>Ses</th><th>İkaz</th></tr>${ks.map(k => `<tr><td class="tiny">${J.clock(k.start)}</td><td>${J.esc(J.partyName(k.from))} → ${J.esc(J.partyName(k.to))}</td><td>#${J.esc(k.no)}</td><td>${S[k.state]||k.state}${k.answered_at?` <span class="tiny muted">${J.secs(k.answered_at-k.start)} sn çaldı</span>`:''}</td><td class="tiny">${k.answer_sdp?'bağlantı kuruldu':k.offer_sdp?'tek taraflı':'—'}</td><td>${k.cezalandi?'<span class="pill bad">Uygulandı</span>':k.cb_done?'<span class="pill ok">Geri arandı</span>':k.cb_deadline?'<span class="pill warn">Bekliyor</span>':''}</td></tr>`).join('')}</table></div></div>`;
+  return `<div class="card"><h3>Arama kayıtları (kanıt)</h3><div style="overflow-x:auto"><table><tr><th>Saat</th><th>Arayan → Aranan</th><th>Sipariş</th><th>Sonuç</th><th>Ses bağlantısı</th><th>İkaz</th></tr>${ks.map(k => `<tr><td class="tiny">${J.clock(k.start)}</td><td>${J.esc(J.partyName(k.from))} → ${J.esc(J.partyName(k.to))}</td><td>#${J.esc(k.no)}</td><td>${S[k.state]||k.state}${k.answered_at?` <span class="tiny muted">${J.secs(k.answered_at-k.start)} sn çaldı</span>`:''}</td><td class="tiny">${diag(k)}</td><td>${k.cezalandi?'<span class="pill bad">Uygulandı</span>':k.cb_done?'<span class="pill ok">Geri arandı</span>':k.cb_deadline?'<span class="pill warn">Bekliyor</span>':''}</td></tr>`).join('')}</table></div></div>`;
 }
 
 function renderSettings(){
   const s = J.settings();
   return `<div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
     ${DB.mode==='canli' ? `<div class="btns"><button class="sm sec" data-a="force-demo">Bu cihazda demo moduna geç</button></div>` : (window.JETGEL_CONFIG.supabaseUrl ? `<div class="btns"><button class="sm sec" data-a="force-live">Canlı moda dön</button></div>` : '')}</div>
+    <div class="card"><h3>📞 Sesli arama · aktarma sunucusu (TURN)</h3>
+      <div class="small muted">Telefonlar birbirine doğrudan bağlanamadığında (mobil veri, bazı modemler) sesi bu sunucu taşır. Metered panelinde <b>TURN Server → Add Credential → Show ICE Servers Array</b> ile çıkan metnin tamamını buraya yapıştırıp kaydedin. Tüm telefonlar otomatik kullanır.</div>
+      <div class="small" style="margin-top:8px">Durum: ${J.hasTurn() ? `<span class="pill ok">Aktarma sunucusu tanımlı (${(s.turn||[]).length} adres)</span>` : '<span class="pill warn">Tanımlı değil · sadece doğrudan bağlantı</span>'}</div>
+      <textarea id="turn-txt" rows="6" style="margin-top:8px;font-family:monospace;font-size:12px" placeholder='[ { urls: "turn:...", username: "...", credential: "..." } ]'></textarea>
+      <div class="btns"><button class="brand" data-a="save-turn">Kaydet</button>${(s.turn||[]).length?'<button class="sec" data-a="clear-turn">Kaldır</button>':''}</div></div>
     <div class="card"><h3>Hızlı test modu</h3><div class="small muted">Açıkken süreler 10 kat kısalır: hazırlık 1 dk = 6 sn, işletmenin geri arama süresi 30 sn, müşteriye ulaşılamazsa bekleme 1 dk, demo sürüş 10 kat hızlı. Gerçek denemede kapatın.</div><div class="btns"><button class="${s.fast?'ok':'sec'}" data-a="fast" data-v="1">Açık</button><button class="${!s.fast?'ok':'sec'}" data-a="fast" data-v="0">Kapalı</button></div></div>
     <div class="card"><h3>🧪 Test hesapları</h3><div class="small">Dükkânlar: <b>test1 … test9</b> · Kuryeler: <b>1test … 9test</b> · Müşteri: <b>test</b> · Tüm şifreler: <b>test</b></div>
       <div class="small muted" style="margin-top:6px">Eksik olanlar ilk açılışta kendiliğinden oluşturulur. "Sıfırla" test hesaplarını ilk haline getirir (açık/kapalı durumu, kazanç, ikazlar sıfırlanır; siparişler silinmez).</div>
@@ -166,6 +178,15 @@ document.addEventListener('click', async e => {
     DB.patch('businesses', b.id, patch); J.log(`İtiraz ${ok?'kabul edildi':'reddedildi'}: ${b.name}.`, ok?'ok':'');
   }
   if(a==='fast'){ const v = el.dataset.v==='1'; if(DB.get('settings','ayar')) DB.patch('settings','ayar',{fast:v}); else DB.put('settings','ayar',{fast:v}); J.log(`Hızlı test modu ${v?'açıldı':'kapatıldı'}.`); }
+  if(a==='save-turn'){
+    const list = J.parseIce(document.getElementById('turn-txt').value).filter(x => [].concat(x.urls).some(u => /^(turns?|stun):/.test(u)));
+    if(!list.length){ J.toast('Metinde sunucu adresi bulunamadı. Metered\'daki metnin tamamını yapıştırın.'); return; }
+    const turnN = list.filter(x => [].concat(x.urls).some(u => /^turns?:/.test(u))).length;
+    if(!turnN){ J.toast('Metinde TURN adresi yok (turn: ile başlayan).'); return; }
+    if(DB.get('settings','ayar')) DB.patch('settings','ayar',{turn:list}); else DB.put('settings','ayar',{fast:true, turn:list});
+    J.log(`Aktarma sunucusu kaydedildi (${list.length} adres).`, 'ok');
+  }
+  if(a==='clear-turn'){ DB.patch('settings','ayar',{turn:[]}); J.log('Aktarma sunucusu kaldırıldı.', 'warn'); }
   if(a==='force-demo'){ J.store.set('force_demo', true); location.reload(); return; }
   if(a==='force-live'){ J.store.set('force_demo', false); location.reload(); return; }
   if(a==='reset') confirmReset = true;

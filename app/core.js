@@ -434,10 +434,52 @@ J.Map = function(el, opts){
 /* ===================== GERÇEK SESLİ ARAMA (WebRTC) =====================
    Ses doğrudan iki cihaz arasında akar. Bağlantı bilgisi (SDP) arama kaydı üzerinden değiş tokuş edilir.
    Bağlanamazsa çalma, kayıt ve ikaz kuralları yine çalışır. */
-const RTC = J.RTC = {pc:null, stream:null, callId:null, role:null, audioEl:null, state:'', applied:false};
+const RTC = J.RTC = {pc:null, stream:null, callId:null, role:null, audioEl:null, state:'', applied:false, needTap:false, path:''};
 function rtcAudio(){
-  if(!RTC.audioEl){ RTC.audioEl = document.createElement('audio'); RTC.audioEl.autoplay = true; RTC.audioEl.setAttribute('playsinline',''); document.body.appendChild(RTC.audioEl); }
+  if(!RTC.audioEl){ RTC.audioEl = document.createElement('audio'); RTC.audioEl.autoplay = true; RTC.audioEl.setAttribute('playsinline',''); RTC.audioEl.setAttribute('webkit-playsinline',''); document.body.appendChild(RTC.audioEl); }
   return RTC.audioEl;
+}
+// Kullanıcı dokunuşu sırasında çağrılır: telefonun ses çalma kilidini açar
+function unlockAudio(){ const a = rtcAudio(); a.muted = false; a.volume = 1; try{ const p = a.play(); if(p) p.catch(()=>{}); }catch(e){} audio(); }
+function playRemote(){
+  const a = rtcAudio(); a.muted = false; a.volume = 1;
+  const p = a.play();
+  if(p) p.then(() => { RTC.needTap = false; emit({}); }).catch(() => { RTC.needTap = true; emit({}); });
+}
+J.tapAudio = () => playRemote();
+// Aktarma (TURN) sunucuları: config.js + yönetim panelinden girilenler
+J.parseIce = function(txt){
+  txt = String(txt||'').trim(); if(!txt) return [];
+  try{ const j = JSON.parse(txt); return (Array.isArray(j) ? j : (j.iceServers ? [].concat(j.iceServers) : [j])).filter(x => x && x.urls); }catch(e){}
+  const out = [];
+  (txt.match(/\{[^{}]*\}/g) || []).forEach(b => {
+    const u = b.match(/urls\s*:\s*(\[[^\]]*\]|"[^"]*"|'[^']*')/), un = b.match(/username\s*:\s*["']([^"']*)["']/), cr = b.match(/credential\s*:\s*["']([^"']*)["']/);
+    if(!u) return;
+    const urls = u[1].startsWith('[') ? (u[1].match(/["']([^"']+)["']/g)||[]).map(x => x.slice(1,-1)) : u[1].slice(1,-1);
+    const o = {urls}; if(un) o.username = un[1]; if(cr) o.credential = cr[1];
+    out.push(o);
+  });
+  return out;
+};
+J.iceServers = function(){
+  const base = CFG.iceServers || [{urls:'stun:stun.l.google.com:19302'}];
+  const extra = (J.settings().turn || []);
+  return base.concat(extra);
+};
+J.hasTurn = () => J.iceServers().some(s => [].concat(s.urls).some(u => /^turns?:/.test(u)));
+function candTypes(sdp){ const t = {}; (String(sdp||'').match(/ typ (host|srflx|prflx|relay)/g) || []).forEach(m => { const k = m.slice(5); t[k] = (t[k]||0)+1; }); return t; }
+async function reportPath(){
+  const pc = RTC.pc, id = RTC.callId; if(!pc || !id) return;
+  try{
+    const stats = await pc.getStats(); let pair = null; const byId = {};
+    stats.forEach(r => { byId[r.id] = r; if(r.type==='transport' && r.selectedCandidatePairId) pair = r.selectedCandidatePairId; });
+    if(!pair) stats.forEach(r => { if(r.type==='candidate-pair' && (r.selected || r.nominated) && r.state==='succeeded') pair = r.id; });
+    const p = pair && byId[pair], lc = p && byId[p.localCandidateId], rc = p && byId[p.remoteCandidateId];
+    const types = [lc && lc.candidateType, rc && rc.candidateType];
+    RTC.path = types.includes('relay') ? 'aktarma' : types.includes('srflx') || types.includes('prflx') ? 'internet üzerinden doğrudan' : types[0] ? 'aynı ağ' : '';
+  }catch(e){}
+  const field = RTC.role === 'caller' ? 'diag_arayan' : 'diag_aranan';
+  DB.patch('calls', id, {[field]: {state: RTC.state, path: RTC.path, cands: candTypes(pc.localDescription && pc.localDescription.sdp), turn: J.hasTurn(), ua: navigator.userAgent.slice(0,80)}});
 }
 function waitIce(pc, ms){ return new Promise(res => { if(pc.iceGatheringState === 'complete') return res(); const t = setTimeout(res, ms); pc.addEventListener('icegatheringstatechange', () => { if(pc.iceGatheringState === 'complete'){ clearTimeout(t); res(); } }); }); }
 async function rtcSetup(callId, role){
@@ -446,22 +488,29 @@ async function rtcSetup(callId, role){
   if(!window.RTCPeerConnection || !navigator.mediaDevices){ RTC.state = 'desteklenmiyor'; return false; }
   try{ RTC.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}, video:false}); }
   catch(e){ RTC.state = 'mikrofon-yok'; emit({}); return false; }
-  const pc = RTC.pc = new RTCPeerConnection({iceServers: CFG.iceServers || [{urls:'stun:stun.l.google.com:19302'}]});
+  const pc = RTC.pc = new RTCPeerConnection({iceServers: J.iceServers()});
   RTC.stream.getTracks().forEach(t => pc.addTrack(t, RTC.stream));
-  pc.ontrack = e => { const a = rtcAudio(); a.srcObject = e.streams[0]; a.play().catch(()=>{}); };
-  pc.onconnectionstatechange = () => { RTC.state = pc.connectionState; emit({}); };
+  pc.ontrack = e => { const a = rtcAudio(); a.srcObject = e.streams[0] || new MediaStream([e.track]); playRemote(); };
+  pc.onconnectionstatechange = () => {
+    RTC.state = pc.connectionState; emit({});
+    if(pc.connectionState === 'connected'){ playRemote(); reportPath(); }
+    if(pc.connectionState === 'failed') reportPath();
+  };
+  pc.oniceconnectionstatechange = () => { if(pc.iceConnectionState === 'failed' && RTC.state !== 'failed'){ RTC.state = 'failed'; emit({}); reportPath(); } };
   RTC.state = 'hazirlaniyor';
   return true;
 }
 function rtcClose(){
   try{ RTC.pc && RTC.pc.close(); }catch(e){}
   try{ RTC.stream && RTC.stream.getTracks().forEach(t => t.stop()); }catch(e){}
-  RTC.pc = null; RTC.stream = null; RTC.callId = null; RTC.state = ''; RTC.applied = false;
+  try{ if(RTC.audioEl){ RTC.audioEl.pause(); RTC.audioEl.srcObject = null; } }catch(e){}
+  RTC.pc = null; RTC.stream = null; RTC.callId = null; RTC.state = ''; RTC.applied = false; RTC.needTap = false; RTC.path = '';
 }
 J.rtcStateText = function(){
-  return ({mikrofon:'Mikrofon izni bekleniyor…', 'mikrofon-yok':'Mikrofon izni verilmedi · sadece arama kaydı', desteklenmiyor:'Bu tarayıcı sesli aramayı desteklemiyor', hazirlaniyor:'Ses bağlantısı hazırlanıyor…', new:'Ses bağlanıyor…', connecting:'Ses bağlanıyor…', connected:'🔊 Ses bağlı', disconnected:'Ses koptu, yeniden deneniyor…', failed:'Ses bağlanamadı (ağ engeli olabilir) · arama kaydı tutuluyor', closed:''})[RTC.state] || '';
+  return ({mikrofon:'Mikrofon izni bekleniyor…', 'mikrofon-yok':'Mikrofon izni verilmedi · sadece arama kaydı', desteklenmiyor:'Bu tarayıcı sesli aramayı desteklemiyor', hazirlaniyor:'Ses bağlantısı hazırlanıyor…', new:'Ses bağlanıyor…', connecting:'Ses bağlanıyor…', connected:'🔊 Ses bağlı' + (RTC.path ? ' · ' + RTC.path : ''), disconnected:'Ses koptu, yeniden deneniyor…', failed: J.hasTurn() ? 'Ses bağlanamadı · arama kaydı tutuluyor' : 'Ses bağlanamadı: ağ doğrudan bağlantıya izin vermiyor (aktarma sunucusu gerekli) · arama kaydı tutuluyor', closed:''})[RTC.state] || '';
 };
 J.startCall = async function(from, to, orderId){
+  unlockAudio();
   const o = DB.get('orders', orderId);
   if(!o || o.state !== 'aktif'){ J.toast('Arama sadece aktif sipariş varken yapılabilir.'); return; }
   if(J.calls().some(k => (k.state==='caliyor'||k.state==='gorusme') && J.now()-k.start < 15*60000 && [k.from,k.to].some(p => p.type===from.type && p.id===from.id))) return;
@@ -473,11 +522,12 @@ J.startCall = async function(from, to, orderId){
   if(await rtcSetup(id, 'caller')){
     const pc = RTC.pc;
     await pc.setLocalDescription(await pc.createOffer());
-    await waitIce(pc, 2500);
+    await waitIce(pc, J.hasTurn() ? 5000 : 3500);
     if(RTC.callId === id) DB.patch('calls', id, {offer_sdp: pc.localDescription.sdp});
   }
 };
 J.answerCall = async function(call){
+  unlockAudio();
   DB.patch('calls', call.id, {state:'gorusme', answered_at:J.now()});
   J.log(`📞 ${J.partyName(call.to)} aramayı açtı.`, 'call', call.order_id);
   if(await rtcSetup(call.id, 'callee')) J.rtcTick();
@@ -514,7 +564,7 @@ J.rtcTick = async function(){
       RTC.applied = true;
       await pc.setRemoteDescription({type:'offer', sdp:k.offer_sdp});
       await pc.setLocalDescription(await pc.createAnswer());
-      await waitIce(pc, 2500);
+      await waitIce(pc, J.hasTurn() ? 5000 : 3500);
       if(RTC.callId === k.id) DB.patch('calls', k.id, {answer_sdp: pc.localDescription.sdp});
     }
   }catch(e){ console.warn('RTC', e); RTC.state = 'failed'; emit({}); }
@@ -535,7 +585,7 @@ J.callOverlay = function(me){
   if(act){
     const other = isMe(act.from, me) ? act.to : act.from;
     const txt = act.state==='caliyor' ? `Aranıyor… <span data-live="up" data-start="${act.start}">0</span> sn` : `Görüşmede · <span data-live="up" data-start="${act.answered_at}">0</span> sn`;
-    return `<div class="overlay"><div class="callbox"><div style="font-size:30px">🎧</div><div class="small dim">İnternet üzerinden · numaralar gizli</div><div class="who">${J.esc(J.partyName(other))}</div><div class="small">${txt}</div><div class="small dim" style="margin-top:4px">${J.esc(J.rtcStateText())}</div><div class="btns center"><button class="bad" data-call="end" data-id="${act.id}">Kapat</button></div></div></div>`;
+    return `<div class="overlay"><div class="callbox"><div style="font-size:30px">🎧</div><div class="small dim">İnternet üzerinden · numaralar gizli</div><div class="who">${J.esc(J.partyName(other))}</div><div class="small">${txt}</div><div class="small dim" style="margin-top:4px">${J.esc(J.rtcStateText())}</div><div class="btns center">${RTC.needTap?`<button class="ok" data-call="unmute" data-id="${act.id}">🔊 Sesi aç</button>`:''}<button class="bad" data-call="end" data-id="${act.id}">Kapat</button></div></div></div>`;
   }
   return '';
 };
@@ -545,6 +595,7 @@ document.addEventListener('click', e => {
   if(b.dataset.call==='answer') J.answerCall(k);
   if(b.dataset.call==='decline') J.declineCall(k);
   if(b.dataset.call==='end') J.endCall(k);
+  if(b.dataset.call==='unmute') J.tapAudio();
 });
 
 /* ===================== HESAPLAR VE TEST VERİSİ =====================
