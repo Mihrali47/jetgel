@@ -9,9 +9,15 @@
 window.JETGEL_CONFIG = {
   supabaseUrl: 'https://bohzusavzqvszwblcpka.supabase.co',
   supabaseKey: 'sb_publishable_nqaYSUirCylhagBeEUVgiA_OWHpnKlF',
-  // Mobil veride sesli arama bağlanmazsa buraya bir TURN sunucusu eklenecek.
+  // Sesli arama sunucuları. STUN: telefonların internetteki adresini bulur.
+  // TURN (Metered Open Relay, ücretsiz deneme planı): telefonlar doğrudan bağlanamazsa sesi aktarır.
+  // Not: TURN bilgisi tarayıcıda görünür; kötüye kullanılırsa Metered panelinden silinip yenisi oluşturulur.
   iceServers: [
     {urls: 'stun:stun.l.google.com:19302'},
-    {urls: 'stun:stun1.l.google.com:19302'}
+    {urls: 'stun:stun.relay.metered.ca:80'},
+    {urls: 'turn:global.relay.metered.ca:80', username: '2cb61bad8330b143bdbdd272', credential: 'd9Q7zdK0ijYZjOjM'},
+    {urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '2cb61bad8330b143bdbdd272', credential: 'd9Q7zdK0ijYZjOjM'},
+    {urls: 'turn:global.relay.metered.ca:443', username: '2cb61bad8330b143bdbdd272', credential: 'd9Q7zdK0ijYZjOjM'},
+    {urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '2cb61bad8330b143bdbdd272', credential: 'd9Q7zdK0ijYZjOjM'}
   ]
 };
