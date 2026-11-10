@@ -53,6 +53,15 @@ function startGps(){
   }, err => { gpsErr = 'Konum alınamadı: ' + (err.code===1 ? 'izin verilmedi. Adres çubuğundaki kilit simgesinden konuma izin verin.' : err.message); render(); },
   {enableHighAccuracy:true, maximumAge:3000, timeout:20000});
 }
+// Android uygulamasında konum yerel servisten gelir (ekran kilitliyken de)
+function nativeServis(){
+  const c = cour(); if(!J.native || !c) return;
+  const on = !!(c.online || myJob());
+  J.nativeService(on, {baslik:'Jetgel Kurye · çevrimiçi', metin: locMode==='gps' ? 'Konum paylaşılıyor · teklifler ve aramalar için hazır' : 'Teklifler ve aramalar için hazır', konum: locMode==='gps'});
+}
+if(J.native){
+  try{ J.native.addListener('location', l => { if(locMode !== 'gps' || !l) return; pos = {lat:l.lat, lng:l.lng}; gpsAcc = l.acc ? Math.round(l.acc) : gpsAcc; gpsErr = ''; J.store.set('kurye_pos', pos); }); }catch(e){}
+}
 function stopGps(){ if(gpsWatch != null){ navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; } }
 function target(o){
   if(!o) return null;
@@ -106,6 +115,7 @@ function renderMain(){
   const offer = myOffer(), o = myJob();
   let h = '';
   if(!notifOk()) h += renderGate();
+  if(c.online) h += J.batteryCard();
   h += `<div class="card soft"><div class="row"><div><b>${J.esc(c.name)}</b><div class="small">${c.online?'🟢 Çevrimiçisin':'⚪️ Çevrimdışı'}</div></div><button class="${c.online?'sec':'ok'}" data-a="online" ${(!notifOk()||o)?'disabled':''}>${c.online?'Çevrimdışı ol':'Çevrimiçi ol'}</button></div>
     <div class="row small" style="margin-top:10px"><span>Konum</span><span><button class="sm ${locMode==='gps'?'':'sec'}" data-a="loc" data-id="gps">📡 Gerçek GPS</button> <button class="sm ${locMode==='demo'?'':'sec'}" data-a="loc" data-id="demo">🎮 Demo sürüş</button></span></div>
     <div class="tiny muted" style="margin-top:6px">${locMode==='gps' ? (gpsErr ? J.esc(gpsErr) : `Telefonunun konumu kullanılıyor${gpsAcc?` (±${gpsAcc} m)`:''}. Hedefe yaklaşınca durum kendiliğinden güncellenir.`) : 'Demo sürüş: masa başında denemek için kurye rotada kendiliğinden ilerler.'}</div></div>`;
@@ -195,8 +205,9 @@ document.addEventListener('click', async e => {
     J.log(`${c.name} ${online?'çevrimiçi':'çevrimdışı'} oldu.`);
     J._wantAwake = online; J.keepAwake(online);
     if(online && locMode==='gps') startGps();
+    setTimeout(nativeServis, 300);
   }
-  if(a==='loc'){ locMode = el.dataset.id; J.store.set('kurye_konum', locMode); if(locMode==='gps') startGps(); else stopGps(); routeKey = ''; }
+  if(a==='loc'){ locMode = el.dataset.id; J.store.set('kurye_konum', locMode); if(locMode==='gps') startGps(); else stopGps(); routeKey = ''; setTimeout(nativeServis, 300); }
   if(a==='accept'){ const o = myOffer(); if(o && c){ await J.courierAccept(c, o); route = null; prog = 0; routeKey = ''; J.alarm('teklif', false); } }
   if(a==='decline'){ const o = myOffer(); if(o && c){ J.courierDecline(c, o, 'teklifi reddetti'); J.alarm('teklif', false); } }
   if(a==='pickup'){ const o = myJob(); if(o){ J.pickup(o); route = null; prog = 0; routeKey = ''; } }
@@ -213,7 +224,7 @@ document.addEventListener('click', async e => {
     J.unreachable(c, o); route = null; routeKey = '';
   }
   if(a==='call'){ const o = myJob(); if(!o) return; const to = el.dataset.to==='musteri' ? {type:'musteri', id:o.customer.id, name:o.customer.name} : {type:'isletme', id:o.rid}; J.startCall(me(), to, o.id); }
-  if(a==='logout'){ if(c && !myJob()) DB.patch('couriers', c.id, {online:false}); cid = null; J.store.set('kurye_id', null); J.keepAwake(false); }
+  if(a==='logout'){ if(c && !myJob()) DB.patch('couriers', c.id, {online:false}); cid = null; J.store.set('kurye_id', null); J.keepAwake(false); J.nativeService(false); }
   render();
 });
 document.addEventListener('input', e => { if(e.target.id==='pin'){ pin = e.target.value.replace(/\D/g,'').slice(0,4); pinErr = ''; } });
@@ -255,7 +266,7 @@ setInterval(() => {
   J.strikeTick(); J.live(); renderCall();
 }, 1000);
 DB.on(render);
-DB.init().then(() => { const c = cour(); if(c && (c.online || myJob())){ J._wantAwake = true; J.keepAwake(true); if(locMode==='gps') startGps(); } render(); });
+DB.init().then(() => { const c = cour(); if(c && (c.online || myJob())){ J._wantAwake = true; J.keepAwake(true); if(locMode==='gps') startGps(); nativeServis(); } render(); });
 J.registerSW();
 </script>
 </body>

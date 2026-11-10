@@ -1,0 +1,12 @@
+{
+  "name": "jetgel-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jetgel Android uygulaması (Capacitor): siteyi içeriden açar, ahize/bildirim/arka plan GPS sağlar",
+  "scripts": {},
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
+  }
+}

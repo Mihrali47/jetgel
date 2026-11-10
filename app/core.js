@@ -124,6 +124,7 @@ DB.init = async function(){
     DB.mode = 'demo'; ADP = demo; await demo.init();
   }
   if(DB.status !== 'hata') J.ensureTestAccounts(false);
+  await J.refreshNative();
   emit({status:true});
 };
 function fail(e){ console.error(e); J.toast('⚠️ Kaydedilemedi: ' + (e.message || e)); }
@@ -369,12 +370,52 @@ J.alarm = function(key, on, kind, every){
   if(on && !alarms[key]){ J.beep(kind); alarms[key] = setInterval(() => J.beep(kind), every||2500); }
   if(!on && alarms[key]){ clearInterval(alarms[key]); delete alarms[key]; }
 };
-J.notifSupported = () => 'Notification' in window;
-J.notifPermission = () => J.notifSupported() ? Notification.permission : 'unsupported';
-J.askNotif = async function(){ if(!J.notifSupported()) return 'unsupported'; try{ return await Notification.requestPermission(); }catch(e){ return Notification.permission; } };
+/* ----- Android uygulaması (Capacitor) köprüsü: site uygulamanın içinde açıldıysa yerel özellikler ----- */
+J.native = null;
+try{ if(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.JetgelNative) J.native = Capacitor.Plugins.JetgelNative; }catch(e){}
+J.nativeInfo = {};
+J.refreshNative = async function(){ if(!J.native) return; try{ J.nativeInfo = await J.native.info(); emit({}); }catch(e){} };
+const permMap = s => s === 'granted' ? 'granted' : s === 'denied' ? 'denied' : 'default';
+const nid = key => { let h = 7; for(const ch of String(key)) h = (h*31 + ch.charCodeAt(0)) | 0; return Math.abs(h) % 2000000000; };
+J.nativeService = async function(on, opts){
+  if(!J.native) return;
+  try{
+    if(on){
+      if(opts && opts.konum && permMap(J.nativeInfo.location) !== 'granted') await J.native.izinIste({tur:'location'});
+      await J.native.servisBaslat(Object.assign({baslik:'Jetgel çevrimiçi', metin:'Siparişler ve aramalar için hazır', konum:false}, opts||{}));
+    } else await J.native.servisDurdur();
+  }catch(e){ console.warn(e); }
+  J.refreshNative();
+};
+J.batteryCard = function(){
+  if(!J.native || J.nativeInfo.pilMuaf !== false) return '';
+  return `<div class="card warn small"><b>🔋 Pil kısıtlamasını kaldır</b><div class="muted">Telefon pil tasarrufu için uygulamayı arka planda durdurabilir; sipariş, teklif ve aramaları kaçırırsın. "İzin ver"e bas ve açılan pencerede onayla.</div><div class="btns"><button class="sm brand" data-native="pil">İzin ver</button></div></div>`;
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-native]'); if(!b || !J.native) return;
+  if(b.dataset.native === 'pil') J.native.pilAyari().then(() => setTimeout(J.refreshNative, 1500));
+  if(b.dataset.native === 'ayarlar') J.native.uygulamaAyarlari();
+});
+document.addEventListener('visibilitychange', () => { if(!document.hidden) J.refreshNative(); });
+
+J.notifSupported = () => !!J.native || 'Notification' in window;
+J.notifPermission = () => J.native ? permMap(J.nativeInfo.notifications) : ('Notification' in window ? Notification.permission : 'unsupported');
+J.askNotif = async function(){
+  if(J.native){ try{ const r = await J.native.izinIste({tur:'notifications'}); await J.refreshNative(); return r.sonuc; }catch(e){ return 'denied'; } }
+  if(!('Notification' in window)) return 'unsupported';
+  try{ return await Notification.requestPermission(); }catch(e){ return Notification.permission; }
+};
 const notified = new Set();
+J.cancelNotify = key => { if(J.native) J.native.bildirimIptal({id:nid(key)}).catch(()=>{}); };
 J.notify = function(key, title, body){
-  if(notified.has(key)) return; notified.add(key);
+  if(notified.has(key)) return;
+  if(J.native){
+    notified.add(key);
+    // Uygulama ekrandaysa kullanıcı zaten görüyor; arka plandaysa/ekran kilitliyse yerel bildirim (aramada çalan, tam ekran)
+    if(document.hidden) J.native.bildir({id:nid(key), baslik:title, metin:body, tur: String(key).startsWith('call-') ? 'call' : 'order'}).catch(()=>{});
+    return;
+  }
+  notified.add(key);
   if(!document.hidden || J.notifPermission() !== 'granted') return;
   const opts = {body, icon:'ikonlar/ikon-192.png', badge:'ikonlar/ikon-192.png', tag:key, renotify:true, vibrate:[200,100,200]};
   if(navigator.serviceWorker && navigator.serviceWorker.controller) navigator.serviceWorker.ready.then(r => r.showNotification(title, opts)).catch(()=>{});
@@ -434,7 +475,7 @@ J.Map = function(el, opts){
 /* ===================== GERÇEK SESLİ ARAMA (WebRTC) =====================
    Ses doğrudan iki cihaz arasında akar. Bağlantı bilgisi (SDP) arama kaydı üzerinden değiş tokuş edilir.
    Bağlanamazsa çalma, kayıt ve ikaz kuralları yine çalışır. */
-const RTC = J.RTC = {pc:null, stream:null, callId:null, role:null, audioEl:null, state:'', applied:false, needTap:false, path:''};
+const RTC = J.RTC = {pc:null, stream:null, callId:null, role:null, audioEl:null, state:'', applied:false, needTap:false, path:'', speaker:false, nativeAudio:false};
 function rtcAudio(){
   if(!RTC.audioEl){ RTC.audioEl = document.createElement('audio'); RTC.audioEl.autoplay = true; RTC.audioEl.setAttribute('playsinline',''); RTC.audioEl.setAttribute('webkit-playsinline',''); document.body.appendChild(RTC.audioEl); }
   return RTC.audioEl;
@@ -488,6 +529,7 @@ async function rtcSetup(callId, role){
   if(!window.RTCPeerConnection || !navigator.mediaDevices){ RTC.state = 'desteklenmiyor'; return false; }
   try{ RTC.stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}, video:false}); }
   catch(e){ RTC.state = 'mikrofon-yok'; emit({}); return false; }
+  if(J.native){ try{ const r = await J.native.aramaBasladi({hoparlor:false}); RTC.speaker = !!(r && r.hoparlor); RTC.nativeAudio = true; }catch(e){} }
   const pc = RTC.pc = new RTCPeerConnection({iceServers: J.iceServers()});
   RTC.stream.getTracks().forEach(t => pc.addTrack(t, RTC.stream));
   pc.ontrack = e => { const a = rtcAudio(); a.srcObject = e.streams[0] || new MediaStream([e.track]); playRemote(); };
@@ -504,8 +546,15 @@ function rtcClose(){
   try{ RTC.pc && RTC.pc.close(); }catch(e){}
   try{ RTC.stream && RTC.stream.getTracks().forEach(t => t.stop()); }catch(e){}
   try{ if(RTC.audioEl){ RTC.audioEl.pause(); RTC.audioEl.srcObject = null; } }catch(e){}
-  RTC.pc = null; RTC.stream = null; RTC.callId = null; RTC.state = ''; RTC.applied = false; RTC.needTap = false; RTC.path = '';
+  if(RTC.nativeAudio && J.native){ J.native.aramaBitti().catch(()=>{}); }
+  if(RTC.callId) J.cancelNotify('call-'+RTC.callId);
+  RTC.pc = null; RTC.stream = null; RTC.callId = null; RTC.state = ''; RTC.applied = false; RTC.needTap = false; RTC.path = ''; RTC.speaker = false; RTC.nativeAudio = false;
 }
+J.toggleSpeaker = async function(){
+  if(!J.native) return;
+  try{ const r = await J.native.hoparlor({acik: !RTC.speaker}); RTC.speaker = !!r.hoparlor; }catch(e){}
+  emit({});
+};
 J.rtcStateText = function(){
   return ({mikrofon:'Mikrofon izni bekleniyor…', 'mikrofon-yok':'Mikrofon izni verilmedi · sadece arama kaydı', desteklenmiyor:'Bu tarayıcı sesli aramayı desteklemiyor', hazirlaniyor:'Ses bağlantısı hazırlanıyor…', new:'Ses bağlanıyor…', connecting:'Ses bağlanıyor…', connected:'🔊 Ses bağlı' + (RTC.path ? ' · ' + RTC.path : ''), disconnected:'Ses koptu, yeniden deneniyor…', failed: J.hasTurn() ? 'Ses bağlanamadı · arama kaydı tutuluyor' : 'Ses bağlanamadı: ağ doğrudan bağlantıya izin vermiyor (aktarma sunucusu gerekli) · arama kaydı tutuluyor', closed:''})[RTC.state] || '';
 };
@@ -527,12 +576,12 @@ J.startCall = async function(from, to, orderId){
   }
 };
 J.answerCall = async function(call){
-  unlockAudio();
+  unlockAudio(); J.cancelNotify('call-'+call.id);
   DB.patch('calls', call.id, {state:'gorusme', answered_at:J.now()});
   J.log(`📞 ${J.partyName(call.to)} aramayı açtı.`, 'call', call.order_id);
   if(await rtcSetup(call.id, 'callee')) J.rtcTick();
 };
-J.declineCall = call => { DB.patch('calls', call.id, {state:'reddedildi', end:J.now()}); afterMiss(Object.assign({}, call, {state:'reddedildi'})); rtcClose(); };
+J.declineCall = call => { J.cancelNotify('call-'+call.id); DB.patch('calls', call.id, {state:'reddedildi', end:J.now()}); afterMiss(Object.assign({}, call, {state:'reddedildi'})); rtcClose(); };
 J.endCall = call => {
   const st = call.state === 'caliyor' ? 'iptal' : 'bitti';
   DB.patch('calls', call.id, {state:st, end:J.now()});
@@ -581,11 +630,12 @@ J.callOverlay = function(me){
     return `<div class="overlay"><div class="callbox"><div class="ring" style="font-size:34px">📞</div><div class="small dim">Uygulama içi sesli arama · Sipariş #${J.esc(inc.no)}</div><div class="who">${J.esc(J.partyName(inc.from))}</div><div class="small dim">Çalıyor · <span data-live="down" data-end="${inc.start+J.RING_MS}">${J.secs(inc.start+J.RING_MS-t)}</span> sn</div><div class="btns center"><button class="bad" data-call="decline" data-id="${inc.id}">Reddet</button><button class="ok" data-call="answer" data-id="${inc.id}">Aç</button></div></div></div>`;
   }
   J.alarm('ring', false);
+  J.calls().forEach(k => { if(k.state !== 'caliyor' && isMe(k.to, me) && notified.has('call-'+k.id) && !k._iptalEdildi){ k._iptalEdildi = true; J.cancelNotify('call-'+k.id); } });
   const act = J.calls().find(k => ((k.state==='gorusme') && (isMe(k.from,me)||isMe(k.to,me))) || (k.state==='caliyor' && isMe(k.from,me) && t-k.start < J.RING_MS+5000));
   if(act){
     const other = isMe(act.from, me) ? act.to : act.from;
     const txt = act.state==='caliyor' ? `Aranıyor… <span data-live="up" data-start="${act.start}">0</span> sn` : `Görüşmede · <span data-live="up" data-start="${act.answered_at}">0</span> sn`;
-    return `<div class="overlay"><div class="callbox"><div style="font-size:30px">🎧</div><div class="small dim">İnternet üzerinden · numaralar gizli</div><div class="who">${J.esc(J.partyName(other))}</div><div class="small">${txt}</div><div class="small dim" style="margin-top:4px">${J.esc(J.rtcStateText())}</div><div class="btns center">${RTC.needTap?`<button class="ok" data-call="unmute" data-id="${act.id}">🔊 Sesi aç</button>`:''}<button class="bad" data-call="end" data-id="${act.id}">Kapat</button></div></div></div>`;
+    return `<div class="overlay"><div class="callbox"><div style="font-size:30px">🎧</div><div class="small dim">İnternet üzerinden · numaralar gizli</div><div class="who">${J.esc(J.partyName(other))}</div><div class="small">${txt}</div><div class="small dim" style="margin-top:4px">${J.esc(J.rtcStateText())}</div><div class="btns center">${RTC.needTap?`<button class="ok" data-call="unmute" data-id="${act.id}">🔊 Sesi aç</button>`:''}${J.native && RTC.nativeAudio?`<button class="sec" data-call="speaker" data-id="${act.id}">${RTC.speaker?'📱 Ahizeye al':'🔊 Hoparlör'}</button>`:''}<button class="bad" data-call="end" data-id="${act.id}">Kapat</button></div></div></div>`;
   }
   return '';
 };
@@ -596,6 +646,7 @@ document.addEventListener('click', e => {
   if(b.dataset.call==='decline') J.declineCall(k);
   if(b.dataset.call==='end') J.endCall(k);
   if(b.dataset.call==='unmute') J.tapAudio();
+  if(b.dataset.call==='speaker') J.toggleSpeaker();
 });
 
 /* ===================== HESAPLAR VE TEST VERİSİ =====================

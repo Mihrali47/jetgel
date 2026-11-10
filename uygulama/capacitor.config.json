@@ -1,0 +1,14 @@
+{
+  "appId": "com.jetgel.app",
+  "appName": "Jetgel",
+  "webDir": "www",
+  "server": {
+    "url": "https://mihrali47.github.io/jetgel/",
+    "cleartext": false,
+    "errorPath": "index.html"
+  },
+  "android": {
+    "backgroundColor": "#f4f2ee",
+    "allowMixedContent": false
+  }
+}

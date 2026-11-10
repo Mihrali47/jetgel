@@ -65,6 +65,7 @@ function renderMain(){
   if(!b){ bid = null; J.store.set('isletme_id', null); return renderPick(); }
   let h = '';
   if(!notifOk()) h += renderGate(b);
+  if(b.open) h += J.batteryCard();
   if(b.suspended) h += `<div class="card bad"><h3>⛔ Hesap askıya alındı</h3><div class="small">Son 90 günde 3 ikaz alındı. Sözleşme gereği sipariş alamazsınız. İtirazlarınız yönetim tarafından incelenir.</div></div>`;
   h += `<div class="card soft"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b>${J.esc(b.name)}</b><div class="small">${b.open?'🟢 Sipariş almaya açık':'⚪️ Kapalı'}</div></div></div><button class="${b.open?'sec':'ok'}" data-a="toggle-open" ${(!notifOk()||b.suspended)?'disabled':''}>${b.open?'Kapat':'Aç'}</button></div>
     <div class="row small" style="margin-top:10px"><label for="free" style="flex:1">Müşteri teslimat payını ben üstleneyim</label><input type="checkbox" id="free" data-a="free" style="width:auto" ${b.free_delivery?'checked':''}></div>
@@ -116,13 +117,14 @@ document.addEventListener('click', async e => {
     const r = J.login('businesses', document.getElementById('l-user').value, document.getElementById('l-pass').value);
     if(r.error){ loginErr = r.error; } else { loginErr = ''; bid = r.id; J.store.set('isletme_id', r.id); tab = 'siparis'; }
   }
-  if(a==='switch'){ if(b && b.open) DB.patch('businesses', b.id, {open:false}); bid = null; J.store.set('isletme_id', null); J.keepAwake(false); }
+  if(a==='switch'){ if(b && b.open) DB.patch('businesses', b.id, {open:false}); bid = null; J.store.set('isletme_id', null); J.keepAwake(false); J.nativeService(false); }
   if(a==='notif'){ const p = await J.askNotif(); if(p==='granted' && b) DB.patch('businesses', b.id, {notif_ok:true}); }
   if(a==='toggle-open' && b){
     const open = !b.open;
     DB.patch('businesses', b.id, {open, notif_ok:true, seen_at:J.now()});
     J.log(`${b.name} ${open?'sipariş almaya açıldı':'kapandı'}.`);
     J._wantAwake = open; J.keepAwake(open);
+    J.nativeService(open, {baslik:`Jetgel İşletme · ${b.name}`, metin:'Açık: yeni siparişler ve aramalar için hazır', konum:false});
     if(open) J.beep('ok');
   }
   if(a==='free' && b) DB.patch('businesses', b.id, {free_delivery: el.checked});
@@ -154,7 +156,7 @@ setInterval(() => {
   J.strikeTick(); J.live(); renderCall();
 }, 1000);
 DB.on(render);
-DB.init().then(() => { const b = biz(); if(b && b.open){ J._wantAwake = true; J.keepAwake(true); } render(); });
+DB.init().then(() => { const b = biz(); if(b && b.open){ J._wantAwake = true; J.keepAwake(true); J.nativeService(true, {baslik:`Jetgel İşletme · ${b.name}`, metin:'Açık: yeni siparişler ve aramalar için hazır', konum:false}); } render(); });
 J.registerSW();
 </script>
 </body>
