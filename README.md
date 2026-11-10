@@ -46,6 +46,22 @@ Yönetim → Ayarlar'daki **hızlı test modu** açıkken süreler 10 kat kısal
 
 Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir kez çalıştırılır.
 
+## Android uygulaması
+
+**İndir:** https://github.com/Mihrali47/jetgel/releases/download/android-son/jetgel.apk
+
+- `uygulama/` klasöründe Capacitor ile yapılmış bir Android uygulaması vardır. Uygulama canlı siteyi içeriden açar; **site güncellemeleri uygulamaya kendiliğinden gelir**, yeniden kurmak gerekmez.
+- `uygulama/` altında bir değişiklik yapılıp `main`'e gönderildiğinde GitHub Actions (`.github/workflows/android.yml`) APK'yı derler ve yukarıdaki linke yükler.
+- Uygulamanın tarayıcıdan farkları (yerel eklenti `JetgelNative`):
+  - Aramada **ahize/hoparlör** seçimi (varsayılan ahize; kulaklık takılıysa kulaklık)
+  - **Ekran kilitliyken** çalan arama (tam ekran, zil sesi) ve sipariş/teklif bildirimleri
+  - İşletme açıkken / kurye çevrimiçiyken çalışan **ön plan servisi**: uygulama arka planda kapanmaz
+  - Kuryede **arka planda GPS**
+  - Pil kısıtlamasını kaldırma kısayolu
+- Uygulama içinde sayfanın üstünde **📱 Uygulama** etiketi görünür.
+- Prototip imzası: APK depodaki test anahtarıyla imzalanır (`uygulama/android/app/jetgel-test.keystore`). Play Store'a çıkmadan önce gizli, gerçek bir anahtarla değiştirilmelidir.
+- iPhone uygulaması yoktur (Apple geliştirici hesabı ve Mac gerekir); iPhone kullanıcıları siteyi kullanır.
+
 ## Sesli arama hakkında
 
 - Ses doğrudan iki telefon arasında akar (WebRTC). Bağlantı bilgisi veritabanındaki arama kaydı üzerinden değiş tokuş edilir.
@@ -53,7 +69,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - İlk aramada mikrofon izni istenir.
 - Bazı ağlarda (mobil veri, bazı modemler) telefonlar doğrudan bağlanamaz; sesi bir aktarma sunucusu (TURN) taşımalıdır. TURN bilgisi **Yönetim → Ayarlar → Sesli arama** alanına yapıştırılır (Metered Open Relay: ücretsiz 20 GB/ay). Tüm telefonlar otomatik kullanır.
 - Telefon gelen sesi otomatik çalmazsa arama ekranında **🔊 Sesi aç** butonu çıkar.
-- **Ahize/hoparlör:** Tarayıcılar (Android Chrome, iPhone Safari) sesin ahizeden (kulaktan) çalmasını seçtirmez; ses hoparlörden gelir. Kulaklık takılırsa kulaklıktan gelir. Ahize seçimi ancak mağaza uygulamasıyla (ör. Capacitor ile paketlenmiş Android uygulaması) mümkün; yol haritasında.
+- **Ahize/hoparlör:** Tarayıcılar sesin ahizeden çalmasını seçtirmez (ses hoparlörden gelir). **Android uygulamasında** arama ekranındaki butonla ahize/hoparlör seçilir.
 - Her aramanın bağlantı teşhisi (doğrudan / aktarma / bağlanamadı ve aday türleri) **Yönetim → Aramalar** sekmesinde görünür.
 - Ses bağlanmasa bile çalma, kayıt ve ikaz kuralı çalışır.
 
@@ -108,7 +124,9 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - [x] Telefonlar arası çalışan prototip (Supabase) ve telefona yüklenebilir sürüm (PWA)
 - [ ] Kullanıcı girişi ve veritabanı güvenlik kuralları (gerçek kullanımdan önce şart)
 - [ ] Uygulama kapalıyken bildirim (push) için sunucu tarafı
-- [ ] Kurye ve işletme için mağaza uygulamaları (Android önce): aramada ahize/hoparlör seçimi, telefon kilitliyken çalan arama ve bildirim, arka planda GPS
+- [x] Android uygulaması (APK): ahize/hoparlör, kilitli ekranda çalan arama ve bildirim, arka plan GPS
+- [ ] Play Store'a çıkış (gerçek imza anahtarı, gizlilik politikası, mağaza kaydı)
+- [ ] Uygulama tamamen kapalıyken bile bildirim için sunucu taraflı push (FCM)
 - [ ] Mali müşavir ile şirket yapısı ve faturalandırma
 
 ### İleride

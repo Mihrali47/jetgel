@@ -709,10 +709,13 @@ J.loginForm = function(o){
 
 /* ===================== ORTAK SAYFA İSKELETİ ===================== */
 J.modeBadge = function(){
+  return (J.native ? '<span class="pill blue" title="Android uygulaması: ahize, kilitli ekranda bildirim, arka plan GPS">📱 Uygulama</span> ' : '') + modeBadge2();
+};
+function modeBadge2(){
   if(DB.mode === 'demo') return `<span class="pill warn" title="Veriler sadece bu cihazda">Demo modu · bu cihaz</span>`;
   const s = DB.status;
   return s === 'bagli' ? `<span class="pill ok">● Canlı · bağlı</span>` : s === 'hata' ? `<span class="pill bad" title="${J.esc(DB.lastError||'')}">Canlı · bağlantı hatası</span>` : `<span class="pill warn">Canlı · bağlanıyor…</span>`;
-};
+}
 J.live = function(){
   const t = J.now();
   document.querySelectorAll('[data-live]').forEach(el => {

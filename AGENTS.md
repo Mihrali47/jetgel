@@ -43,6 +43,15 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | `vendor/` | Leaflet 1.9.4 ve supabase-js 2 yerel kopyaları |
 | `sablonlar/` | Excel ürün şablonu |
 | `.nojekyll` | GitHub Pages'in dosyaları işlemesini kapatır; silme |
+| `uygulama/` | Android uygulaması (Capacitor 8). Canlı siteyi `server.url` ile açar. Yerel kod: `uygulama/android/app/src/main/java/com/jetgel/app/` (`JetgelNativePlugin`, `JetgelService`, `Bildirim`, `MainActivity`) |
+| `.github/workflows/android.yml` | `uygulama/**` değişince APK derler, `android-son` sürümüne yükler |
+
+## Android uygulaması notları
+
+- Web tarafı `J.native` (app/core.js) ile uygulamada olup olmadığını anlar; yoksa her şey tarayıcı davranışına düşer. Bu ayrımı koru.
+- Site değişiklikleri için APK yeniden derlenmez; sadece `uygulama/` altındaki değişiklikler derleme tetikler.
+- APK sabit test anahtarıyla imzalanır ki güncellemeler eskisinin üzerine kurulabilsin; anahtarı değiştirme (kullanıcılar uygulamayı silip yeniden kurmak zorunda kalır).
+- Yerel eklentiye yeni metot eklerken JS tarafındaki çağrıyı `if(J.native)` ile koru.
 
 ## Test hesapları
 
