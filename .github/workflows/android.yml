@@ -22,18 +22,20 @@ jobs:
   derle:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
 
-      - uses: android-actions/setup-android@v3
+      # GitHub makinelerinde Android SDK hazır kurulu gelir (ANDROID_HOME)
+      - name: Android SDK kontrol
+        run: echo "ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME/platforms" | tail -3
 
       - name: Paketleri kur
         working-directory: uygulama
