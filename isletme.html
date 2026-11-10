@@ -44,7 +44,7 @@ function renderGate(b){
 function orderCard(o){
   const c = o.courier_id && DB.get('couriers', o.courier_id), b = biz();
   const st = o.prep==='bekliyor' ? '<span class="pill warn">Onay bekliyor</span>' : o.prep==='hazirlaniyor' ? '<span class="pill blue">Hazırlanıyor</span>' : '<span class="pill ok">Hazır</span>';
-  let h = `<div class="card ${o.prep==='bekliyor'?'brand':''}"><div class="row"><b>#${J.esc(o.no)} · ${J.esc(o.customer.name)}</b>${st}</div><div class="small">${o.items.map(i => `${i.qty}× ${J.esc(i.name)}`).join(', ')}</div>${o.customer.note?`<div class="tiny muted">📍 ${J.esc(o.customer.note)} · ${J.fmtDist(J.dist(b,o.customer))}</div>`:''}
+  let h = `<div class="card ${o.prep==='bekliyor'?'brand':''}"><div class="row"><b>#${J.esc(o.no)} · ${J.esc(o.customer.name)}</b>${st}</div><div class="small">${o.items.map(i => `${i.qty}× ${J.esc(i.name)}`).join(', ')}</div>${o.note?`<div class="small" style="margin-top:4px">📝 <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}${o.customer.note?`<div class="tiny muted">📍 ${J.esc(o.customer.note)} · ${J.fmtDist(J.dist(b,o.customer))}</div>`:''}
     <div class="row small" style="margin-top:6px"><span>Sipariş tutarı</span><span class="money">${J.tl(o.subtotal)}</span></div>
     <div class="row small"><span>Sabit teslimat + hizmet</span><span class="money">−${J.tl(o.fees.biz)}</span></div>
     ${o.refund?`<div class="row small" style="color:var(--bad)"><span>İkaz iadesi</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}

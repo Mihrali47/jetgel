@@ -8,7 +8,7 @@ Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin 
 
 | Sayfa | Kim için | Ne yapar |
 |---|---|---|
-| `musteri.html` | Müşteri | Teslimat noktası seçer, işletmeden sipariş verir, siparişi canlı takip eder, teslimat kodunu görür, işletmeyi/kuryeyi arar |
+| `musteri.html` | Müşteri | Yemek uygulaması düzeninde: adres çubuğu, arama (restoran ve ürün), kategori filtreleri, "Tekrar sipariş ver", fotoğraf yerine renkli kapaklı restoran kartları (tahmini süre, mesafe, teslimat ücreti açıkça). Restoran sayfasında kategorili menü ve alttan sepet çubuğu; sepette işletmeye not ve gizli ücretsiz tam döküm. Takipte büyük tahmini varış, 4 adımlı ilerleme, harita, kurye/işletme arama, teslimat kodu. Alt menü: Keşfet · Siparişlerim · Hesabım. Stili `app/musteri.css` |
 | `isletme.html` | İşletme | Sipariş almaya açılır, siparişi onaylar/reddeder, "hazır" der, menüde ürünleri satışta/tükendi yapar, kazanç ve ikazları görür |
 | `kurye.html` | Kurye | Çevrimiçi olur, 30 sn'lik teklifleri alır, gerçek yol rotası ve adım adım tarifle gider, kodla teslim eder |
 | `yonetim.html` | Yönetim | İşletme ekler/düzenler (haritadan konum, menü), kuryeleri, siparişleri, ödemeleri, aramaları, ikaz itirazlarını yönetir |
@@ -117,6 +117,8 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - [ ] İsmi kesinleştirmek
 - [ ] İlk semti seçmek
 - [ ] Yoğun saatlerde aynı yöndeki siparişleri tek kuryeye birleştirme
+- [x] Müşteri uygulamasının yeni tasarımı (Trendyol Go / Yemeksepeti düzeni, kendi renklerimizle)
+- [ ] Kurye, işletme ve yönetim ekranlarının yeni tasarımı
 - [ ] Excel ile toplu ürün yükleme
 - [ ] Gerçek ödeme altyapısı (alt üye işyeri modeli; PayTR, iyzico vb. ile görüşme)
 - [x] Uygulama içi gerçek sesli arama (WebRTC)

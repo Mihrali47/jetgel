@@ -12,17 +12,19 @@
 <meta name="apple-mobile-web-app-title" content="Jetgel">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="app/app.css">
+<link rel="stylesheet" href="app/musteri.css">
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
 </head>
-<body>
-<div class="top"><a class="brandname" href="./"><span>Jetgel</span> · Müşteri</a><span id="mode"></span></div>
+<body class="m">
+<div id="mhead"></div>
 <div class="wrap">
-  <div id="map" class="map hidden"></div>
+  <div id="maphome" style="display:none"><div id="map" class="map"></div></div>
   <div id="panel"></div>
 </div>
+<div id="mbar"></div>
 <div id="call"></div>
 <script>
 const {DB} = J;
@@ -31,78 +33,157 @@ let prof = null;                       // giriş yapan müşterinin kaydı (DB '
 const loadProf = () => { prof = cuid ? (DB.get('customers', cuid) || null) : null; return prof; };
 let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
-let map = null;
+let q = '', group = 'Hepsi', orderNote = '';
+let map = null, wantMap = false, pendingFit = null;
 const me = () => prof ? {type:'musteri', id:prof.id, name:prof.name} : null;
+const GROUPS = [['Hepsi','🍽️','Hepsi'],['Yemek','🍕','Yemek'],['Market','🛒','Market'],['Kahve & Tatlı','☕','Kahve'],['Ücretsiz','🎁','Ücretsiz']];
+const TABS = ['liste','siparisler','hesap'];
 
-function ensureMap(){ if(!map){ map = J.Map(document.getElementById('map')); map.onClick(p => { if(view==='profil'){ draft.lat = p.lat; draft.lng = p.lng; draft.src = 'harita'; render(); } }); } }
-function showMap(on){ document.getElementById('map').classList.toggle('hidden', !on); if(on){ ensureMap(); setTimeout(() => map.invalidate(), 30); } }
+function ensureMap(){ if(!map){ map = J.Map(document.getElementById('map')); map.onClick(p => { if(view==='profil'){ draft.lat = p.lat; draft.lng = p.lng; draft.src = 'harita'; map._fitted = 'p'+p.lat+','+p.lng; render(); } }); } }
+// Harita tek bir eleman; çizimden önce evine alınır, sonra sayfadaki #mapslot'a taşınır
+function parkMap(){ const m = document.getElementById('map'); document.getElementById('maphome').appendChild(m); }
+function placeMap(){
+  const slot = document.getElementById('mapslot');
+  if(!slot || !wantMap) return;
+  slot.appendChild(document.getElementById('map'));
+  map.invalidate();
+  if(pendingFit){ map.fit(pendingFit[0], pendingFit[1]); pendingFit = null; }
+  setTimeout(() => map && map.invalidate(), 60);
+}
+function showMap(on){ wantMap = on; if(on) ensureMap(); }
 
-function myOrders(){ return prof ? J.orders().filter(o => o.customer && o.customer.id === prof.id) : []; }
+const myOrders = () => prof ? J.orders().filter(o => o.customer && o.customer.id === prof.id) : [];
+const activeOrders = () => myOrders().filter(o => o.state==='aktif');
+const bizOpen = b => b && b.open && J.isAlive(b) && !b.suspended;
+const cover = b => `background:linear-gradient(135deg, ${J.bizColor(b)}, ${J.bizColor(b)}cc)`;
+const soft = b => `background:${J.bizColor(b)}22`;
+const cartCount = () => Object.values(cart).reduce((s,n) => s+n, 0);
+function cartSum(b){ return (b.menu||[]).reduce((s,m) => s + (cart[m.id]||0)*m.price, 0); }
+function fees(b){ return b.free_delivery ? {del:0, plat:0} : {del:J.FEE.custDel, plat:J.FEE.custPlat}; }
+function etaTxt(b){ const [a,z] = J.etaRange(b, prof); return `${a}-${z} dk`; }
+const ST = {aktif:['brand','Yolda / hazırlanıyor'], teslim:['ok','Teslim edildi'], red:['bad','Reddedildi'], ulasilamadi:['bad','Ulaşılamadı']};
 
+/* ---------- Giriş ---------- */
 function renderLogin(){
   showMap(false);
-  if(showReg) return `<div class="card"><h3>Hesap oluştur</h3>
+  const top = `<div class="m-login"><div class="logo">Jet<span>gel</span></div><div class="muted small">Komisyonsuz yemek ve market. Teslimat ücretinin tamamı kuryeye.</div></div>`;
+  if(showReg) return top + `<div class="m-body"><div class="card"><h3>Hesap oluştur</h3>
     <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ayşe">
     <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
     <div class="note">⚠️ Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
-    <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div>`;
-  return J.loginForm({title:'Hoş geldin 👋', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button>`;
+    <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
+  return top + `<div class="m-body">` + J.loginForm({title:'Hoş geldin 👋', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button></div>`;
 }
+
+/* ---------- Adres / profil ---------- */
 function renderProfile(){
   const c0 = J.settings().center || J.DEFAULT_POS;
   if(!draft) draft = Object.assign({lat:c0.lat, lng:c0.lng, src:'varsayilan'}, prof || {});
   showMap(true);
   map.set('ev', draft, '🏠', 'home'); map.keep(['ev']); map.clearLine('r');
-  return `<div class="card"><h3>Bilgilerin ve teslimat noktan</h3><div class="small muted">Siparişin nereye gelecek? Haritaya dokunarak ya da konumunu bularak teslimat noktanı seç. Telefon numarası istemiyoruz; kuryeyle uygulama içinden konuşursun.</div>
+  const fk = 'p'+draft.lat+','+draft.lng; if(map._fitted !== fk){ pendingFit = [[draft], 16]; map._fitted = fk; }
+  return `${topBar(prof && prof.name ? 'Teslimat adresi' : 'Hoş geldin', prof && prof.name ? 'back' : '')}
+    <div id="mapslot"></div>
+    <div class="m-body"><div class="m-box"><div class="small muted">Haritaya dokunarak ya da konumunu bularak teslimat noktanı seç. Telefon numarası istemiyoruz; kuryeyle uygulama içinden konuşursun.</div>
+    <button class="sec wide" style="margin-top:10px" data-a="gps">📍 Konumumu bul</button>
+    <div class="tiny muted" style="margin-top:6px">Seçili nokta: ${(draft.src||draft.loc_src)==='gps'?'telefonunun konumu':(draft.src||draft.loc_src)==='harita'?'haritada seçtiğin nokta':'kayıtlı nokta'}</div>
     <label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">
     <label class="f" for="p-note">Adres tarifi</label><input id="p-note" value="${J.esc(draft.note)}" placeholder="Örn. Moda Cd. No 12, kat 3, zil: Yılmaz">
-    <div class="btns"><button class="sec" data-a="gps">📍 Konumumu bul</button></div>
-    <div class="tiny muted" style="margin-top:6px">Teslimat noktası: ${draft.src==='gps'?'telefonunun konumu':draft.src==='harita'?'haritada seçtiğin nokta':'kayıtlı nokta · "Konumumu bul" ya da haritaya dokunarak değiştir'}</div>
-    <button class="brand wide" style="margin-top:12px" data-a="save-prof">Kaydet ve devam et</button><button class="ghost wide" data-a="logout">Çıkış yap</button></div>`;
+    <button class="brand wide" style="margin-top:14px" data-a="save-prof">Kaydet</button></div></div>`;
 }
 
+/* ---------- Keşfet ---------- */
+function header(){
+  return `<div class="m-head"><div class="r1"><button class="m-addr" data-a="edit-prof"><span class="ic">📍</span><span class="t"><span class="k">Teslimat adresi</span><span class="v">${J.esc(prof.note || 'Konumun')}</span></span></button><span class="mode">${J.modeBadge()}</span></div>
+    <div class="m-search"><input id="q" type="search" placeholder="Restoran, market ya da ürün ara" value="${J.esc(q)}" autocomplete="off"></div></div>`;
+}
+function restCard(x){
+  const {b, d, open} = x;
+  const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
+  return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
+    <div class="m-cover" style="${cover(b)}"><div class="bdg">${fee}<span class="tag dark">Komisyonsuz</span></div>${J.esc(b.emoji||'🏪')}${open?`<span class="eta">⏱ ${etaTxt(b)}</span>`:''}</div>
+    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta"><span>${J.esc(b.kind||J.bizGroup(b))}</span><span>📍 ${J.fmtDist(d)}</span><span>🛵 ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
+}
 function renderList(){
   showMap(false);
-  let h = '';
-  const act = myOrders().filter(o => o.state==='aktif');
-  if(act.length) h += `<div class="card brand"><div class="row"><b>Aktif siparişin var (#${J.esc(act[0].no)})</b><button class="sm brand" data-a="track" data-id="${act[0].id}">Takip et</button></div></div>`;
-  h += `<div class="row small muted" style="margin:2px 2px 10px"><span>📍 ${J.esc(prof.note || 'Teslimat noktan')}</span><span><button class="ghost sm" data-a="edit-prof">Değiştir</button><button class="ghost sm" data-a="logout">Çıkış</button></span></div>`;
-  const list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: b.open && J.isAlive(b)})).filter(x => x.d < 5000).sort((a,b) => (b.open-a.open) || a.d-b.d);
-  if(!list.length) h += `<div class="card soft small">Yakınında kayıtlı işletme yok. Yönetim panelinden işletme eklenince burada görünecek.</div>`;
-  list.forEach(({b,d,open}) => {
-    const fee = b.free_delivery ? '<span class="pill ok">Ücretsiz teslimat</span>' : `<span class="pill">Teslimat ${J.tl(J.FEE.custDel)}</span>`;
-    h += `<div class="card"><div class="rest" ${open?`data-a="open-biz" data-id="${b.id}"`:''}><div class="emo">${J.esc(b.emoji||'🏪')}</div><div style="flex:1"><b>${J.esc(b.name)}</b><div class="small muted">${J.fmtDist(d)} · ${open?'Açık':'Şu an kapalı'}</div><div style="margin-top:4px">${fee}</div></div>${open?'<span class="muted">›</span>':''}</div></div>`;
-  });
-  const past = myOrders().filter(o => o.state!=='aktif').slice(0,6);
-  if(past.length){
-    h += `<h2 class="sec">Geçmiş siparişler</h2>`;
-    past.forEach(o => h += `<div class="card"><div class="row" data-a="track" data-id="${o.id}" style="cursor:pointer"><span>#${J.esc(o.no)} ${J.esc(o.rname)}</span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim edildi':o.state==='ulasilamadi'?'Ulaşılamadı':'Reddedildi'}</span></div>${o.refund?`<div class="tiny" style="color:var(--ok);margin-top:4px">İade: ${J.tl(o.refund)}</div>`:''}</div>`);
+  let h = header() + `<div class="m-body">`;
+  const act = activeOrders();
+  if(act.length) h += `<div class="m-active" data-a="track" data-id="${act[0].id}"><span style="font-size:24px">🛵</span><div class="tx"><b>Siparişin yolda · #${J.esc(act[0].no)}</b><small>${J.esc(act[0].rname)} · takip etmek için dokun</small></div><span>›</span></div>`;
+  const qn = J.norm(q);
+  if(!qn){
+    h += `<div class="m-chips">${GROUPS.map(([g,ic,l]) => `<button class="m-chip ${group===g?'on':''}" data-a="grp" data-id="${g}"><i>${ic}</i>${l}</button>`).join('')}</div>`;
+    if(group==='Hepsi') h += `<div class="m-promo"><b>Komisyon yok, sürpriz ücret yok.</b><span>Teslimat ücretinin tamamı kuryeye gider. Ödeyeceğin her kuruşu sepette görürsün.</span></div>`;
+    const again = [], seen = new Set();
+    myOrders().filter(o => o.state==='teslim').forEach(o => { if(!seen.has(o.rid) && again.length < 6){ seen.add(o.rid); again.push(o); } });
+    if(again.length && group==='Hepsi') h += `<div class="m-h"><b>Tekrar sipariş ver</b><span>tek dokunuşla sepete</span></div><div class="m-row">${again.map(o => {
+      const b = DB.get('businesses', o.rid);
+      return `<div class="m-again"><div class="n">${J.esc(b&&b.emoji||'🏪')} ${J.esc(o.rname)}</div><div class="i">${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</div><button class="sm sec" data-a="reorder" data-id="${o.id}" ${bizOpen(b)?'':'disabled'}>${bizOpen(b)?'↻ Tekrarla':'Şu an kapalı'}</button></div>`; }).join('')}</div>`;
   }
-  if(J.notifPermission()==='default') h += `<div class="card soft small"><b>🔔 Bildirimleri açmanı öneririz</b><div class="muted">Kurye kapına gelince haber verelim. Zorunlu değil.</div><div class="btns"><button class="sm" data-a="notif">Bildirimleri aç</button></div></div>`;
-  return h;
+  let list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: bizOpen(b)})).filter(x => x.d < 5000);
+  if(group==='Ücretsiz') list = list.filter(x => x.b.free_delivery);
+  else if(group!=='Hepsi') list = list.filter(x => J.bizGroup(x.b)===group);
+  let prods = [];
+  if(qn){
+    list.forEach(x => (x.b.menu||[]).forEach(m => { if(J.norm(m.name).includes(qn) && m.available!==false) prods.push({x, m}); }));
+    list = list.filter(x => J.norm(x.b.name+' '+(x.b.kind||'')).includes(qn) || (x.b.menu||[]).some(m => J.norm(m.name).includes(qn)));
+  }
+  list.sort((a,b) => (b.open-a.open) || a.d-b.d);
+  if(qn && prods.length) h += `<div class="m-h"><b>Ürünler</b><span>${prods.length} sonuç</span></div><div class="m-prodres">${prods.slice(0,8).map(({x,m}) => `<div class="m-line" ${x.open?`data-a="open-biz" data-id="${x.b.id}"`:''} style="cursor:pointer"><div class="tx"><b>${J.esc(m.name)}</b><div class="tiny muted">${J.esc(x.b.name)}${x.open?'':' · kapalı'}</div></div><b class="money">${J.tl(m.price)}</b></div>`).join('')}</div>`;
+  const openN = list.filter(x => x.open).length;
+  h += `<div class="m-h"><b>${qn?'Restoranlar ve marketler':group==='Hepsi'?'Yakınındakiler':group}</b><span>${openN} açık</span></div>`;
+  if(!list.length) h += `<div class="m-empty"><div>🔎</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
+  list.forEach(x => h += restCard(x));
+  if(J.notifPermission()==='default') h += `<div class="m-box small"><b>🔔 Kurye kapına gelince haber verelim mi?</b><div class="muted">Zorunlu değil.</div><div class="btns"><button class="sm brand" data-a="notif">Bildirimleri aç</button></div></div>`;
+  return h + `</div>`;
 }
 
+/* ---------- Restoran sayfası ---------- */
 function renderMenu(){
   showMap(false);
   const b = DB.get('businesses', curBiz);
-  if(!b || !b.open){ view = 'liste'; return renderList(); }
-  let h = `<button class="ghost" data-a="back">‹ Geri</button><div class="rest" style="margin:6px 0 12px;cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b style="font-size:17px">${J.esc(b.name)}</b><div class="small muted">${b.free_delivery?'Bu işletme teslimat ücretini üstleniyor':'Teslimat '+J.tl(J.FEE.custDel)+' + hizmet bedeli '+J.tl(J.FEE.custPlat)}</div></div></div>`;
-  (b.menu||[]).forEach(m => {
-    const q = cart[m.id] || 0, av = m.available !== false;
-    h += `<div class="card" style="${av?'':'opacity:.5'}"><div class="row"><div><b>${J.esc(m.name)}</b><div class="small muted">${J.tl(m.price)}${av?'':' · Tükendi'}</div></div>${av?`<div class="qty">${q?`<button class="sm sec" data-a="dec" data-id="${m.id}">−</button><b>${q}</b>`:''}<button class="sm brand" data-a="inc" data-id="${m.id}">+</button></div>`:''}</div></div>`;
+  if(!bizOpen(b)){ view = 'liste'; return renderList(); }
+  const f = fees(b), menu = b.menu||[];
+  const cats = []; menu.forEach(m => { const c = m.cat || 'Menü'; if(!cats.includes(c)) cats.push(c); });
+  let h = `<div class="m-hero" style="${cover(b)}"><button class="back" data-a="back" aria-label="Geri">‹</button>${J.esc(b.emoji||'🏪')}</div>
+    <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta"><span>${J.esc(b.kind||'')}</span><span>📍 ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
+    <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div></div>`;
+  if(cats.length > 1) h += `<div class="m-cats">${cats.map((c,i) => `<button data-a="jump" data-id="cat${i}">${J.esc(c)}</button>`).join('')}</div>`;
+  h += `<div class="m-menu">`;
+  cats.forEach((c,i) => {
+    h += `<h4 id="cat${i}">${J.esc(c)}</h4>`;
+    menu.filter(m => (m.cat||'Menü')===c).forEach(m => {
+      const n = cart[m.id] || 0, av = m.available !== false;
+      const ctl = !av ? '' : n ? `<div class="m-step"><button data-a="dec" data-id="${m.id}" aria-label="Azalt">−</button><b>${n}</b><button data-a="inc" data-id="${m.id}" aria-label="Arttır">+</button></div>` : `<button class="m-add" data-a="inc" data-id="${m.id}" aria-label="Sepete ekle">+</button>`;
+      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}</div></div><div class="ph" style="${soft(b)}">${J.esc(b.emoji||'🍽️')}${ctl}</div></div>`;
+    });
   });
-  const sub = (b.menu||[]).reduce((s,m) => s + (cart[m.id]||0)*m.price, 0);
-  if(sub){
-    const del = b.free_delivery ? 0 : J.FEE.custDel, plat = b.free_delivery ? 0 : J.FEE.custPlat;
-    h += `<div class="card soft"><div class="row"><span>Ürünler</span><span class="money">${J.tl(sub)}</span></div><div class="row"><span>Teslimat (tamamı kuryeye)</span><span class="money">${del?J.tl(del):'Ücretsiz'}</span></div><div class="row"><span>Platform hizmet bedeli</span><span class="money">${plat?J.tl(plat):'—'}</span></div><div class="row" style="border-top:1px solid var(--line);padding-top:7px"><b>Toplam</b><b class="money">${J.tl(sub+del+plat)}</b></div>
-      <div class="note">💳 Ödeme simülasyonu: gerçek para çekilmez. Gerçek sistemde kartından önce sadece blokaj alınır; işletme onaylarsa çekilir, reddederse kalkar. Ürün bedeli doğrudan işletmeye geçer.</div>
-      <button class="brand wide" style="margin-top:12px" data-a="order">Siparişi ver</button></div>`;
-  }
-  return h;
+  if(!menu.length) h += `<div class="m-empty"><div>📋</div>Bu işletme henüz ürün eklemedi.</div>`;
+  return h + `</div>`;
 }
 
+/* ---------- Sepet ---------- */
+function topBar(title, back){ return `<div class="m-top">${back?`<button class="back" data-a="${back}" aria-label="Geri">‹</button>`:''}<b>${title}</b></div>`; }
+function renderCart(){
+  showMap(false);
+  const b = DB.get('businesses', curBiz);
+  if(!bizOpen(b) || !cartCount()){ view = b && bizOpen(b) ? 'menu' : 'liste'; return view==='menu' ? renderMenu() : renderList(); }
+  const sub = cartSum(b), f = fees(b), items = (b.menu||[]).filter(m => cart[m.id]);
+  return topBar('Sepetim', 'to-menu') + `<div class="m-body">
+    <div class="m-box"><h3>${J.esc(b.emoji||'')} ${J.esc(b.name)}</h3>${items.map(m => `<div class="m-line"><div class="tx">${J.esc(m.name)}<div class="tiny muted">${J.tl(m.price)}</div></div><div class="m-qty"><button data-a="dec" data-id="${m.id}">−</button><b>${cart[m.id]}</b><button data-a="inc" data-id="${m.id}">+</button></div><b class="money" style="min-width:70px;text-align:right">${J.tl(m.price*cart[m.id])}</b></div>`).join('')}
+      <button class="ghost sm" data-a="to-menu">+ Ürün ekle</button></div>
+    <div class="m-box"><h3>İşletmeye not</h3><textarea id="o-note" class="m-note" maxlength="200" placeholder="Örn. soğansız olsun, zile basmayın">${J.esc(orderNote)}</textarea></div>
+    <div class="m-box m-sum"><h3>Ödeme özeti</h3>
+      <div class="row"><span>Ürünler</span><span class="money">${J.tl(sub)}</span></div>
+      <div class="row"><span>Teslimat ücreti<small>Tamamı kuryeye gider</small></span><span class="money">${f.del?J.tl(f.del):'<span style="color:var(--ok)">Ücretsiz</span>'}</span></div>
+      <div class="row"><span>Hizmet bedeli<small>Platformun sipariş başına sabit payı</small></span><span class="money">${f.plat?J.tl(f.plat):'—'}</span></div>
+      <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat)}</b></div></div>
+    <div class="m-fair"><i>🤝</i><div><b>Komisyon yok.</b> ${b.free_delivery?'Bu işletme teslimat ücretini senin yerine ödüyor.':'İşletme de bu sipariş için sabit ücret öder; ürün fiyatlarına yüzde eklenmez.'}</div></div>
+    <div class="note" style="margin-bottom:12px">💳 Ödeme simülasyonu: gerçek para çekilmez. Gerçek sistemde önce kartında yalnızca blokaj olur; işletme onaylarsa çekilir, reddederse kalkar.</div></div>`;
+}
+
+/* ---------- Takip ---------- */
 function renderTrack(){
   const o = DB.get('orders', trackId);
   if(!o){ view = 'liste'; return renderList(); }
@@ -113,41 +194,110 @@ function renderTrack(){
   const showC = c && ['isletmeye','isletmede','yolda','kapida'].includes(o.del);
   if(showC) map.set('kurye', c, '🛵', 'cour busy', c.name); else map.remove('kurye');
   map.keep(['ev','biz','kurye']);
-  if(!map._fitted || map._fitted !== o.id + o.del){ map.fit([o.customer, b, showC ? c : null]); map._fitted = o.id + o.del; }
+  if(!map._fitted || map._fitted !== o.id + o.del){ pendingFit = [[o.customer, b, showC ? c : null]]; map._fitted = o.id + o.del; }
   const D = ['yolda','kapida','teslim','ulasilamadi'];
-  const steps = [['Sipariş alındı', true], ['İşletme onayladı', o.prep!=='bekliyor' && o.state!=='red'], ['Hazırlanıyor', o.prep==='hazir' || D.includes(o.del)], ['Kurye yolda', D.includes(o.del)], ['Kurye kapıda', ['kapida','teslim','ulasilamadi'].includes(o.del)], ['Teslim edildi', o.del==='teslim']];
-  const first = steps.findIndex(s => !s[1]);
-  const st = {aktif:['brand','Aktif'], teslim:['ok','Teslim edildi'], red:['bad','Reddedildi'], ulasilamadi:['bad','Müşteriye ulaşılamadı']}[o.state];
-  let h = `<button class="ghost" data-a="back">‹ Restoranlar</button><div class="row" style="margin:4px 0 10px"><b style="font-size:17px">#${J.esc(o.no)} · ${J.esc(o.rname)}</b><span class="pill ${st[0]}">${st[1]}</span></div>`;
-  let extra = '';
+  // 4 aşama: onay, hazırlık, yolda, teslim
+  const done = [o.prep!=='bekliyor' && o.state!=='red', o.prep==='hazir' || D.includes(o.del), ['kapida','teslim','ulasilamadi'].includes(o.del) || o.state==='teslim', o.state==='teslim'];
+  const now = o.state==='aktif' ? done.indexOf(false) : -1;
+  const ride = (from) => Math.max(1, Math.round(J.dist(from, o.customer)*1.3/J.M_PER_MIN));
+  let k = 'Tahmini varış', v = '', sub = '';
   if(o.state==='aktif'){
-    if(o.prep==='hazirlaniyor') extra += `<div class="small muted">Tahmini hazırlık: <span data-live="mdown" data-end="${o.prep_until}">…</span> dk</div>`;
-    if(o.del==='araniyor') extra += `<div class="small muted">Yakındaki kuryeler aranıyor…</div>`;
-    if(c) extra += `<div class="small">Kuryen: <b>${J.esc(c.name)}</b>${o.del==='yolda'?` · yaklaşık ${J.fmtDist(J.dist(c,o.customer))} uzakta, ~${Math.max(1,Math.round(J.dist(c,o.customer)*1.3/J.M_PER_MIN))} dk`:''}</div>`;
-  }
-  h += `<div class="card"><ul class="steps">${steps.map((s,i) => `<li class="${s[1]?'done':i===first&&o.state==='aktif'?'now':''}"><i>${s[1]?'✓':''}</i>${s[0]}</li>`).join('')}</ul>${extra}</div>`;
+    let mins = null;
+    if(o.del==='kapida'){ v = 'Kuryen kapında'; sub = 'Teslimat kodunu kuryeye söyle'; }
+    else if(o.del==='yolda' && c){ mins = ride(c); sub = 'Kuryen siparişini getiriyor'; }
+    else if(o.prep==='bekliyor'){ v = 'Onay bekleniyor'; sub = 'İşletme siparişini birazdan onaylayacak'; }
+    else { const left = o.prep==='hazirlaniyor' ? Math.max(0, Math.ceil((o.prep_until - J.now())/J.minMs())) : 0; mins = left + (b ? ride(b) : 10); sub = o.prep==='hazir' ? 'Siparişin hazır, kurye alacak' : o.del==='araniyor' ? 'Hazırlanıyor · yakındaki kuryeler aranıyor' : 'Siparişin hazırlanıyor'; }
+    if(mins != null){ k = 'Tahmini varış'; v = `${mins}-${mins+5} dk`; }
+  } else { k = '#'+o.no; v = ST[o.state][1]; sub = J.esc(o.rname); }
+  let h = topBar(`#${J.esc(o.no)} · ${J.esc(o.rname)}`, 'back') + `<div class="m-eta"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${sub}</div>
+    ${o.state!=='red'?`<div class="m-prog">${done.map((d,i) => `<span class="${d?'done':i===now?'now':''}"></span>`).join('')}</div><div class="m-prog-l">${['Onay','Hazırlık','Yolda','Teslim'].map((t,i) => `<span class="${done[i]||i===now?'on':''}">${t}</span>`).join('')}</div>`:''}</div>
+    <div id="mapslot"></div><div class="m-body">`;
   if(o.state==='aktif' && ['yolda','kapida'].includes(o.del)){
-    h += `<div class="card brand"><h3>Teslimat kodun</h3><div class="pin">${J.esc(o.pin)}</div><div class="small muted" style="text-align:center">Kodu sadece kurye kapına geldiğinde söyle. Kurye adresine ${J.PIN_RADIUS_M} m'den yakın değilse kod kabul edilmez. SMS yok, her şey uygulamada.</div></div>`;
+    h += `<div class="m-pin"><small>TESLİMAT KODUN</small><div class="d">${String(o.pin).split('').map(d => `<span>${J.esc(d)}</span>`).join('')}</div><small>Kodu yalnızca kurye kapına geldiğinde söyle. Kurye ${J.PIN_RADIUS_M} m'den uzaksa kod çalışmaz.</small></div>`;
   }
   if(o.state==='aktif'){
-    h += `<div class="btns"><button class="sec" data-a="call" data-to="isletme:${o.rid}">📞 İşletmeyi ara</button>${c?`<button class="sec" data-a="call" data-to="kurye:${c.id}">📞 Kuryeyi ara</button>`:''}</div><div class="note">Arama internet üzerinden yapılır, numaralar gizli kalır. İşletme açmaz ve ${J.settings().fast?'30 sn (hızlı test modu)':'5 dk'} içinde geri dönmezse siparişinin %${J.PENALTY_RATE*100}'i sana iade edilir.</div>`;
+    h += `<div class="m-box">`;
+    if(c) h += `<div class="m-person"><div class="av">🛵</div><div class="tx"><b>${J.esc(c.name)}</b><span class="small muted">Kuryen${o.del==='yolda'?' · '+J.fmtDist(J.dist(c,o.customer))+' uzakta':''}</span></div><button class="m-call" data-a="call" data-to="kurye:${c.id}" aria-label="Kuryeyi ara">📞</button></div><div style="height:12px"></div>`;
+    else if(o.del==='araniyor') h += `<div class="m-person"><div class="av">🔎</div><div class="tx"><b>Kurye aranıyor</b><span class="small muted">Yakındaki kuryelere teklif gidiyor</span></div></div><div style="height:12px"></div>`;
+    h += `<div class="m-person"><div class="av" style="${b?soft(b):''}">${J.esc(b&&b.emoji||'🏪')}</div><div class="tx"><b>${J.esc(o.rname)}</b><span class="small muted">İşletme</span></div><button class="m-call" data-a="call" data-to="isletme:${o.rid}" aria-label="İşletmeyi ara">📞</button></div>
+      <div class="note">Arama internet üzerinden yapılır, numaralar gizli kalır. İşletme açmaz ve ${J.settings().fast?'30 sn (hızlı test modu)':'5 dk'} içinde geri dönmezse siparişinin %${J.PENALTY_RATE*100}'i sana iade edilir.</div></div>`;
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
-  h += `<div class="card soft small" style="margin-top:12px">${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.esc(i.name)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}<div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}<div style="margin-top:8px">${J.payPill(o)}</div></div>`;
+  if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
+  h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.esc(i.name)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
+    <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
+    ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
+    <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust - (o.refund||0))}</b></div>
+    ${o.note?`<div class="tiny muted" style="margin-top:8px">📝 ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
+  if(o.state==='teslim' && bizOpen(b)) h += `<button class="brand wide" data-a="reorder" data-id="${o.id}">↻ Aynısını tekrar sipariş ver</button>`;
   if(o.del==='kapida' && o.state==='aktif'){ J.notify('kapi-'+o.id, '🚪 Kuryen kapında', 'Teslimat kodun: ' + o.pin); J.alarm('kapi', true, 'ok', 6000); } else J.alarm('kapi', false);
-  return h;
+  return h + `</div>`;
+}
+
+/* ---------- Siparişlerim ---------- */
+function renderOrders(){
+  showMap(false);
+  const all = myOrders();
+  let h = topBar('Siparişlerim') + `<div class="m-body">`;
+  if(!all.length) return h + `<div class="m-empty"><div>🧾</div>Henüz siparişin yok.<div class="btns center"><button class="brand" data-a="tab" data-id="liste">Keşfetmeye başla</button></div></div></div>`;
+  all.slice(0,30).forEach(o => {
+    const b = DB.get('businesses', o.rid), st = ST[o.state] || ['', o.state];
+    h += `<div class="m-ord" data-a="track" data-id="${o.id}"><div class="ph" style="${b?soft(b):''}">${J.esc(b&&b.emoji||'🏪')}</div><div class="tx"><b>${J.esc(o.rname)}</b><div class="i">${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</div><div class="tiny muted">${new Date(o.created_at).toLocaleString('tr-TR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${J.tl(o.subtotal+o.fees.cust-(o.refund||0))}</div></div><span class="pill ${st[0]}">${o.state==='aktif'?'Aktif':st[1]}</span></div>`;
+  });
+  return h + `</div>`;
+}
+
+/* ---------- Hesabım ---------- */
+function renderAccount(){
+  showMap(false);
+  const n = J.notifPermission();
+  return topBar('Hesabım') + `<div class="m-body">
+    <div class="m-box m-person"><div class="av">🙂</div><div class="tx"><b>${J.esc(prof.name)}</b><span class="small muted">${J.esc(prof.login ? prof.login.user : '')}</span></div></div>
+    <div class="m-list">
+      <button data-a="edit-prof"><i>📍</i><span class="x">Teslimat adresi<div class="tiny muted">${J.esc(prof.note||'Konumun')}</div></span>›</button>
+      <button data-a="tab" data-id="siparisler"><i>🧾</i><span class="x">Siparişlerim</span>›</button>
+      <button data-a="notif" ${n==='granted'||n==='unsupported'?'disabled':''}><i>🔔</i><span class="x">Bildirimler</span><span class="small muted">${n==='granted'?'Açık':n==='denied'?'Engelli':n==='unsupported'?'Desteklenmiyor':'Kapalı'}</span></button>
+    </div>
+    <div class="m-box small"><h3>Jetgel nasıl çalışır?</h3>
+      <div class="row"><span>🛵 Teslimat ücreti</span><b>${J.tl(J.FEE.custDel)} · tamamı kuryeye</b></div>
+      <div class="row"><span>🧾 Hizmet bedeli</span><b>${J.tl(J.FEE.custPlat)} sabit</b></div>
+      <div class="row"><span>🏪 İşletmeden komisyon</span><b>Yok, sabit ücret</b></div>
+      <div class="row"><span>🔐 Teslimat onayı</span><b>4 haneli kod</b></div>
+      <div class="row"><span>📞 Arama</span><b>Uygulama içi, numara gizli</b></div></div>
+    <div class="m-list"><button data-a="logout" style="color:var(--bad)"><i>🚪</i><span class="x">Çıkış yap</span></button></div>
+    <div class="tiny muted" style="text-align:center">${J.modeBadge()}</div></div>`;
+}
+
+/* ---------- Alt çubuk ---------- */
+function renderBar(){
+  let h = '';
+  if(view==='menu' && cartCount()){
+    const b = DB.get('businesses', curBiz);
+    if(b) h = `<div class="m-bar"><button data-a="cart"><span class="cnt">${cartCount()}</span><span>Sepete git</span><span class="money">${J.tl(cartSum(b))}</span></button></div>`;
+  } else if(view==='sepet'){
+    const b = DB.get('businesses', curBiz);
+    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>Siparişi onayla</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat)}</span></button></div>`; }
+  } else if(TABS.includes(view) || view==='takip'){
+    const t = view==='takip' ? 'siparisler' : view, act = activeOrders().length;
+    h = `<nav class="m-tabs">${[['liste','🏠','Keşfet'],['siparisler','🧾','Siparişlerim'],['hesap','👤','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${ic}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;
+  }
+  const el = document.getElementById('mbar'); if(el.innerHTML !== h) el.innerHTML = h;
 }
 
 function render(){
-  document.getElementById('mode').innerHTML = J.modeBadge();
   loadProf();
   if(!prof && view !== 'giris'){ view = 'giris'; }
-  const html = view==='giris' ? renderLogin() : view==='profil' ? renderProfile() : view==='menu' ? renderMenu() : view==='takip' ? renderTrack() : renderList();
+  const R = {giris:renderLogin, profil:renderProfile, menu:renderMenu, sepet:renderCart, takip:renderTrack, siparisler:renderOrders, hesap:renderAccount};
+  parkMap();
+  const html = (R[view] || renderList)();
   J.render(document.getElementById('panel'), html);
+  placeMap();
+  renderBar();
   renderCall();
 }
 let lastCall = '';
 function renderCall(){ const m = me(); const h = m ? J.callOverlay(m) : ''; if(h !== lastCall){ document.getElementById('call').innerHTML = h; lastCall = h; } }
+const go = v => { view = v; window.scrollTo(0,0); };
 
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
@@ -155,21 +305,22 @@ document.addEventListener('click', e => {
   if(a==='gps'){
     if(!navigator.geolocation){ J.toast('Bu tarayıcı konum desteklemiyor.'); return; }
     J.toast('Konum alınıyor…');
-    navigator.geolocation.getCurrentPosition(p => { draft.lat = p.coords.latitude; draft.lng = p.coords.longitude; draft.src = 'gps'; map.center(draft, 17); render(); }, err => J.toast('Konum alınamadı: ' + (err.message||'izin verilmedi')), {enableHighAccuracy:true, timeout:15000});
+    navigator.geolocation.getCurrentPosition(p => { draft.lat = p.coords.latitude; draft.lng = p.coords.longitude; draft.src = 'gps'; render(); }, err => J.toast('Konum alınamadı: ' + (err.message||'izin verilmedi')), {enableHighAccuracy:true, timeout:15000});
     return;
   }
+  if(a==='jump'){ const t = document.getElementById(id); if(t) t.scrollIntoView({behavior:'smooth', block:'start'}); return; }
   if(a==='save-prof'){
     draft.name = document.getElementById('p-name').value.trim(); draft.note = document.getElementById('p-note').value.trim();
     if(!draft.name){ J.toast('Lütfen adını yaz.'); return; }
     DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng, loc_src: draft.src==='gps'||draft.src==='harita' ? draft.src : (prof && prof.loc_src) || null});
     if(draft.src==='gps') J.autoRelocate(draft);
-    draft = null; view = 'liste';
+    draft = null; go('liste');
   }
   if(a==='show-reg'){ showReg = true; regErr = ''; }
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
     const r = J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
-    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); view = 'liste'; setTimeout(() => { loadProf(); autoLocate(); }, 300); }
+    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); setTimeout(() => { loadProf(); autoLocate(); }, 300); }
   }
   if(a==='register'){
     const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
@@ -177,20 +328,33 @@ document.addEventListener('click', e => {
     if(J.userTaken(user)){ regErr = 'Bu kullanıcı adı alınmış.'; render(); return; }
     cuid = J.uid('m'); J.store.set('musteri_id', cuid); showReg = false;
     DB.put('customers', cuid, {name, note:'', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login:{user, pass}});
-    draft = null; view = 'profil';
+    draft = null; go('profil');
   }
-  if(a==='logout'){ cuid = null; prof = null; draft = null; J.store.set('musteri_id', null); view = 'giris'; }
-  if(a==='edit-prof'){ draft = Object.assign({}, prof); view = 'profil'; }
-  if(a==='open-biz'){ curBiz = id; cart = {}; view = 'menu'; window.scrollTo(0,0); }
-  if(a==='back'){ view = 'liste'; }
+  if(a==='logout'){ cuid = null; prof = null; draft = null; J.store.set('musteri_id', null); go('giris'); }
+  if(a==='edit-prof'){ draft = Object.assign({}, prof); go('profil'); }
+  if(a==='tab'){ go(id); }
+  if(a==='grp'){ group = id; }
+  if(a==='open-biz'){ if(curBiz !== id){ cart = {}; orderNote = ''; } curBiz = id; go('menu'); }
+  if(a==='back'){ draft = null; go('liste'); }
+  if(a==='to-menu'){ go('menu'); }
+  if(a==='cart'){ go('sepet'); }
   if(a==='inc') cart[id] = (cart[id]||0) + 1;
   if(a==='dec'){ cart[id] = Math.max(0,(cart[id]||0)-1); if(!cart[id]) delete cart[id]; }
+  if(a==='reorder'){
+    const o = DB.get('orders', id), b = o && DB.get('businesses', o.rid);
+    if(!bizOpen(b)){ J.toast('Bu işletme şu an kapalı.'); return; }
+    cart = {}; let miss = 0;
+    o.items.forEach(i => { const m = (b.menu||[]).find(m => m.name === i.name && m.available !== false); if(m) cart[m.id] = i.qty; else miss++; });
+    curBiz = b.id; orderNote = o.note || '';
+    if(miss) J.toast(`${miss} ürün artık satışta değil, sepete eklenmedi.`);
+    go(cartCount() ? 'sepet' : 'menu');
+  }
   if(a==='order'){
     const b = DB.get('businesses', curBiz);
-    const o = J.placeOrder(b, cart, prof);
-    if(o){ cart = {}; trackId = o.id; J.store.set('musteri_takip', o.id); view = 'takip'; J.beep('ok'); window.scrollTo(0,0); }
+    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim()});
+    if(o){ cart = {}; orderNote = ''; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
   }
-  if(a==='track'){ trackId = id; J.store.set('musteri_takip', id); view = 'takip'; window.scrollTo(0,0); }
+  if(a==='track'){ trackId = id; J.store.set('musteri_takip', id); go('takip'); }
   if(a==='notif'){ J.askNotif().then(render); return; }
   if(a==='call'){ const [type, pid] = el.dataset.to.split(':'); J.startCall(me(), {type, id:pid}, trackId); }
   render();
@@ -209,11 +373,15 @@ function autoLocate(){
   }, () => {}, {enableHighAccuracy:true, timeout:20000, maximumAge:60000});
 }
 document.addEventListener('input', e => {
+  if(e.target.id==='q'){ q = e.target.value; render(); return; }
+  if(e.target.id==='o-note'){ orderNote = e.target.value; return; }
   if(!draft) return;
   if(e.target.id==='p-name') draft.name = e.target.value;
   if(e.target.id==='p-note') draft.note = e.target.value;
 });
-DB.on(() => { if(view !== 'profil' && view !== 'giris') render(); else renderCall(); document.getElementById('mode').innerHTML = J.modeBadge(); });
+// Yazı yazılırken (not, adres) ekranı yeniden çizme
+const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='p-name' || a.id==='p-note'); };
+DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 DB.init().then(() => {
   if(loadProf()){ view = 'liste'; setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }

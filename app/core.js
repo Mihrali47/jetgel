@@ -170,7 +170,7 @@ function payout(o){
 }
 
 /* ===================== SİPARİŞ ===================== */
-J.placeOrder = function(b, cart, cust){
+J.placeOrder = function(b, cart, cust, extra){
   const items = (b.menu||[]).filter(m => cart[m.id]).map(m => ({name:m.name, price:m.price, qty:cart[m.id]}));
   if(!items.length) return null;
   const subtotal = items.reduce((s,i) => s + i.price*i.qty, 0);
@@ -181,6 +181,7 @@ J.placeOrder = function(b, cart, cust){
     id, no: String(Date.now()).slice(-5), rid:b.id, rname:b.name, items, subtotal, fees,
     state:'aktif', prep:'bekliyor', del:'yok', pay:'blokaj', refund:0,
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||''},
+    note: String((extra && extra.note) || '').slice(0, 200),
     pin: String(Math.floor(1000+Math.random()*9000)), courier_id:null, offer:null, tried:[],
     created_at: J.now()
   };
@@ -662,26 +663,47 @@ J.login = function(tbl, user, pass){
   if(String(r.login.pass) !== String(pass||'')) return {error:'Şifre yanlış.'};
   return {id:r.id};
 };
+// [tür, simge, ücretsiz teslimat, [[ürün, fiyat, açıklama, kategori], ...]]
 const TEST_SHOPS = [
-  ['Pideci','🫓',false,[['Kıymalı Pide',280],['Kaşarlı Pide',250],['Lahmacun',110],['Ayran',45]]],
-  ['Kebapçı','🍢',false,[['Adana Dürüm',320],['Urfa Porsiyon',380],['Tavuk Şiş',300],['Şalgam',50]]],
-  ['Çorbacı','🍲',true,[['Mercimek Çorbası',150],['İşkembe Çorbası',190],['Ezogelin',150],['Ekmek',15]]],
-  ['Market','🛒',false,[['Süt 1 L',42.5],['Ekmek',15],['Yumurta 10\'lu',79],['Su 1,5 L',14.5],['Beyaz Peynir 500 g',189.9]]],
-  ['Burgerci','🍔',false,[['Klasik Burger',290],['Cheeseburger',320],['Patates Kızartması',90],['Kola',60]]],
-  ['Kahveci','☕',true,[['Türk Kahvesi',80],['Filtre Kahve',95],['Latte',120],['Kurabiye',60]]],
-  ['Tatlıcı','🍰',false,[['Sütlaç',120],['Kazandibi',130],['Baklava (porsiyon)',220],['Çay',25]]],
-  ['Dönerci','🌯',false,[['Tavuk Döner Dürüm',190],['Et Döner Dürüm',260],['İskender',380],['Ayran',45]]],
-  ['Manav','🥬',false,[['Domates 1 kg',39.9],['Salatalık 1 kg',34.9],['Elma 1 kg',44.9],['Muz 1 kg',89.9]]],
+  ['Pideci','🫓',false,[['Kıymalı Pide',280,'Dana kıyma, soğan, biber, maydanoz','Pideler'],['Kaşarlı Pide',250,'Bol kaşar, tereyağı','Pideler'],['Kuşbaşılı Pide',340,'Dana kuşbaşı, domates, biber','Pideler'],['Lahmacun',110,'İnce hamur, acılı kıyma, yeşillik ile','Lahmacun'],['Ayran',45,'300 ml','İçecekler']]],
+  ['Kebapçı','🍢',false,[['Adana Dürüm',320,'Acılı Adana, lavaş, soğan, sumak','Dürümler'],['Urfa Porsiyon',380,'Acısız kebap, közlenmiş domates ve biber, pilav','Porsiyonlar'],['Tavuk Şiş',300,'Marine tavuk göğsü, pilav, salata','Porsiyonlar'],['Şalgam',50,'Acılı veya acısız','İçecekler']]],
+  ['Çorbacı','🍲',true,[['Mercimek Çorbası',150,'Limon ve kıtır ekmek ile','Çorbalar'],['İşkembe Çorbası',190,'Sarımsak ve sirke ayrı','Çorbalar'],['Ezogelin',150,'Bulgur, mercimek, nane','Çorbalar'],['Ekmek',15,'Günlük taze','Ekstralar']]],
+  ['Market','🛒',false,[['Süt 1 L',42.5,'Tam yağlı','Süt ve kahvaltılık'],['Yumurta 10\'lu',79,'Büyük boy','Süt ve kahvaltılık'],['Beyaz Peynir 500 g',189.9,'Tam yağlı inek peyniri','Süt ve kahvaltılık'],['Ekmek',15,'Somun','Fırın'],['Su 1,5 L',14.5,'Doğal kaynak suyu','İçecek']]],
+  ['Burgerci','🍔',false,[['Klasik Burger',290,'120 g dana köfte, marul, domates, turşu','Burgerler'],['Cheeseburger',320,'120 g dana köfte, cheddar, karamelize soğan','Burgerler'],['Patates Kızartması',90,'Orta boy','Yanlar'],['Kola',60,'330 ml','İçecekler']]],
+  ['Kahveci','☕',true,[['Türk Kahvesi',80,'Lokum ile','Sıcak kahveler'],['Filtre Kahve',95,'Günün çekirdeği','Sıcak kahveler'],['Latte',120,'Çift shot espresso, süt','Sıcak kahveler'],['Kurabiye',60,'Çikolata parçacıklı','Atıştırmalık']]],
+  ['Tatlıcı','🍰',false,[['Sütlaç',120,'Fırında, fındıklı','Sütlü tatlılar'],['Kazandibi',130,'Geleneksel tarif','Sütlü tatlılar'],['Baklava (porsiyon)',220,'Antep fıstıklı, 4 dilim','Şerbetli tatlılar'],['Çay',25,'İnce belli bardak','İçecekler']]],
+  ['Dönerci','🌯',false,[['Tavuk Döner Dürüm',190,'Lavaş, patates, turşu, özel sos','Dürümler'],['Et Döner Dürüm',260,'Yaprak et döner, domates, soğan','Dürümler'],['İskender',380,'Tereyağı, yoğurt, domates sosu','Porsiyonlar'],['Ayran',45,'300 ml','İçecekler']]],
+  ['Manav','🥬',false,[['Domates 1 kg',39.9,'Mevsim domatesi','Sebze'],['Salatalık 1 kg',34.9,'Çengelköy','Sebze'],['Elma 1 kg',44.9,'Amasya','Meyve'],['Muz 1 kg',89.9,'Yerli','Meyve']]],
 ];
+const testMenu = (id, menu, old) => menu.map((m,k) => {
+  const prev = (old||[]).find(x => x.name === m[0]);
+  return {id: prev ? prev.id : id+'m'+k, name:m[0], price:m[1], desc:m[2]||'', cat:m[3]||'', available: prev ? prev.available !== false : true};
+});
+// Tür → kategori grubu (müşteri uygulamasındaki filtreler)
+J.KIND_GROUP = {Pideci:'Yemek', 'Kebapçı':'Yemek', 'Çorbacı':'Yemek', Burgerci:'Yemek', 'Dönerci':'Yemek', Market:'Market', Manav:'Market', Kahveci:'Kahve & Tatlı', 'Tatlıcı':'Kahve & Tatlı'};
+J.KIND_COLOR = {Pideci:'#f4a261', 'Kebapçı':'#e76f51', 'Çorbacı':'#e9b949', Market:'#2a9d8f', Burgerci:'#f77f00', Kahveci:'#8d6e63', 'Tatlıcı':'#e88aa3', 'Dönerci':'#c8553d', Manav:'#52b788'};
+J.bizGroup = b => J.KIND_GROUP[b.kind] || 'Yemek';
+J.bizColor = b => J.KIND_COLOR[b.kind] || '#e8590c';
+// Tahmini teslim süresi (dk): ortalama hazırlık + yol
+J.etaRange = function(b, to){
+  const ride = isFinite(J.dist(b,to)) ? J.dist(b,to)*1.3/J.M_PER_MIN : 10;
+  const lo = Math.max(15, Math.round((12 + ride)/5)*5);
+  return [lo, lo+10];
+};
 const GRID = [[40.9830,29.0265],[40.9830,29.0305],[40.9830,29.0345],[40.9868,29.0265],[40.9868,29.0305],[40.9868,29.0345],[40.9903,29.0265],[40.9903,29.0305],[40.9903,29.0345]];
 // Eksik test hesaplarını oluşturur; var olanların durumuna dokunmaz (reset=true ise baştan kurar).
 J.ensureTestAccounts = function(reset){
   let made = 0;
   TEST_SHOPS.forEach(([kind, emoji, free, menu], i) => {
     const n = i+1, id = 'b_test'+n;
-    if(!reset && DB.get('businesses', id)) return;
-    DB.put('businesses', id, {name:`Test${n} · ${kind}`, emoji, lat:GRID[i][0], lng:GRID[i][1], open:false, free_delivery:free, suspended:false, notif_ok:false, strikes:[],
-      login:{user:'test'+n, pass:'test'}, menu: menu.map((m,k) => ({id:id+'m'+k, name:m[0], price:m[1], available:true}))});
+    const cur = DB.get('businesses', id);
+    if(!reset && cur){
+      // Eski kayıtları yeni menü (açıklama, kategori) ve tür bilgisiyle güncelle
+      if(!cur.kind || !(cur.menu||[]).some(m => m.cat)) DB.patch('businesses', id, {kind, menu: testMenu(id, menu, cur.menu)});
+      return;
+    }
+    DB.put('businesses', id, {name:`Test${n} · ${kind}`, kind, emoji, lat:GRID[i][0], lng:GRID[i][1], open:false, free_delivery:free, suspended:false, notif_ok:false, strikes:[],
+      login:{user:'test'+n, pass:'test'}, menu: testMenu(id, menu, null)});
     made++;
   });
   for(let n=1; n<=9; n++){

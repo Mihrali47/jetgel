@@ -37,6 +37,7 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | `app/core.js` | Veri katmanı (`J.DB`), iş kuralları (`J.FEE`, süreler), sipariş akışı, kurye atama (`J.dispatchTick`), ikaz (`J.strikeTick`), rota/navigasyon, WebRTC arama, uyarılar, harita (`J.Map`) |
 | `app/config.js` | Supabase URL + publishable key, ICE/TURN sunucuları. Secret key buraya ASLA yazılmaz |
 | `app/app.css` | Ortak stil |
+| `app/musteri.css` | Müşteri uygulamasına özel stil (`m-` önekli sınıflar) |
 | `supabase/kurulum.sql` | Veritabanı: tek tablo `kayitlar(tbl, id, data jsonb)`, `jg_patch` (alan bazlı güncelleme) ve `jg_claim` (tek seferlik iş) fonksiyonları, realtime |
 | `simulasyon.html` | Bağımsız tek dosyalık simülasyon (sürüm 2); kendi kodunu içerir |
 | `sw.js`, `manifest-*.webmanifest`, `ikonlar/` | PWA |
