@@ -26,8 +26,10 @@
 <div id="call"></div>
 <script>
 const {DB} = J;
-let prof = J.store.get('musteri', null);
-let view = prof ? 'liste' : 'profil';
+let cuid = J.store.get('musteri_id', null);
+let prof = null;                       // giriş yapan müşterinin kaydı (DB 'customers')
+const loadProf = () => { prof = cuid ? (DB.get('customers', cuid) || null) : null; return prof; };
+let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
 let map = null;
 const me = () => prof ? {type:'musteri', id:prof.id, name:prof.name} : null;
@@ -37,16 +39,27 @@ function showMap(on){ document.getElementById('map').classList.toggle('hidden', 
 
 function myOrders(){ return prof ? J.orders().filter(o => o.customer && o.customer.id === prof.id) : []; }
 
+function renderLogin(){
+  showMap(false);
+  if(showReg) return `<div class="card"><h3>Hesap oluştur</h3>
+    <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ayşe">
+    <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
+    <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
+    <div class="note">⚠️ Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
+    ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
+    <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div>`;
+  return J.loginForm({title:'Hoş geldin 👋', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button>`;
+}
 function renderProfile(){
-  if(!draft) draft = prof ? Object.assign({}, prof) : {id:J.uid('m'), name:'', note:'', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, src:'varsayilan'};
+  if(!draft) draft = Object.assign({lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, src:'varsayilan'}, prof || {});
   showMap(true);
   map.set('ev', draft, '🏠', 'home'); map.keep(['ev']); map.clearLine('r');
-  return `<div class="card"><h3>${prof?'Bilgilerin':'Hoş geldin 👋'}</h3><div class="small muted">Siparişin nereye gelecek? Haritaya dokunarak ya da konumunu bularak teslimat noktanı seç. Telefon numarası istemiyoruz; kuryeyle uygulama içinden konuşursun.</div>
+  return `<div class="card"><h3>Bilgilerin ve teslimat noktan</h3><div class="small muted">Siparişin nereye gelecek? Haritaya dokunarak ya da konumunu bularak teslimat noktanı seç. Telefon numarası istemiyoruz; kuryeyle uygulama içinden konuşursun.</div>
     <label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">
     <label class="f" for="p-note">Adres tarifi</label><input id="p-note" value="${J.esc(draft.note)}" placeholder="Örn. Moda Cd. No 12, kat 3, zil: Yılmaz">
     <div class="btns"><button class="sec" data-a="gps">📍 Konumumu bul</button></div>
     <div class="tiny muted" style="margin-top:6px">Teslimat noktası: ${draft.src==='gps'?'telefonunun konumu':draft.src==='harita'?'haritada seçtiğin nokta':'Moda (varsayılan), haritaya dokunarak değiştir'}</div>
-    <button class="brand wide" style="margin-top:12px" data-a="save-prof">Kaydet ve devam et</button></div>`;
+    <button class="brand wide" style="margin-top:12px" data-a="save-prof">Kaydet ve devam et</button><button class="ghost wide" data-a="logout">Çıkış yap</button></div>`;
 }
 
 function renderList(){
@@ -54,7 +67,7 @@ function renderList(){
   let h = '';
   const act = myOrders().filter(o => o.state==='aktif');
   if(act.length) h += `<div class="card brand"><div class="row"><b>Aktif siparişin var (#${J.esc(act[0].no)})</b><button class="sm brand" data-a="track" data-id="${act[0].id}">Takip et</button></div></div>`;
-  h += `<div class="row small muted" style="margin:2px 2px 10px"><span>📍 ${J.esc(prof.note || 'Teslimat noktan')}</span><button class="ghost sm" data-a="edit-prof">Değiştir</button></div>`;
+  h += `<div class="row small muted" style="margin:2px 2px 10px"><span>📍 ${J.esc(prof.note || 'Teslimat noktan')}</span><span><button class="ghost sm" data-a="edit-prof">Değiştir</button><button class="ghost sm" data-a="logout">Çıkış</button></span></div>`;
   const list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: b.open && J.isAlive(b)})).filter(x => x.d < 5000).sort((a,b) => (b.open-a.open) || a.d-b.d);
   if(!list.length) h += `<div class="card soft small">Yakınında kayıtlı işletme yok. Yönetim panelinden işletme eklenince burada görünecek.</div>`;
   list.forEach(({b,d,open}) => {
@@ -126,7 +139,9 @@ function renderTrack(){
 
 function render(){
   document.getElementById('mode').innerHTML = J.modeBadge();
-  const html = view==='profil' ? renderProfile() : view==='menu' ? renderMenu() : view==='takip' ? renderTrack() : renderList();
+  loadProf();
+  if(!prof && view !== 'giris'){ view = 'giris'; }
+  const html = view==='giris' ? renderLogin() : view==='profil' ? renderProfile() : view==='menu' ? renderMenu() : view==='takip' ? renderTrack() : renderList();
   J.render(document.getElementById('panel'), html);
   renderCall();
 }
@@ -145,8 +160,24 @@ document.addEventListener('click', e => {
   if(a==='save-prof'){
     draft.name = document.getElementById('p-name').value.trim(); draft.note = document.getElementById('p-note').value.trim();
     if(!draft.name){ J.toast('Lütfen adını yaz.'); return; }
-    prof = Object.assign({}, draft); J.store.set('musteri', prof); draft = null; view = 'liste';
+    DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng});
+    draft = null; view = 'liste';
   }
+  if(a==='show-reg'){ showReg = true; regErr = ''; }
+  if(a==='show-login'){ showReg = false; }
+  if(a==='login'){
+    const r = J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
+    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); view = 'liste'; }
+  }
+  if(a==='register'){
+    const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
+    if(!name || !user || !pass){ regErr = 'Tüm alanları doldur.'; render(); return; }
+    if(J.userTaken(user)){ regErr = 'Bu kullanıcı adı alınmış.'; render(); return; }
+    cuid = J.uid('m'); J.store.set('musteri_id', cuid); showReg = false;
+    DB.put('customers', cuid, {name, note:'', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login:{user, pass}});
+    draft = null; view = 'profil';
+  }
+  if(a==='logout'){ cuid = null; prof = null; draft = null; J.store.set('musteri_id', null); view = 'giris'; }
   if(a==='edit-prof'){ draft = Object.assign({}, prof); view = 'profil'; }
   if(a==='open-biz'){ curBiz = id; cart = {}; view = 'menu'; window.scrollTo(0,0); }
   if(a==='back'){ view = 'liste'; }
@@ -168,10 +199,10 @@ document.addEventListener('input', e => {
   if(e.target.id==='p-name') draft.name = e.target.value;
   if(e.target.id==='p-note') draft.note = e.target.value;
 });
-DB.on(() => { if(view !== 'profil') render(); else renderCall(); document.getElementById('mode').innerHTML = J.modeBadge(); });
+DB.on(() => { if(view !== 'profil' && view !== 'giris') render(); else renderCall(); document.getElementById('mode').innerHTML = J.modeBadge(); });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 DB.init().then(() => {
-  if(prof && trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif') view = 'takip'; }
+  if(loadProf()){ view = 'liste'; if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
   render();
 });
 J.registerSW();

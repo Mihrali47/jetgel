@@ -44,6 +44,10 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | `sablonlar/` | Excel ürün şablonu |
 | `.nojekyll` | GitHub Pages'in dosyaları işlemesini kapatır; silme |
 
+## Test hesapları
+
+Dükkân `test1`…`test9`, kurye `1test`…`9test`, müşteri `test`; hepsinin şifresi `test`. `J.ensureTestAccounts()` (app/core.js) eksik olanları her açılışta oluşturur. Giriş `J.login()` ile yapılır ve **prototip düzeyindedir** (düz metin şifre, açık veritabanı). Sahip istemeden test hesaplarını kaldırma.
+
 ## Mimari notlar
 
 - Sunucu yok; her cihaz kendi rolünün işini yapar: **işletme cihazı** kendi siparişleri için kurye atar ve teklif süresini takip eder; **arayan cihaz** cevapsız aramayı işaretler; **ikaz** herhangi bir cihazda `jg_claim` ile tek sefer uygulanır.
@@ -64,4 +68,4 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 
 ## Henüz yapılmayanlar (bilinçli olarak)
 
-Stok takibi, kasa entegrasyonu, gerçek ödeme, kullanıcı girişi ve sunucu tarafı (push bildirim) henüz yok. Veritabanı politikası prototip için herkese açıktır. Bunlar `README.md`'deki yol haritasında. Sahip istemeden bunlara başlama.
+Stok takibi, kasa entegrasyonu, gerçek ödeme, gerçek (güvenli) kullanıcı girişi ve sunucu tarafı (push bildirim) henüz yok. Veritabanı politikası prototip için herkese açıktır. Bunlar `README.md`'deki yol haritasında. Sahip istemeden bunlara başlama.

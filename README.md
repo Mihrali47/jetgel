@@ -16,15 +16,26 @@ Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin 
 
 **Gerçek olanlar:** Telefonlar arası canlı sipariş akışı (Supabase), telefonun GPS konumu, harita ve yol rotası (OpenStreetMap/OSRM), uygulama içi **gerçek sesli arama** (WebRTC), bildirimler ve sesli uyarılar, telefona uygulama gibi yükleme (PWA).
 
-**Simülasyon olanlar:** Ödeme (para çekilmez, sadece durumları gösterilir), kimlik doğrulama (giriş sistemi yok; prototip).
+**Simülasyon olanlar:** Ödeme (para çekilmez, sadece durumları gösterilir). Giriş sistemi sadece prototip düzeyinde (aşağıya bakın).
+
+## Test hesapları
+
+| Rol | Kullanıcı adı | Şifre |
+|---|---|---|
+| Dükkân | `test1` … `test9` | `test` |
+| Kurye | `1test` … `9test` | `test` |
+| Müşteri | `test` | `test` |
+
+Eksik test hesapları ilk açılışta otomatik oluşur. Yönetim → Ayarlar'dan sıfırlanabilir. Yeni dükkân yönetim panelinden (kullanıcı adı ve şifreyle), yeni kurye ve müşteri kendi uygulamasından kaydolur.
+
+> ⚠️ **Prototip girişi:** Şifreler veritabanında düz metin durur ve veritabanı herkese açıktır. Bu gerçek bir güvenlik değildir; gerçek kullanımdan önce Supabase Auth ve satır güvenlik kurallarıyla değiştirilmelidir.
 
 ## Nasıl denenir (3 telefonla)
 
-1. **Yönetim** → Ayarlar → "Demo işletmelerini yükle" (bir kere).
-2. **1. telefon → İşletme:** işletme seç, bildirim izni ver, "Aç".
-3. **2. telefon → Kurye:** adını yaz, bildirim izni ver, "Çevrimiçi ol". Masa başında "Demo sürüş", sokakta "Gerçek GPS".
-4. **3. telefon → Müşteri:** adını ve teslimat noktanı seç, sipariş ver.
-5. İşletme onaylar → kuryeye teklif düşer → kurye kabul eder, navigasyonla gider → işletme "hazır" der → kurye paketi alır → müşterinin kapısında kodu girer.
+1. **1. telefon → İşletme:** `test1` / `test` ile giriş, bildirim izni ver, "Aç".
+2. **2. telefon → Kurye:** `1test` / `test` ile giriş, bildirim izni ver, "Çevrimiçi ol". Masa başında "Demo sürüş", sokakta "Gerçek GPS".
+3. **3. telefon → Müşteri:** `test` / `test` ile giriş, "Test1 · Pideci"den sipariş ver.
+4. İşletme onaylar → kuryeye teklif düşer → kurye kabul eder, navigasyonla gider → işletme "hazır" der → kurye paketi alır → müşterinin kapısında kodu girer.
 
 Yönetim → Ayarlar'daki **hızlı test modu** açıkken süreler 10 kat kısalır. Gerçek denemede kapatın.
 

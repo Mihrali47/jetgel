@@ -48,7 +48,7 @@ J.store = {
 /* ===================== VERİ KATMANI =====================
    Demo modu: localStorage + BroadcastChannel (aynı cihazdaki sekmeler).
    Canlı mod: Supabase "kayitlar" tablosu + realtime (tüm cihazlar). */
-const TABLES = ['businesses','couriers','orders','calls','events','settings'];
+const TABLES = ['businesses','couriers','customers','orders','calls','events','settings'];
 const DB = J.DB = {mode:'demo', status:'baglaniyor', cache:{}, listeners:[]};
 TABLES.forEach(t => DB.cache[t] = new Map());
 DB.rows = t => Array.from(DB.cache[t].values());
@@ -123,6 +123,7 @@ DB.init = async function(){
   } else {
     DB.mode = 'demo'; ADP = demo; await demo.init();
   }
+  if(DB.status !== 'hata') J.ensureTestAccounts(false);
   emit({status:true});
 };
 function fail(e){ console.error(e); J.toast('⚠️ Kaydedilemedi: ' + (e.message || e)); }
@@ -546,15 +547,62 @@ document.addEventListener('click', e => {
   if(b.dataset.call==='end') J.endCall(k);
 });
 
-/* ===================== DEMO VERİSİ ===================== */
-J.seedDemo = function(){
-  const mk = (id, name, emoji, lat, lng, free, menu) => DB.put('businesses', id, {name, emoji, lat, lng, open:false, free_delivery:free, suspended:false, notif_ok:false, strikes:[],
-    menu: menu.map((m,i) => ({id:id+'m'+i, name:m[0], price:m[1], available:true}))});
-  mk('b_usta', 'Usta Pideci', '🫓', 40.98520, 29.02680, false, [['Kıymalı Pide',280],['Kaşarlı Pide',250],['Lahmacun',110],['Ayran',45]]);
-  mk('b_kebap', 'Moda Kebap', '🍢', 40.98780, 29.03060, false, [['Adana Dürüm',320],['Tavuk Şiş Porsiyon',360],['Şalgam',50]]);
-  mk('b_corba', 'Anne Çorba Evi', '🍲', 40.99020, 29.02620, true, [['Mercimek Çorbası',150],['İşkembe Çorbası',190],['Sütlaç',120]]);
+/* ===================== HESAPLAR VE TEST VERİSİ =====================
+   PROTOTİP GİRİŞİ: kullanıcı adı ve şifre kayıtta düz metin durur ve veritabanı herkese açıktır.
+   Bu gerçek bir güvenlik DEĞİLDİR; sadece test hesaplarını ayırmak içindir. Gerçek şifre kullanmayın.
+   Gerçek kullanımdan önce Supabase Auth + satır güvenlik kuralları ile değiştirilmelidir. */
+J.norm = u => String(u||'').trim().toLocaleLowerCase('tr');
+J.findLogin = (tbl, user) => DB.rows(tbl).find(r => r.login && J.norm(r.login.user) === J.norm(user));
+J.userTaken = user => ['businesses','couriers','customers'].some(t => J.findLogin(t, user));
+J.login = function(tbl, user, pass){
+  const r = J.findLogin(tbl, user);
+  if(!r) return {error:'Bu kullanıcı adı bulunamadı.'};
+  if(String(r.login.pass) !== String(pass||'')) return {error:'Şifre yanlış.'};
+  return {id:r.id};
+};
+const TEST_SHOPS = [
+  ['Pideci','🫓',false,[['Kıymalı Pide',280],['Kaşarlı Pide',250],['Lahmacun',110],['Ayran',45]]],
+  ['Kebapçı','🍢',false,[['Adana Dürüm',320],['Urfa Porsiyon',380],['Tavuk Şiş',300],['Şalgam',50]]],
+  ['Çorbacı','🍲',true,[['Mercimek Çorbası',150],['İşkembe Çorbası',190],['Ezogelin',150],['Ekmek',15]]],
+  ['Market','🛒',false,[['Süt 1 L',42.5],['Ekmek',15],['Yumurta 10\'lu',79],['Su 1,5 L',14.5],['Beyaz Peynir 500 g',189.9]]],
+  ['Burgerci','🍔',false,[['Klasik Burger',290],['Cheeseburger',320],['Patates Kızartması',90],['Kola',60]]],
+  ['Kahveci','☕',true,[['Türk Kahvesi',80],['Filtre Kahve',95],['Latte',120],['Kurabiye',60]]],
+  ['Tatlıcı','🍰',false,[['Sütlaç',120],['Kazandibi',130],['Baklava (porsiyon)',220],['Çay',25]]],
+  ['Dönerci','🌯',false,[['Tavuk Döner Dürüm',190],['Et Döner Dürüm',260],['İskender',380],['Ayran',45]]],
+  ['Manav','🥬',false,[['Domates 1 kg',39.9],['Salatalık 1 kg',34.9],['Elma 1 kg',44.9],['Muz 1 kg',89.9]]],
+];
+const GRID = [[40.9830,29.0265],[40.9830,29.0305],[40.9830,29.0345],[40.9868,29.0265],[40.9868,29.0305],[40.9868,29.0345],[40.9903,29.0265],[40.9903,29.0305],[40.9903,29.0345]];
+// Eksik test hesaplarını oluşturur; var olanların durumuna dokunmaz (reset=true ise baştan kurar).
+J.ensureTestAccounts = function(reset){
+  let made = 0;
+  TEST_SHOPS.forEach(([kind, emoji, free, menu], i) => {
+    const n = i+1, id = 'b_test'+n;
+    if(!reset && DB.get('businesses', id)) return;
+    DB.put('businesses', id, {name:`Test${n} · ${kind}`, emoji, lat:GRID[i][0], lng:GRID[i][1], open:false, free_delivery:free, suspended:false, notif_ok:false, strikes:[],
+      login:{user:'test'+n, pass:'test'}, menu: menu.map((m,k) => ({id:id+'m'+k, name:m[0], price:m[1], available:true}))});
+    made++;
+  });
+  for(let n=1; n<=9; n++){
+    const id = 'c_'+n+'test';
+    if(!reset && DB.get('couriers', id)) continue;
+    const g = GRID[(n+3)%9];
+    DB.put('couriers', id, {name:`Kurye ${n}`, online:false, notif_ok:false, lat:g[0]+0.0012, lng:g[1]-0.0010, busy:null, earnings:0, jobs:[], login:{user:n+'test', pass:'test'}});
+    made++;
+  }
+  if(reset || !DB.get('customers','m_test')){ DB.put('customers', 'm_test', {name:'Test Müşteri', note:'Moda Cd. Test Apt. No 1', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login:{user:'test', pass:'test'}}); made++; }
   if(!DB.get('settings','ayar')) DB.put('settings', 'ayar', {fast:true});
-  J.log('Demo işletmeleri yüklendi.', 'ok');
+  if(made) J.log(reset ? 'Test hesapları sıfırlandı.' : `Test hesapları oluşturuldu (${made} kayıt).`, 'ok');
+};
+J.seedDemo = () => J.ensureTestAccounts(false);
+document.addEventListener('keydown', e => { if(e.key==='Enter' && (e.target.id==='l-pass' || e.target.id==='l-user')){ const b = document.querySelector('[data-a="login"]'); if(b) b.click(); } });
+// Ortak giriş formu
+J.loginForm = function(o){
+  return `<div class="card"><h3>${o.title}</h3><div class="small muted">${o.sub||''}</div>
+    <label class="f" for="l-user">Kullanıcı adı</label><input id="l-user" autocomplete="username" autocapitalize="none" placeholder="${J.esc(o.ph||'')}">
+    <label class="f" for="l-pass">Şifre</label><input id="l-pass" type="password" autocomplete="current-password">
+    ${o.err?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(o.err)}</div>`:''}
+    <button class="brand wide" style="margin-top:12px" data-a="login">Giriş yap</button>
+    <div class="note">🧪 Test hesapları: ${o.hint} · şifre: <b>test</b></div></div>`;
 };
 
 /* ===================== ORTAK SAYFA İSKELETİ ===================== */

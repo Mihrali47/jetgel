@@ -77,10 +77,16 @@ async function ensureRoute(o){
 }
 
 /* ---------- Ekranlar ---------- */
+let loginErr = '', regErr = '', showReg = false;
 function renderProfile(){
-  return `<div class="card"><h3>Kurye kaydı 🛵</h3><div class="small muted">Prototip için sadece adın yeterli. Gerçek sistemde kimlik ve belge onayı istenecek.</div>
-    <label class="f" for="k-name">Adın</label><input id="k-name" placeholder="Örn. Ali" autocomplete="given-name">
-    <button class="brand wide" style="margin-top:12px" data-a="create">Kaydol</button></div>`;
+  if(showReg) return `<div class="card"><h3>Yeni kurye kaydı 🛵</h3><div class="small muted">Prototip için ad, kullanıcı adı ve şifre yeterli. Gerçek sistemde kimlik ve belge onayı istenecek.</div>
+    <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ali">
+    <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
+    <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
+    <div class="note">⚠️ Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
+    ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
+    <button class="brand wide" style="margin-top:12px" data-a="create">Kaydol</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div>`;
+  return J.loginForm({title:'Kurye girişi 🛵', sub:'', ph:'1test', hint:'1test … 9test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Kaydol</button>`;
 }
 function renderGate(){
   const p = J.notifPermission();
@@ -136,7 +142,7 @@ function renderMain(){
   }
   if(!o && !offer && c.online) h += `<div class="card soft small" style="text-align:center">⏳ Teklif bekleniyor… İşletmelere yakın durursan teklif gelme ihtimalin artar. Ekran açık tutulur.</div>`;
   h += `<div class="card ok"><div class="row"><h3>Kazancın</h3><b class="big">${J.tl(c.earnings||0)}</b></div><div class="small muted">${(c.jobs||[]).length} teslimat · Gerçek sistemde günlük ödeme. Ceza puanı yok.</div>${(c.jobs||[]).slice(0,5).map(j => `<div class="row small"><span>#${J.esc(j.no)} ${J.esc(j.rname)}</span><span class="money">+${J.tl(j.amount)}</span></div>`).join('')}</div>`;
-  h += `<div class="row tiny muted"><span></span><button class="ghost sm" data-a="logout">Kurye değiştir</button></div>`;
+  h += `<div class="row tiny muted"><span></span><button class="ghost sm" data-a="logout">Çıkış yap</button></div>`;
   return h;
 }
 function drawMap(){
@@ -168,10 +174,18 @@ function renderCall(){ const m = me(); const h = m ? J.callOverlay(m) : ''; if(h
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
   const a = el.dataset.a, c = cour();
+  if(a==='show-reg'){ showReg = true; regErr = ''; }
+  if(a==='show-login'){ showReg = false; }
+  if(a==='login'){
+    const r = J.login('couriers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
+    if(r.error) loginErr = r.error; else { loginErr = ''; cid = r.id; J.store.set('kurye_id', r.id); const cc = DB.get('couriers', r.id); if(cc && cc.lat) pos = {lat:cc.lat, lng:cc.lng}; }
+  }
   if(a==='create'){
-    const name = document.getElementById('k-name').value.trim(); if(!name){ J.toast('Lütfen adını yaz.'); return; }
-    cid = J.uid('c'); J.store.set('kurye_id', cid);
-    DB.put('couriers', cid, {name, online:false, notif_ok:false, lat:pos.lat, lng:pos.lng, busy:null, earnings:0, jobs:[], seen_at:J.now()});
+    const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
+    if(!name || !user || !pass){ regErr = 'Tüm alanları doldur.'; render(); return; }
+    if(J.userTaken(user)){ regErr = 'Bu kullanıcı adı alınmış.'; render(); return; }
+    cid = J.uid('c'); J.store.set('kurye_id', cid); showReg = false;
+    DB.put('couriers', cid, {name, online:false, notif_ok:false, lat:pos.lat, lng:pos.lng, busy:null, earnings:0, jobs:[], seen_at:J.now(), login:{user, pass}});
     J.log(`Yeni kurye kaydoldu: ${name}.`);
   }
   if(a==='notif'){ const p = await J.askNotif(); if(p==='granted' && c) DB.patch('couriers', c.id, {notif_ok:true}); }

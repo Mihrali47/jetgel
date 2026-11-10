@@ -72,14 +72,15 @@ function renderBiz(){
   if(edit){
     h += `<div class="card brand"><h3>${edit.id ? 'İşletmeyi düzenle' : 'Yeni işletme'}</h3>
       <div class="row"><div style="flex:1"><label class="f" for="e-name">İşletme adı</label><input id="e-name" value="${J.esc(edit.name||'')}"></div><div style="width:90px"><label class="f" for="e-emoji">Simge</label><input id="e-emoji" value="${J.esc(edit.emoji||'🏪')}"></div></div>
+      <div class="row"><div style="flex:1"><label class="f" for="e-user">Giriş kullanıcı adı</label><input id="e-user" autocapitalize="none" value="${J.esc(edit.user||'')}"></div><div style="flex:1"><label class="f" for="e-pass">Şifre</label><input id="e-pass" value="${J.esc(edit.pass||'')}"></div></div>
       <label class="f">Konum</label><div class="small">${edit.lat ? `📍 ${edit.lat.toFixed(5)}, ${edit.lng.toFixed(5)}` : '<span style="color:var(--bad)">Haritaya dokunarak konum seçin.</span>'}</div>
       <label class="f" for="e-menu">Menü (her satıra: ürün adı ; fiyat)</label><textarea id="e-menu" rows="7" placeholder="Kıymalı Pide ; 280&#10;Ayran ; 45">${J.esc(edit.menuText||'')}</textarea>
       <div class="row small" style="margin-top:8px"><label for="e-free" style="flex:1">Müşteri teslimat payını işletme üstlensin</label><input type="checkbox" id="e-free" style="width:auto" ${edit.free_delivery?'checked':''}></div>
       <div class="btns"><button class="brand" data-a="save-biz">Kaydet</button><button class="sec" data-a="cancel">Vazgeç</button>${edit.id?`<button class="bad" data-a="del-biz">Sil</button>`:''}</div></div>`;
-  } else h += `<div class="btns" style="margin:0 0 12px"><button class="brand" data-a="new-biz">+ Yeni işletme ekle</button>${J.businesses().length?'':'<button class="sec" data-a="seed">Demo işletmelerini yükle</button>'}</div>`;
+  } else h += `<div class="btns" style="margin:0 0 12px"><button class="brand" data-a="new-biz">+ Yeni işletme ekle</button></div>`;
   J.businesses().forEach(b => {
     const n = J.activeStrikes(b).length;
-    h += `<div class="card"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b>${J.esc(b.name)}</b><div class="small muted">${(b.menu||[]).length} ürün · ${b.open && J.isAlive(b) ? '🟢 Açık' : '⚪️ Kapalı'}${b.free_delivery?' · ücretsiz teslimat':''} · ikaz ${n}/3${b.suspended?' · <b style="color:var(--bad)">askıda</b>':''}</div></div></div>
+    h += `<div class="card"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b>${J.esc(b.name)}</b><div class="small muted">${(b.menu||[]).length} ürün · ${b.open && J.isAlive(b) ? '🟢 Açık' : '⚪️ Kapalı'}${b.free_delivery?' · ücretsiz teslimat':''} · giriş: <b>${J.esc(b.login?b.login.user:'—')}</b> · ikaz ${n}/3${b.suspended?' · <b style="color:var(--bad)">askıda</b>':''}</div></div></div>
       <div class="btns" style="margin:0"><button class="sm sec" data-a="edit-biz" data-id="${b.id}">Düzenle</button>${b.suspended?`<button class="sm ok" data-a="unsuspend" data-id="${b.id}">Askıyı kaldır</button>`:''}</div></div></div>`;
   });
   return h;
@@ -88,7 +89,7 @@ function renderBiz(){
 function renderCour(){
   const cs = J.couriers().sort((a,b) => (b.seen_at||0)-(a.seen_at||0));
   if(!cs.length) return `<div class="card soft small">Kayıtlı kurye yok. Kuryeler kurye uygulamasından kaydolur.</div>`;
-  return `<div class="card"><table><tr><th>Kurye</th><th>Durum</th><th>Son sinyal</th><th>Teslimat</th><th>Kazanç</th></tr>${cs.map(c => `<tr><td>${J.esc(c.name)}</td><td>${c.busy?'<span class="pill blue">Teslimatta</span>':c.online&&J.isAlive(c)?'<span class="pill ok">Çevrimiçi</span>':'<span class="pill">Çevrimdışı</span>'}${c.notif_ok?'':' <span class="pill warn">bildirim yok</span>'}</td><td class="tiny">${c.seen_at?J.clock(c.seen_at):'—'}</td><td>${(c.jobs||[]).length}</td><td class="money">${J.tl(c.earnings||0)}</td></tr>`).join('')}</table></div>`;
+  return `<div class="card"><table><tr><th>Kurye</th><th>Giriş</th><th>Durum</th><th>Son sinyal</th><th>Teslimat</th><th>Kazanç</th></tr>${cs.map(c => `<tr><td>${J.esc(c.name)}</td><td class="tiny">${J.esc(c.login?c.login.user:'—')}</td><td>${c.busy?'<span class="pill blue">Teslimatta</span>':c.online&&J.isAlive(c)?'<span class="pill ok">Çevrimiçi</span>':'<span class="pill">Çevrimdışı</span>'}${c.notif_ok?'':' <span class="pill warn">bildirim yok</span>'}</td><td class="tiny">${c.seen_at?J.clock(c.seen_at):'—'}</td><td>${(c.jobs||[]).length}</td><td class="money">${J.tl(c.earnings||0)}</td></tr>`).join('')}</table></div>`;
 }
 
 function renderCalls(){
@@ -103,7 +104,10 @@ function renderSettings(){
   return `<div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
     ${DB.mode==='canli' ? `<div class="btns"><button class="sm sec" data-a="force-demo">Bu cihazda demo moduna geç</button></div>` : (window.JETGEL_CONFIG.supabaseUrl ? `<div class="btns"><button class="sm sec" data-a="force-live">Canlı moda dön</button></div>` : '')}</div>
     <div class="card"><h3>Hızlı test modu</h3><div class="small muted">Açıkken süreler 10 kat kısalır: hazırlık 1 dk = 6 sn, işletmenin geri arama süresi 30 sn, müşteriye ulaşılamazsa bekleme 1 dk, demo sürüş 10 kat hızlı. Gerçek denemede kapatın.</div><div class="btns"><button class="${s.fast?'ok':'sec'}" data-a="fast" data-v="1">Açık</button><button class="${!s.fast?'ok':'sec'}" data-a="fast" data-v="0">Kapalı</button></div></div>
-    <div class="card"><h3>Demo verisi</h3><div class="small muted">Moda'da 3 örnek işletme ve menüleri ekler (aynı isimdekilerin üzerine yazar).</div><div class="btns"><button class="sec" data-a="seed">Demo işletmelerini yükle</button></div></div>
+    <div class="card"><h3>🧪 Test hesapları</h3><div class="small">Dükkânlar: <b>test1 … test9</b> · Kuryeler: <b>1test … 9test</b> · Müşteri: <b>test</b> · Tüm şifreler: <b>test</b></div>
+      <div class="small muted" style="margin-top:6px">Eksik olanlar ilk açılışta kendiliğinden oluşturulur. "Sıfırla" test hesaplarını ilk haline getirir (açık/kapalı durumu, kazanç, ikazlar sıfırlanır; siparişler silinmez).</div>
+      <div class="btns"><button class="sec" data-a="seed">Eksik test hesaplarını oluştur</button><button class="sec" data-a="reset-test">Test hesaplarını sıfırla</button></div>
+      <div class="note">⚠️ Prototip girişi: şifreler veritabanında düz metin durur ve veritabanı herkese açıktır. Bu gerçek bir güvenlik değildir; gerçek kullanımdan önce değiştirilecek.</div></div>
     <div class="card bad"><h3>Tüm verileri sil</h3><div class="small">İşletmeler, kuryeler, siparişler, aramalar ve günlük kalıcı olarak silinir. ${DB.mode==='canli'?'<b>Canlı modda tüm cihazlardan silinir.</b>':''}</div>
       <div class="btns">${confirmReset ? `<button class="bad" data-a="reset-yes">Evet, hepsini sil</button><button class="sec" data-a="reset-no">Vazgeç</button>` : `<button class="bad" data-a="reset">Tüm verileri sil…</button>`}</div></div>`;
 }
@@ -128,22 +132,26 @@ function textToMenu(txt, old){
     return {id: prev ? prev.id : J.uid('u'), name, price:p, available: prev ? prev.available : true};
   }).filter(Boolean);
 }
-function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.emoji = g('e-emoji').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; } }
+function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.emoji = g('e-emoji').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; edit.user = g('e-user').value.trim(); edit.pass = g('e-pass').value; } }
 
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
   const a = el.dataset.a, id = el.dataset.id;
   readForm();
   if(a==='tab'){ tab = id; edit = null; confirmReset = false; }
-  if(a==='seed') J.seedDemo();
-  if(a==='new-biz') edit = {name:'', emoji:'🏪', lat:null, lng:null, menuText:'', free_delivery:false};
-  if(a==='edit-biz'){ const b = DB.get('businesses', id); edit = Object.assign({}, b, {menuText:menuToText(b.menu)}); map.fit([b]); }
+  if(a==='seed') J.ensureTestAccounts(false);
+  if(a==='reset-test') J.ensureTestAccounts(true);
+  if(a==='new-biz') edit = {name:'', emoji:'🏪', lat:null, lng:null, menuText:'', free_delivery:false, user:'', pass:''};
+  if(a==='edit-biz'){ const b = DB.get('businesses', id); edit = Object.assign({}, b, {menuText:menuToText(b.menu), user:b.login?b.login.user:'', pass:b.login?b.login.pass:''}); map.fit([b]); }
   if(a==='cancel') edit = null;
   if(a==='save-biz'){
     if(!edit.name.trim()){ J.toast('İşletme adını yazın.'); return; }
     if(!edit.lat){ J.toast('Haritaya dokunarak konum seçin.'); return; }
+    if(!edit.user || !edit.pass){ J.toast('Giriş kullanıcı adı ve şifre girin.'); return; }
+    const taken = J.findLogin('businesses', edit.user) || J.findLogin('couriers', edit.user) || J.findLogin('customers', edit.user);
+    if(taken && taken.id !== edit.id){ J.toast('Bu kullanıcı adı alınmış.'); return; }
     const menu = textToMenu(edit.menuText, edit.menu);
-    const data = {name:edit.name.trim(), emoji:edit.emoji||'🏪', lat:edit.lat, lng:edit.lng, free_delivery:!!edit.free_delivery, menu};
+    const data = {name:edit.name.trim(), emoji:edit.emoji||'🏪', lat:edit.lat, lng:edit.lng, free_delivery:!!edit.free_delivery, menu, login:{user:edit.user, pass:edit.pass}};
     if(edit.id) DB.patch('businesses', edit.id, data);
     else DB.put('businesses', J.uid('b'), Object.assign(data, {open:false, suspended:false, notif_ok:false, strikes:[]}));
     J.log(`İşletme kaydedildi: ${data.name} (${menu.length} ürün).`, 'ok');

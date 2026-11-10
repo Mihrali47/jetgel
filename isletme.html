@@ -29,12 +29,9 @@ const me = () => bid ? {type:'isletme', id:bid} : null;
 const biz = () => bid && DB.get('businesses', bid);
 const notifOk = () => ['granted','unsupported'].includes(J.notifPermission());
 
+let loginErr = '';
 function renderPick(){
-  const list = J.businesses();
-  let h = `<div class="card"><h3>Hangi işletmesiniz?</h3><div class="small muted">Bu cihaz seçtiğiniz işletmenin sipariş ekranı olacak. İşletmeler yönetim panelinden eklenir.</div></div>`;
-  if(!list.length) h += `<div class="card soft"><div class="small">Henüz kayıtlı işletme yok.</div><div class="btns"><button class="brand" data-a="seed">Demo işletmelerini yükle</button><a class="btnlink" href="yonetim.html">Yönetim paneline git</a></div></div>`;
-  list.forEach(b => h += `<div class="card"><div class="rest" data-a="pick" data-id="${b.id}"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div style="flex:1"><b>${J.esc(b.name)}</b><div class="small muted">${(b.menu||[]).length} ürün${J.isAlive(b)&&b.open?' · şu an başka bir cihazda açık':''}</div></div><span class="muted">›</span></div></div>`);
-  return h;
+  return J.loginForm({title:'İşletme girişi 🏪', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr});
 }
 
 function renderGate(b){
@@ -71,7 +68,7 @@ function renderMain(){
   if(b.suspended) h += `<div class="card bad"><h3>⛔ Hesap askıya alındı</h3><div class="small">Son 90 günde 3 ikaz alındı. Sözleşme gereği sipariş alamazsınız. İtirazlarınız yönetim tarafından incelenir.</div></div>`;
   h += `<div class="card soft"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b>${J.esc(b.name)}</b><div class="small">${b.open?'🟢 Sipariş almaya açık':'⚪️ Kapalı'}</div></div></div><button class="${b.open?'sec':'ok'}" data-a="toggle-open" ${(!notifOk()||b.suspended)?'disabled':''}>${b.open?'Kapat':'Aç'}</button></div>
     <div class="row small" style="margin-top:10px"><label for="free" style="flex:1">Müşteri teslimat payını ben üstleneyim</label><input type="checkbox" id="free" data-a="free" style="width:auto" ${b.free_delivery?'checked':''}></div>
-    <div class="row tiny muted"><span>Bu cihaz açık kaldığı sürece siparişler buraya düşer. Ekran açık tutulur.</span><button class="ghost sm" data-a="switch">İşletme değiştir</button></div></div>`;
+    <div class="row tiny muted"><span>Bu cihaz açık kaldığı sürece siparişler buraya düşer. Ekran açık tutulur.</span><button class="ghost sm" data-a="switch">Çıkış yap</button></div></div>`;
   h += `<div class="tabbar">${[['siparis','Siparişler'],['menu','Menü'],['kazanc','Kazanç ve ikaz']].map(([k,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}</button>`).join('')}</div>`;
   if(tab==='siparis'){
     J.pendingCallbacks(b.id).filter(k => k.cb_deadline).forEach(k => {
@@ -115,8 +112,10 @@ function renderCall(){ const m = me(); const h = m ? J.callOverlay(m) : ''; if(h
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
   const a = el.dataset.a, id = el.dataset.id, b = biz();
-  if(a==='seed') J.seedDemo();
-  if(a==='pick'){ bid = id; J.store.set('isletme_id', id); tab = 'siparis'; }
+  if(a==='login'){
+    const r = J.login('businesses', document.getElementById('l-user').value, document.getElementById('l-pass').value);
+    if(r.error){ loginErr = r.error; } else { loginErr = ''; bid = r.id; J.store.set('isletme_id', r.id); tab = 'siparis'; }
+  }
   if(a==='switch'){ if(b && b.open) DB.patch('businesses', b.id, {open:false}); bid = null; J.store.set('isletme_id', null); J.keepAwake(false); }
   if(a==='notif'){ const p = await J.askNotif(); if(p==='granted' && b) DB.patch('businesses', b.id, {notif_ok:true}); }
   if(a==='toggle-open' && b){
