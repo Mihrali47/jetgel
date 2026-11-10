@@ -12,14 +12,15 @@
 <meta name="apple-mobile-web-app-title" content="Jetgel İşletme">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="app/app.css">
+<link rel="stylesheet" href="app/panel.css">
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
 </head>
-<body>
-<div class="top"><a class="brandname" href="./"><span>Jetgel</span> · İşletme</a><span id="mode"></span></div>
+<body class="p">
 <div class="wrap"><div id="panel"></div></div>
+<div id="ptabs"></div>
 <div id="call"></div>
 <script>
 const {DB} = J;
@@ -28,10 +29,14 @@ let tab = 'siparis';
 const me = () => bid ? {type:'isletme', id:bid} : null;
 const biz = () => bid && DB.get('businesses', bid);
 const notifOk = () => ['granted','unsupported'].includes(J.notifPermission());
+const ago = t => { const m = Math.max(0, Math.floor((J.now()-t)/60000)); return m < 1 ? 'az önce' : m + ' dk önce'; };
+const today = t => new Date(t).toDateString() === new Date().toDateString();
 
 let loginErr = '';
+let nf = {name:'', price:'', cat:'', desc:''};   // ürün ekleme formu (yeniden çizimde kaybolmasın)
 function renderPick(){
-  return J.loginForm({title:'İşletme girişi 🏪', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr});
+  return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div><div class="small muted">Komisyonsuz sipariş paneli</div></div><div class="p-body">` +
+    J.loginForm({title:'İşletme girişi 🏪', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr}) + `</div>`;
 }
 
 function renderGate(b){
@@ -41,70 +46,107 @@ function renderGate(b){
     <div class="note" style="text-align:left">Sayfa açık kaldığı sürece yeni siparişte sesli uyarı da çalar. Bazı telefonlarda pil tasarrufu bildirimleri engelleyebilir; uygulamayı pil kısıtlamasından muaf tutun.</div></div>`;
 }
 
+function header(b){
+  const mine = J.orders().filter(o => o.rid===b.id);
+  const td = mine.filter(o => o.state==='teslim' && today(o.created_at));
+  const earn = td.reduce((s,o) => s + (o.shares ? o.shares.business : 0), 0);
+  const act = mine.filter(o => o.state==='aktif').length;
+  return `<div class="p-head"><div class="r1"><div class="av">${J.esc(b.emoji||'🏪')}</div><div class="tx"><div class="nm">${J.esc(b.name)}</div><div class="sb">${b.open?'Sipariş alıyor':'Kapalı'} ${J.modeBadge()}</div></div>
+    <button class="p-sw ${b.open?'on':''}" data-a="toggle-open" ${(!notifOk()||b.suspended)?'disabled':''}><span class="k"></span>${b.open?'Açık':'Kapalı'}</button></div>
+    <div class="p-stats"><div><b>${td.length}</b><span>Bugün teslim</span></div><div><b>${act}</b><span>Aktif sipariş</span></div><div><b>${J.tl(earn)}</b><span>Bugün hesaba</span></div></div></div>`;
+}
+
 function orderCard(o){
   const c = o.courier_id && DB.get('couriers', o.courier_id), b = biz();
-  const st = o.prep==='bekliyor' ? '<span class="pill warn">Onay bekliyor</span>' : o.prep==='hazirlaniyor' ? '<span class="pill blue">Hazırlanıyor</span>' : '<span class="pill ok">Hazır</span>';
-  let h = `<div class="card ${o.prep==='bekliyor'?'brand':''}"><div class="row"><b>#${J.esc(o.no)} · ${J.esc(o.customer.name)}</b>${st}</div><div class="small">${o.items.map(i => `${i.qty}× ${J.esc(i.name)}`).join(', ')}</div>${o.note?`<div class="small" style="margin-top:4px">📝 <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}${o.customer.note?`<div class="tiny muted">📍 ${J.esc(o.customer.note)} · ${J.fmtDist(J.dist(b,o.customer))}</div>`:''}
-    <div class="row small" style="margin-top:6px"><span>Sipariş tutarı</span><span class="money">${J.tl(o.subtotal)}</span></div>
-    <div class="row small"><span>Sabit teslimat + hizmet</span><span class="money">−${J.tl(o.fees.biz)}</span></div>
-    ${o.refund?`<div class="row small" style="color:var(--bad)"><span>İkaz iadesi</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
-    <div class="row small"><b>Hesabınıza geçecek (teslimatta)</b><b class="money">${J.tl(o.subtotal-o.fees.biz-(o.refund||0))}</b></div>
-    <div class="row tiny muted"><span>%35 komisyonla olurdu</span><span class="money">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
-  if(o.prep==='bekliyor') h += `<div class="small" style="margin-top:10px"><b>Hazırlık süresi seçip onaylayın:</b></div><div class="btns">${[5,10,15,20].map(m => `<button class="sm ok" data-a="accept" data-id="${o.id}" data-min="${m}">${m} dk</button>`).join('')}<button class="sm bad" data-a="reject" data-id="${o.id}">Reddet</button></div>`;
-  if(o.prep==='hazirlaniyor') h += `<div class="small" style="margin-top:8px">Kalan süre: <b><span data-live="mdown" data-end="${o.prep_until}">…</span> dk</b></div><div class="btns"><button class="ok" data-a="ready" data-id="${o.id}">✅ Sipariş hazır</button></div>`;
+  const st = o.prep==='bekliyor' ? '<span class="pill brand">Yeni</span>' : o.prep==='hazirlaniyor' ? '<span class="pill blue">Hazırlanıyor</span>' : '<span class="pill ok">Hazır</span>';
+  const net = o.subtotal-o.fees.biz-(o.refund||0);
+  let h = `<div class="p-ord ${o.prep==='bekliyor'?'new':''}"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${ago(o.created_at)}${o.customer.note?` · ${J.fmtDist(J.dist(b,o.customer))}`:''}</div>${st}</div><div class="bd">
+    <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}</span></li>`).join('')}</ul>
+    ${o.note?`<div class="p-note">📝 <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
+    <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
+  if(o.prep==='bekliyor') h += `<div class="small" style="margin-top:12px"><b>Hazırlık süresini seçip onaylayın</b></div><div class="p-prep">${[5,10,15,20].map(m => `<button data-a="accept" data-id="${o.id}" data-min="${m}">${m}<small>dakika</small></button>`).join('')}</div><button class="ghost wide" style="color:var(--bad);margin-top:6px" data-a="reject" data-id="${o.id}">Siparişi reddet</button>`;
+  if(o.prep==='hazirlaniyor') h += `<div class="p-timer"><span>⏱ Kalan hazırlık süresi</span><span><b data-live="mdown" data-end="${o.prep_until}">…</b> dk</span></div><button class="ok p-big" data-a="ready" data-id="${o.id}">✅ Sipariş hazır</button>`;
   let ct = o.prep==='bekliyor' ? 'Onaydan sonra kurye aranır' : 'Kurye aranıyor…';
   if(o.offer && !c){ const oc = DB.get('couriers', o.offer.cid); ct = `${J.esc(oc?oc.name:'Kurye')}'e teklif gönderildi (<span data-live="down" data-end="${o.offer.exp}">…</span> sn)`; }
-  if(c) ct = `${J.esc(c.name)} · ${o.del==='isletmeye' ? `size ${J.fmtDist(J.dist(c,b))} uzakta` : o.del==='isletmede' ? 'işletmede, paketi bekliyor' : o.del==='yolda' ? 'paketi aldı, yolda' : 'müşterinin kapısında'}`;
-  h += `<div class="small" style="margin-top:8px">🛵 ${ct}</div>`;
-  h += `<div class="btns"><button class="sm sec" data-a="call" data-to="musteri" data-id="${o.id}">📞 Müşteri</button>${c?`<button class="sm sec" data-a="call" data-to="kurye" data-id="${o.id}">📞 Kurye</button>`:''}</div></div>`;
+  if(c) ct = `<b>${J.esc(c.name)}</b> · ${o.del==='isletmeye' ? `size ${J.fmtDist(J.dist(c,b))} uzakta` : o.del==='isletmede' ? 'işletmede, paketi bekliyor' : o.del==='yolda' ? 'paketi aldı, yolda' : 'müşterinin kapısında'}`;
+  h += `<div class="p-cour"><span>🛵</span><div class="tx">${ct}</div>${c?`<button class="p-ic" data-a="call" data-to="kurye" data-id="${o.id}" aria-label="Kuryeyi ara">📞</button>`:''}<button class="p-ic" data-a="call" data-to="musteri" data-id="${o.id}" aria-label="Müşteriyi ara">👤</button></div></div></div>`;
   return h;
+}
+
+function tabOrders(b){
+  let h = b.open ? J.batteryCard() : '';
+  J.pendingCallbacks(b.id).filter(k => k.cb_deadline).forEach(k => {
+    h += `<div class="card bad"><h3>📞 Cevapsız müşteri araması</h3><div class="small">#${J.esc(k.no)}: Müşteriyi <b><span data-live="mmss" data-end="${k.cb_deadline}">…</span></b> içinde geri aramazsanız ikaz alırsınız ve müşteriye %${J.PENALTY_RATE*100} iade yapılır.</div><div class="btns"><button class="bad" data-a="call" data-to="musteri" data-id="${k.order_id}">Müşteriyi geri ara</button></div></div>`;
+  });
+  const act = J.orders().filter(o => o.rid===b.id && o.state==='aktif');
+  const groups = [['Yeni siparişler', act.filter(o => o.prep==='bekliyor'), true], ['Hazırlanıyor', act.filter(o => o.prep==='hazirlaniyor'), false], ['Hazır · kurye bekleniyor', act.filter(o => o.prep==='hazir'), false]];
+  if(!act.length) h += b.open ? `<div class="p-empty" style="margin-top:14px"><div>⏳</div><b>Yeni sipariş bekleniyor</b><div class="small">Sipariş gelince sesli uyarı çalar ve bildirim gelir.</div></div>`
+    : `<div class="p-empty" style="margin-top:14px"><div>🌙</div><b>Şu an kapalısınız</b><div class="small">Sipariş almak için yukarıdaki anahtarı açın.</div></div>`;
+  groups.forEach(([t, list, hot]) => { if(list.length){ h += `<div class="p-sec">${t}<span class="n ${hot?'hot':''}">${list.length}</span></div>`; list.forEach(o => h += orderCard(o)); } });
+  const done = J.orders().filter(o => o.rid===b.id && o.state!=='aktif').slice(0,8);
+  if(done.length){ h += `<div class="p-sec">Son siparişler</div>`; done.forEach(o => h += `<div class="p-mini"><span>#${J.esc(o.no)} · ${J.esc(o.customer.name)} · <b>${J.tl(o.subtotal)}</b></span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim':o.state==='red'?'Reddedildi':'Ulaşılamadı'}</span></div>`); }
+  return h;
+}
+
+function tabMenu(b){
+  const menu = b.menu||[], cats = [];
+  menu.forEach(m => { const c = m.cat || 'Diğer'; if(!cats.includes(c)) cats.push(c); });
+  const off = menu.filter(m => m.available===false).length;
+  let h = `<div class="small muted" style="margin:14px 2px 0">Tükenen ürünü anahtarla kapatın; müşteriler onu sipariş edemez. ${off?`<b>${off} ürün kapalı.</b>`:''}</div>`;
+  cats.forEach(c => {
+    h += `<div class="p-sec">${J.esc(c)}<span class="n">${menu.filter(m => (m.cat||'Diğer')===c).length}</span></div><div class="p-card p-menu">`;
+    menu.filter(m => (m.cat||'Diğer')===c).forEach(m => { const on = m.available !== false;
+      h += `<div class="it ${on?'':'off'}"><div class="tx"><b>${J.esc(m.name)}</b><span class="small muted">${J.tl(m.price)}${m.desc?' · '+J.esc(m.desc):''}</span></div><button class="p-tog ${on?'on':''}" data-a="avail" data-id="${m.id}" aria-label="${on?'Satışta':'Tükendi'}" title="${on?'Satışta':'Tükendi'}"></button></div>`; });
+    h += `</div>`;
+  });
+  h += `<div class="p-sec">Ürün ekle</div><div class="p-card"><input id="new-name" placeholder="Ürün adı" value="${J.esc(nf.name)}"><div class="p-grid2" style="margin-top:8px"><input id="new-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(nf.price)}"><input id="new-cat" placeholder="Kategori" list="cats" value="${J.esc(nf.cat)}"></div><datalist id="cats">${cats.map(c => `<option value="${J.esc(c)}">`).join('')}</datalist><input id="new-desc" placeholder="Kısa açıklama (isteğe bağlı)" style="margin-top:8px" value="${J.esc(nf.desc)}"><button class="brand wide" style="margin-top:10px" data-a="add-item">Ekle</button><div class="note">Çok ürününüz varsa Excel şablonuyla toplu yükleme bir sonraki sürümde gelecek.</div></div>`;
+  return h;
+}
+
+function tabEarn(b){
+  const paid = J.orders().filter(o => o.rid===b.id && o.pay==='dagitildi' && o.shares);
+  const got = paid.reduce((s,o) => s+o.shares.business, 0), would = Math.round(paid.reduce((s,o) => s+o.subtotal, 0)*(1-J.COMMISSION_RATE));
+  let h = `<div class="p-card" style="margin-top:14px;background:linear-gradient(135deg,#1f9d55,#2b8a3e);color:#fff"><div class="small" style="opacity:.85">Komisyonsuz sistemle fazladan kazancınız</div><div style="font-size:32px;font-weight:900">+${J.tl(Math.max(0,got-would))}</div><div class="small" style="opacity:.85">${paid.length} tamamlanan sipariş</div></div>
+    <div class="p-card"><div class="row small"><span>Hesabınıza geçen</span><b class="money">${J.tl(got)}</b></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="note">Ürün bedeli platformun hesabına uğramaz; ödeme kuruluşu teslimatta doğrudan sizin hesabınıza aktarır (şu an simülasyon).</div></div>`;
+  const ss = b.strikes||[];
+  h += `<div class="p-sec">İkazlar<span class="n ${J.activeStrikes(b).length?'hot':''}">${J.activeStrikes(b).length}/3</span></div><div class="small muted" style="margin:-4px 2px 10px">İkazlar 90 günde silinir. 3 ikazda hesap askıya alınır.</div>`;
+  if(!ss.length) h += `<div class="p-empty"><div>🏅</div>İkaz yok. Müşteri aramalarını açtığınız sürece ikaz almazsınız.</div>`;
+  ss.forEach((s,i) => h += `<div class="card small ${s.removed?'soft':'warn'}"><div class="row"><b>${i+1}. ikaz · #${J.esc(s.no)}</b><span>${s.removed?'<span class="pill ok">İtiraz kabul edildi</span>':s.appeal==='beklemede'?'<span class="pill blue">İtiraz incelemede</span>':s.appeal==='red'?'<span class="pill bad">İtiraz reddedildi</span>':''}</span></div><div class="muted">Müşteriye ${J.tl(s.refund)} iade · ${new Date(s.t).toLocaleString('tr-TR')}</div>${!s.appeal&&!s.removed?`<div class="btns"><button class="sm sec" data-a="appeal" data-id="${s.id}">İtiraz et</button></div>`:''}</div>`);
+  return h;
+}
+
+function tabSettings(b){
+  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}
+    <div class="p-card"><div class="row"><label for="free" style="flex:1"><b>Müşterinin teslimat payını ben üstleneyim</b><div class="tiny muted">Müşteri "Ücretsiz teslimat" görür; ${J.tl(J.FEE.custDel+J.FEE.custPlat)} sizin payınıza eklenir.</div></label><input type="checkbox" id="free" data-a="free" style="width:22px;height:22px" ${b.free_delivery?'checked':''}></div></div>
+    <div class="p-card small"><h3>Ücretler</h3><div class="row"><span>Sipariş başına sabit ücret</span><b>${J.tl(J.FEE.bizDel+J.FEE.bizPlat)}</b></div><div class="row"><span>Yüzde komisyon</span><b>Yok</b></div><div class="row"><span>Aidat</span><b>Yok</b></div></div>
+    <div class="p-card small"><div class="muted">Bu cihaz açık kaldığı sürece siparişler buraya düşer, ekran açık tutulur.</div><button class="sec wide" style="margin-top:10px" data-a="switch">Çıkış yap</button></div>`;
 }
 
 function renderMain(){
   const b = biz();
   if(!b){ bid = null; J.store.set('isletme_id', null); return renderPick(); }
-  let h = '';
+  let h = header(b) + `<div class="p-body">`;
   if(!notifOk()) h += renderGate(b);
-  if(b.open) h += J.batteryCard();
   if(b.suspended) h += `<div class="card bad"><h3>⛔ Hesap askıya alındı</h3><div class="small">Son 90 günde 3 ikaz alındı. Sözleşme gereği sipariş alamazsınız. İtirazlarınız yönetim tarafından incelenir.</div></div>`;
-  h += `<div class="card soft"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b>${J.esc(b.name)}</b><div class="small">${b.open?'🟢 Sipariş almaya açık':'⚪️ Kapalı'}</div></div></div><button class="${b.open?'sec':'ok'}" data-a="toggle-open" ${(!notifOk()||b.suspended)?'disabled':''}>${b.open?'Kapat':'Aç'}</button></div>
-    <div class="row small" style="margin-top:10px"><label for="free" style="flex:1">Müşteri teslimat payını ben üstleneyim</label><input type="checkbox" id="free" data-a="free" style="width:auto" ${b.free_delivery?'checked':''}></div>
-    <div class="row tiny muted"><span>Bu cihaz açık kaldığı sürece siparişler buraya düşer. Ekran açık tutulur.</span><button class="ghost sm" data-a="switch">Çıkış yap</button></div></div>`;
-  h += `<div class="tabbar">${[['siparis','Siparişler'],['menu','Menü'],['kazanc','Kazanç ve ikaz']].map(([k,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}</button>`).join('')}</div>`;
-  if(tab==='siparis'){
-    J.pendingCallbacks(b.id).filter(k => k.cb_deadline).forEach(k => {
-      h += `<div class="card bad"><h3>📞 Cevapsız müşteri araması</h3><div class="small">#${J.esc(k.no)}: Müşteriyi <b><span data-live="mmss" data-end="${k.cb_deadline}">…</span></b> içinde geri aramazsanız ikaz alırsınız ve müşteriye %${J.PENALTY_RATE*100} iade yapılır.</div><div class="btns"><button class="bad" data-a="call" data-to="musteri" data-id="${k.order_id}">Müşteriyi geri ara</button></div></div>`;
-    });
-    const act = J.orders().filter(o => o.rid===b.id && o.state==='aktif');
-    if(!act.length) h += `<div class="card soft small" style="text-align:center">${b.open?'⏳ Yeni sipariş bekleniyor…':'Sipariş almak için yukarıdan "Aç"a basın.'}</div>`;
-    act.forEach(o => h += orderCard(o));
-    const done = J.orders().filter(o => o.rid===b.id && o.state!=='aktif').slice(0,5);
-    if(done.length){ h += `<h2 class="sec">Son siparişler</h2>`; done.forEach(o => h += `<div class="row small card"><span>#${J.esc(o.no)} · ${J.esc(o.customer.name)} · ${J.tl(o.subtotal)}</span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim':o.state==='red'?'Reddedildi':'Ulaşılamadı'}</span></div>`); }
-  }
-  if(tab==='menu'){
-    h += `<div class="small muted" style="margin:0 2px 8px">Tükenen ürünü tek dokunuşla kapatın; müşteriler onu sipariş edemez.</div>`;
-    (b.menu||[]).forEach(m => h += `<div class="card"><div class="row"><div><b>${J.esc(m.name)}</b><div class="small muted">${J.tl(m.price)}</div></div><button class="sm ${m.available!==false?'ok':'sec'}" data-a="avail" data-id="${m.id}">${m.available!==false?'Satışta':'Tükendi'}</button></div></div>`);
-    h += `<div class="card soft"><h3>Ürün ekle</h3><div class="row"><input id="new-name" placeholder="Ürün adı"><input id="new-price" inputmode="decimal" placeholder="Fiyat" style="max-width:110px"></div><button class="brand wide" style="margin-top:8px" data-a="add-item">Ekle</button><div class="note">Çok ürününüz varsa Excel şablonuyla toplu yükleme bir sonraki sürümde gelecek.</div></div>`;
-  }
-  if(tab==='kazanc'){
-    const paid = J.orders().filter(o => o.rid===b.id && o.pay==='dagitildi' && o.shares);
-    const got = paid.reduce((s,o) => s+o.shares.business, 0), would = Math.round(paid.reduce((s,o) => s+o.subtotal, 0)*(1-J.COMMISSION_RATE));
-    h += `<div class="card ok"><h3>💰 Komisyonsuz sistemle kazancınız</h3><div class="row small"><span>Tamamlanan sipariş</span><b>${paid.length}</b></div><div class="row small"><span>Hesabınıza geçen</span><span class="money">${J.tl(got)}</span></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="row"><b>Fark</b><b class="money" style="color:var(--ok)">+${J.tl(Math.max(0,got-would))}</b></div><div class="note">Ürün bedeli platformun hesabına uğramaz; ödeme kuruluşu teslimatta doğrudan sizin hesabınıza aktarır (şu an simülasyon).</div></div>`;
-    const ss = b.strikes||[];
-    h += `<h2 class="sec">İkazlar (${J.activeStrikes(b).length}/3 · 90 günde silinir)</h2>`;
-    if(!ss.length) h += `<div class="card soft small">İkaz yok. Müşteri aramalarını açtığınız sürece ikaz almazsınız.</div>`;
-    ss.forEach((s,i) => h += `<div class="card small ${s.removed?'soft':'warn'}"><div class="row"><b>${i+1}. ikaz · #${J.esc(s.no)}</b><span>${s.removed?'<span class="pill ok">İtiraz kabul edildi</span>':s.appeal==='beklemede'?'<span class="pill blue">İtiraz incelemede</span>':s.appeal==='red'?'<span class="pill bad">İtiraz reddedildi</span>':''}</span></div><div class="muted">Müşteriye ${J.tl(s.refund)} iade · ${new Date(s.t).toLocaleString('tr-TR')}</div>${!s.appeal&&!s.removed?`<div class="btns"><button class="sm sec" data-a="appeal" data-id="${s.id}">İtiraz et</button></div>`:''}</div>`);
-  }
+  h += ({siparis:tabOrders, menu:tabMenu, kazanc:tabEarn, ayar:tabSettings}[tab] || tabOrders)(b);
   // Uyarılar
   const waiting = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor');
   J.alarm('yeni', waiting.length > 0, 'order', 3000);
   waiting.forEach(o => J.notify('yeni-'+o.id, '🔔 Yeni sipariş #'+o.no, o.items.map(i => i.qty+'× '+i.name).join(', ')));
-  return h;
+  return h + `</div>`;
+}
+function renderTabs(){
+  const b = biz(); let h = '';
+  if(b){
+    const nw = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor').length + J.pendingCallbacks(b.id).filter(k => k.cb_deadline).length;
+    h = `<nav class="p-tabs">${[['siparis','🧾','Siparişler'],['menu','📋','Menü'],['kazanc','💰','Kazanç'],['ayar','⚙️','Ayarlar']].map(([k,ic,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}"><i>${ic}</i>${l}${k==='siparis'&&nw?`<span class="bdg">${nw}</span>`:''}</button>`).join('')}</nav>`;
+  }
+  const el = document.getElementById('ptabs'); if(el.innerHTML !== h) el.innerHTML = h;
 }
 
 function render(){
-  document.getElementById('mode').innerHTML = J.modeBadge();
   J.render(document.getElementById('panel'), bid ? renderMain() : renderPick());
+  renderTabs();
   renderCall();
 }
 let lastCall = '';
@@ -128,15 +170,18 @@ document.addEventListener('click', async e => {
     if(open) J.beep('ok');
   }
   if(a==='free' && b) DB.patch('businesses', b.id, {free_delivery: el.checked});
-  if(a==='tab') tab = id;
+  if(a==='tab'){ tab = id; window.scrollTo(0,0); }
   if(a==='accept') J.acceptOrder(DB.get('orders', id), +el.dataset.min);
   if(a==='reject') J.rejectOrder(DB.get('orders', id));
   if(a==='ready') J.markReady(DB.get('orders', id));
   if(a==='avail' && b) DB.patch('businesses', b.id, {menu: b.menu.map(m => m.id===id ? Object.assign({}, m, {available: m.available===false}) : m)});
   if(a==='add-item' && b){
     const name = document.getElementById('new-name').value.trim(), price = parseFloat(document.getElementById('new-price').value.replace(',','.'));
+    const cat = document.getElementById('new-cat').value.trim(), desc = document.getElementById('new-desc').value.trim();
     if(!name || !(price > 0)){ J.toast('Ürün adı ve fiyat girin.'); return; }
-    DB.patch('businesses', b.id, {menu: (b.menu||[]).concat([{id:J.uid('u'), name, price, available:true}])});
+    DB.patch('businesses', b.id, {menu: (b.menu||[]).concat([{id:J.uid('u'), name, price, cat, desc, available:true}])});
+    nf = {name:'', price:'', cat:'', desc:''};
+    J.toast('Ürün eklendi.');
   }
   if(a==='appeal' && b){ DB.patch('businesses', b.id, {strikes: b.strikes.map(s => s.id===id ? Object.assign({}, s, {appeal:'beklemede'}) : s)}); J.log(`${b.name} bir ikaza itiraz etti.`); }
   if(a==='call'){ const o = DB.get('orders', id); const to = el.dataset.to==='musteri' ? {type:'musteri', id:o.customer.id, name:o.customer.name} : {type:'kurye', id:o.courier_id}; J.startCall(me(), to, id); }
@@ -155,7 +200,9 @@ setInterval(() => {
   }
   J.strikeTick(); J.live(); renderCall();
 }, 1000);
-DB.on(render);
+document.addEventListener('input', e => { const m = /^new-(name|price|cat|desc)$/.exec(e.target.id||''); if(m) nf[m[1]] = e.target.value; });
+// Giriş ekranında veri değişince formu yeniden çizme (yazılanlar silinmesin)
+DB.on(() => { if(bid) render(); });
 DB.init().then(() => { const b = biz(); if(b && b.open){ J._wantAwake = true; J.keepAwake(true); J.nativeService(true, {baslik:`Jetgel İşletme · ${b.name}`, metin:'Açık: yeni siparişler ve aramalar için hazır', konum:false}); } render(); });
 J.registerSW();
 </script>

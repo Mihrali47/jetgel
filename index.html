@@ -13,7 +13,12 @@
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
 <style>
-.hero{padding:26px 4px 8px}
+.hero{padding:22px 18px 20px;margin:12px 0 0;border-radius:22px;background:linear-gradient(135deg,#1d1b18,#3a2a1e);color:#fff}
+.hero .muted{color:#e9e1d6}
+.hero .pill{background:rgba(255,255,255,.14);color:#fff}
+.fair{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.fair div{background:rgba(255,255,255,.1);border-radius:12px;padding:8px;text-align:center;font-size:11.5px;color:#e9e1d6}
+.fair b{display:block;font-size:17px;color:#fff}
 .hero h1{font-size:30px;margin:0 0 6px;letter-spacing:-.5px}
 .hero h1 span{color:var(--brand)}
 .roles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
@@ -32,6 +37,7 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
     <div class="row"><span class="pill">Prototip · geçici isim</span><span id="mode"></span></div>
     <h1 style="margin-top:12px"><span>Jetgel</span></h1>
     <div class="muted">Komisyonsuz, sabit ücretli teslimat. Esnaf yüzde vermez; teslimat ücretinin tamamı kuryeye gider.</div>
+    <div class="fair"><div><b>%0</b>komisyon</div><div><b>100 TL</b>kuryeye</div><div><b>SMS yok</b>kodla teslim</div></div>
   </div>
   <div class="roles">
     <a class="role main" href="musteri.html"><div class="e">🍽️</div><b>Sipariş ver</b><span>Müşteri uygulaması</span></a>
@@ -49,9 +55,9 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
   </div>
   <div class="card"><h3>Nasıl denenir? (3 telefonla)</h3>
     <ol class="howto small">
-      <li><b>1. telefon → İşletme:</b> <b>test1</b> / test ile giriş yap, bildirim izni ver, "Aç"a bas.</li>
-      <li><b>2. telefon → Kurye:</b> <b>1test</b> / test ile giriş yap, bildirim izni ver, "Çevrimiçi ol"a bas. Masa başında "Demo sürüş", sokakta "Gerçek GPS".</li>
-      <li><b>3. telefon → Sipariş ver:</b> <b>test</b> / test ile giriş yap, "Test1 · Pideci"den sipariş ver.</li>
+      <li><b>1. telefon → İşletme:</b> <b>test1</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap.</li>
+      <li><b>2. telefon → Kurye:</b> <b>1test</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap. Masa başında denemek için Hesap sekmesinden "Demo sürüş"ü seç; sokakta "Gerçek GPS".</li>
+      <li><b>3. telefon → Sipariş ver:</b> <b>test</b> / test ile giriş yap, "Test1 · Pideci"ye gir, ürün ekle, alttaki "Sepete git" → "Siparişi onayla".</li>
       <li>İşletme onaylar, kuryeye 30 saniyelik teklif düşer, kurye kabul eder ve navigasyonla gider. Kapıda müşterinin ekranındaki kod girilir.</li>
       <li>Sesli arama için siparişin içindeki 📞 butonlarını kullan. İlk aramada mikrofon izni istenir.</li>
     </ol>

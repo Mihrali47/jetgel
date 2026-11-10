@@ -74,7 +74,7 @@ function renderBiz(){
       <div class="row"><div style="flex:1"><label class="f" for="e-name">İşletme adı</label><input id="e-name" value="${J.esc(edit.name||'')}"></div><div style="width:90px"><label class="f" for="e-emoji">Simge</label><input id="e-emoji" value="${J.esc(edit.emoji||'🏪')}"></div></div>
       <div class="row"><div style="flex:1"><label class="f" for="e-user">Giriş kullanıcı adı</label><input id="e-user" autocapitalize="none" value="${J.esc(edit.user||'')}"></div><div style="flex:1"><label class="f" for="e-pass">Şifre</label><input id="e-pass" value="${J.esc(edit.pass||'')}"></div></div>
       <label class="f">Konum</label><div class="small">${edit.lat ? `📍 ${edit.lat.toFixed(5)}, ${edit.lng.toFixed(5)}` : '<span style="color:var(--bad)">Haritaya dokunarak konum seçin.</span>'}</div>
-      <label class="f" for="e-menu">Menü (her satıra: ürün adı ; fiyat)</label><textarea id="e-menu" rows="7" placeholder="Kıymalı Pide ; 280&#10;Ayran ; 45">${J.esc(edit.menuText||'')}</textarea>
+      <label class="f" for="e-menu">Menü (her satıra: ürün adı ; fiyat ; kategori ; açıklama — son ikisi isteğe bağlı)</label><textarea id="e-menu" rows="7" placeholder="Kıymalı Pide ; 280&#10;Ayran ; 45">${J.esc(edit.menuText||'')}</textarea>
       <div class="row small" style="margin-top:8px"><label for="e-free" style="flex:1">Müşteri teslimat payını işletme üstlensin</label><input type="checkbox" id="e-free" style="width:auto" ${edit.free_delivery?'checked':''}></div>
       <div class="btns"><button class="brand" data-a="save-biz">Kaydet</button><button class="sec" data-a="cancel">Vazgeç</button>${edit.id?`<button class="bad" data-a="del-biz">Sil</button>`:''}</div></div>`;
   } else h += `<div class="btns" style="margin:0 0 12px"><button class="brand" data-a="new-biz">+ Yeni işletme ekle</button></div>`;
@@ -135,14 +135,14 @@ function render(){
   if(showMap){ map.invalidate(); drawMap(); }
 }
 
-function menuToText(menu){ return (menu||[]).map(m => `${m.name} ; ${m.price}`).join('\n'); }
+function menuToText(menu){ return (menu||[]).map(m => [m.name, m.price, m.cat||'', m.desc||''].join(' ; ').replace(/( ; )+$/,'')).join('\n'); }
 function textToMenu(txt, old){
   return txt.split('\n').map(l => l.trim()).filter(Boolean).map((l,i) => {
-    const [name, price] = l.split(';').map(s => s.trim());
+    const [name, price, cat, desc] = l.split(';').map(s => s.trim());
     const p = parseFloat(String(price||'').replace(',','.'));
     if(!name || !(p > 0)) return null;
     const prev = (old||[]).find(m => m.name === name);
-    return {id: prev ? prev.id : J.uid('u'), name, price:p, available: prev ? prev.available : true};
+    return {id: prev ? prev.id : J.uid('u'), name, price:p, cat: cat != null ? cat : (prev && prev.cat) || '', desc: desc != null ? desc : (prev && prev.desc) || '', available: prev ? prev.available !== false : true};
   }).filter(Boolean);
 }
 function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.emoji = g('e-emoji').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; edit.user = g('e-user').value.trim(); edit.pass = g('e-pass').value; } }
@@ -205,7 +205,7 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('input', () => readForm());
 
-DB.on(() => { if(!edit) render(); else { drawMap(); document.getElementById('mode').innerHTML = J.modeBadge(); } });
+DB.on(() => { const ae = document.activeElement; if(!edit && !(ae && ae.id==='turn-txt')) render(); else { drawMap(); document.getElementById('mode').innerHTML = J.modeBadge(); } });
 setInterval(() => { J.strikeTick(); J.live(); if(tab==='genel') drawMap(); }, 2000);
 DB.init().then(() => { render(); if(J.businesses().length) map.fit(J.businesses()); });
 J.registerSW();

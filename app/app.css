@@ -16,7 +16,7 @@ button.ghost{background:transparent;color:var(--brand);padding:6px 4px}
 button.sm{padding:7px 10px;font-size:13px;border-radius:9px}
 button.wide{width:100%}
 button:disabled{opacity:.4;cursor:not-allowed}
-a.btnlink{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:650;font-size:13px;padding:8px 11px;border-radius:9px;background:var(--blue-soft);color:var(--blue)}
+a.btnlink,label.btnlink{display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-weight:650;font-size:13px;padding:8px 11px;border-radius:9px;background:var(--blue-soft);color:var(--blue)}
 input,select,textarea{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);width:100%}
 label.f{display:block;font-size:13px;font-weight:650;margin:10px 0 4px}
 .top{position:sticky;top:0;z-index:1000;background:rgba(244,242,238,.96);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}

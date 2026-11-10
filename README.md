@@ -9,8 +9,8 @@ Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin 
 | Sayfa | Kim için | Ne yapar |
 |---|---|---|
 | `musteri.html` | Müşteri | Yemek uygulaması düzeninde: adres çubuğu, arama (restoran ve ürün), kategori filtreleri, "Tekrar sipariş ver", fotoğraf yerine renkli kapaklı restoran kartları (tahmini süre, mesafe, teslimat ücreti açıkça). Restoran sayfasında kategorili menü ve alttan sepet çubuğu; sepette işletmeye not ve gizli ücretsiz tam döküm. Takipte büyük tahmini varış, 4 adımlı ilerleme, harita, kurye/işletme arama, teslimat kodu. Alt menü: Keşfet · Siparişlerim · Hesabım. Stili `app/musteri.css` |
-| `isletme.html` | İşletme | Sipariş almaya açılır, siparişi onaylar/reddeder, "hazır" der, menüde ürünleri satışta/tükendi yapar, kazanç ve ikazları görür |
-| `kurye.html` | Kurye | Çevrimiçi olur, 30 sn'lik teklifleri alır, gerçek yol rotası ve adım adım tarifle gider, kodla teslim eder |
+| `isletme.html` | İşletme | Koyu başlıkta açık/kapalı anahtarı ve bugünün özeti (teslim, aktif, hesaba geçen). Siparişler "Yeni / Hazırlanıyor / Hazır" gruplarında; yeni sipariş kartı yanıp söner, hazırlık süresi büyük düğmelerle seçilir, müşteri notu sarı kutuda. Menüde kategoriye göre ürünler ve satışta/tükendi anahtarı, kategori ve açıklamalı ürün ekleme. Kazanç (komisyonlu platformla fark) ve ikazlar. Alt menü: Siparişler · Menü · Kazanç · Ayarlar. Stili `app/panel.css` |
+| `kurye.html` | Kurye | Koyu başlıkta çevrimiçi anahtarı ve bugünkü kazanç. Büyük turuncu teklif kartı (geri sayım, 100 TL, alış/teslim mesafeleri). Aktif teslimatta 4 adımlı ilerleme, gerçek yol rotası ve adım adım tarif, hedef kartında arama; kapıda büyük kod alanı (harita gizlenir). Alt menü: Görev · Kazanç · Hesap (GPS/demo sürüş seçimi burada). Stili `app/panel.css` |
 | `yonetim.html` | Yönetim | İşletme ekler/düzenler (haritadan konum, menü), kuryeleri, siparişleri, ödemeleri, aramaları, ikaz itirazlarını yönetir |
 | `simulasyon.html` | Esnafa sunum | Tüm sistemi tek ekranda gösteren simülasyon (sürüm 2) |
 
@@ -32,9 +32,9 @@ Eksik test hesapları ilk açılışta otomatik oluşur. Yönetim → Ayarlar'da
 
 ## Nasıl denenir (3 telefonla)
 
-1. **1. telefon → İşletme:** `test1` / `test` ile giriş, bildirim izni ver, "Aç".
-2. **2. telefon → Kurye:** `1test` / `test` ile giriş, bildirim izni ver, "Çevrimiçi ol". Masa başında "Demo sürüş", sokakta "Gerçek GPS".
-3. **3. telefon → Müşteri:** `test` / `test` ile giriş, "Test1 · Pideci"den sipariş ver.
+1. **1. telefon → İşletme:** `test1` / `test` ile giriş, bildirim izni ver, üstteki anahtarı "Açık" yap.
+2. **2. telefon → Kurye:** `1test` / `test` ile giriş, bildirim izni ver, üstteki anahtarı "Açık" yap. Masa başında Hesap sekmesinden "Demo sürüş", sokakta "Gerçek GPS".
+3. **3. telefon → Müşteri:** `test` / `test` ile giriş, "Test1 · Pideci"ye gir, ürün ekle, "Sepete git" → "Siparişi onayla".
 4. İşletme onaylar → kuryeye teklif düşer → kurye kabul eder, navigasyonla gider → işletme "hazır" der → kurye paketi alır → müşterinin kapısında kodu girer.
 
 Yönetim → Ayarlar'daki **hızlı test modu** açıkken süreler 10 kat kısalır. Gerçek denemede kapatın.
@@ -118,7 +118,8 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - [ ] İlk semti seçmek
 - [ ] Yoğun saatlerde aynı yöndeki siparişleri tek kuryeye birleştirme
 - [x] Müşteri uygulamasının yeni tasarımı (Trendyol Go / Yemeksepeti düzeni, kendi renklerimizle)
-- [ ] Kurye, işletme ve yönetim ekranlarının yeni tasarımı
+- [x] Kurye ve işletme ekranlarının yeni tasarımı
+- [ ] Yönetim panelinin yeni tasarımı
 - [ ] Excel ile toplu ürün yükleme
 - [ ] Gerçek ödeme altyapısı (alt üye işyeri modeli; PayTR, iyzico vb. ile görüşme)
 - [x] Uygulama içi gerçek sesli arama (WebRTC)
