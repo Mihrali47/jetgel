@@ -691,7 +691,7 @@ J.ensureTestAccounts = function(reset){
     DB.put('couriers', id, {name:`Kurye ${n}`, online:false, notif_ok:false, lat:g[0]+0.0012, lng:g[1]-0.0010, busy:null, earnings:0, jobs:[], login:{user:n+'test', pass:'test'}});
     made++;
   }
-  if(reset || !DB.get('customers','m_test')){ DB.put('customers', 'm_test', {name:'Test Müşteri', note:'Moda Cd. Test Apt. No 1', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login:{user:'test', pass:'test'}}); made++; }
+  if(reset || !DB.get('customers','m_test')){ DB.put('customers', 'm_test', {name:'Test Müşteri', note:'Test adresi', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login:{user:'test', pass:'test'}}); made++; }
   if(!DB.get('settings','ayar')) DB.put('settings', 'ayar', {fast:true});
   if(made) J.log(reset ? 'Test hesapları sıfırlandı.' : `Test hesapları oluşturuldu (${made} kayıt).`, 'ok');
 };
@@ -708,10 +708,22 @@ J.relocateTests = function(center){
     const k = +c.id.slice(2,3); const g = GRID[(k+3)%9];
     if(!c.busy) DB.patch('couriers', c.id, {lat:g[0]+0.0012+dLat, lng:g[1]-0.0010+dLng}); n++;
   });
-  if(DB.get('customers','m_test')) DB.patch('customers', 'm_test', {lat:40.9840+dLat, lng:29.0335+dLng});
+  const mt = DB.get('customers','m_test');
+  if(mt && mt.loc_src !== 'gps' && mt.loc_src !== 'harita') DB.patch('customers', 'm_test', {lat:40.9840+dLat, lng:29.0335+dLng});
+  if(mt && /Moda Cd\./.test(mt.note||'')) DB.patch('customers', 'm_test', {note:'Test adresi'});
   if(DB.get('settings','ayar')) DB.patch('settings','ayar',{center}); else DB.put('settings','ayar',{fast:true, center});
   J.log(`Test hesapları yeni konuma taşındı (${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}).`, 'ok');
   return n;
+};
+// Gerçek konum test dükkânlarından 5 km'den uzaksa test hesaplarını otomatik olarak o çevreye taşır
+J.autoRelocate = function(pos){
+  if(!pos || pos.lat == null || J._autoRel) return false;
+  const tests = DB.rows('businesses').filter(b => /^b_test\d$/.test(b.id));
+  if(!tests.length || tests.some(b => J.dist(b, pos) < 5000)) return false;
+  J._autoRel = true;
+  J.relocateTests({lat:pos.lat, lng:pos.lng});
+  J.toast('📍 Test dükkânları senin çevrene taşındı.');
+  return true;
 };
 // Haritanın ilk açılışta göstereceği bölge: test hesapları taşındıysa orası, değilse Moda
 J.homeBox = function(){

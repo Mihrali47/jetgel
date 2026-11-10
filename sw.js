@@ -1,6 +1,6 @@
 // Jetgel service worker: uygulamanın telefona yüklenebilmesi, hızlı açılması ve bildirimler için.
 // Kendi dosyalarımız için önce ağ, ağ yoksa önbellek. Dış servisler (harita, rota, veritabanı) hiç önbelleğe alınmaz.
-const CACHE = 'jetgel-v8';
+const CACHE = 'jetgel-v9';
 const SHELL = [
   './', 'index.html', 'musteri.html', 'isletme.html', 'kurye.html', 'yonetim.html', 'simulasyon.html',
   'app/app.css', 'app/core.js', 'app/config.js',

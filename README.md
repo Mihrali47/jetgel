@@ -26,7 +26,7 @@ Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin 
 | Kurye | `1test` … `9test` | `test` |
 | Müşteri | `test` | `test` |
 
-Eksik test hesapları ilk açılışta otomatik oluşur. Yönetim → Ayarlar'dan sıfırlanabilir. Test dükkânları varsayılan olarak Moda/Kadıköy'dedir; **Yönetim → Ayarlar → "Test dükkânlarını bulunduğun yere taşı"** ile kendi çevrene taşıyabilirsin. Yeni dükkân yönetim panelinden (kullanıcı adı ve şifreyle), yeni kurye ve müşteri kendi uygulamasından kaydolur.
+Eksik test hesapları ilk açılışta otomatik oluşur. Yönetim → Ayarlar'dan sıfırlanabilir. Test dükkânları varsayılan olarak Moda/Kadıköy'dedir. Bir müşteri ya da kurye telefonu gerçek konumunu aldığında dükkânlara 5 km'den uzaksa test hesapları **kendiliğinden** o çevreye taşınır (elle: Yönetim → Ayarlar → "Test dükkânlarını bulunduğun yere taşı"). Müşterinin teslimat noktası da ilk girişte telefonun konumundan otomatik alınır. Yeni dükkân yönetim panelinden (kullanıcı adı ve şifreyle), yeni kurye ve müşteri kendi uygulamasından kaydolur.
 
 > ⚠️ **Prototip girişi:** Şifreler veritabanında düz metin durur ve veritabanı herkese açıktır. Bu gerçek bir güvenlik değildir; gerçek kullanımdan önce Supabase Auth ve satır güvenlik kurallarıyla değiştirilmelidir.
 

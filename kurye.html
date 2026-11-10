@@ -49,7 +49,7 @@ function startGps(){
   gpsErr = 'Konum bekleniyor…';
   gpsWatch = navigator.geolocation.watchPosition(p => {
     pos = {lat:p.coords.latitude, lng:p.coords.longitude}; gpsAcc = Math.round(p.coords.accuracy); gpsErr = '';
-    J.store.set('kurye_pos', pos);
+    J.store.set('kurye_pos', pos); J.autoRelocate(pos);
   }, err => { gpsErr = 'Konum alınamadı: ' + (err.code===1 ? 'izin verilmedi. Adres çubuğundaki kilit simgesinden konuma izin verin.' : err.message); render(); },
   {enableHighAccuracy:true, maximumAge:3000, timeout:20000});
 }
@@ -60,7 +60,7 @@ function nativeServis(){
   J.nativeService(on, {baslik:'Jetgel Kurye · çevrimiçi', metin: locMode==='gps' ? 'Konum paylaşılıyor · teklifler ve aramalar için hazır' : 'Teklifler ve aramalar için hazır', konum: locMode==='gps'});
 }
 if(J.native){
-  try{ J.native.addListener('location', l => { if(locMode !== 'gps' || !l) return; pos = {lat:l.lat, lng:l.lng}; gpsAcc = l.acc ? Math.round(l.acc) : gpsAcc; gpsErr = ''; J.store.set('kurye_pos', pos); }); }catch(e){}
+  try{ J.native.addListener('location', l => { if(locMode !== 'gps' || !l) return; pos = {lat:l.lat, lng:l.lng}; gpsAcc = l.acc ? Math.round(l.acc) : gpsAcc; gpsErr = ''; J.store.set('kurye_pos', pos); J.autoRelocate(pos); }); }catch(e){}
 }
 function stopGps(){ if(gpsWatch != null){ navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; } }
 function target(o){
@@ -188,7 +188,7 @@ document.addEventListener('click', async e => {
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
     const r = J.login('couriers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
-    if(r.error) loginErr = r.error; else { loginErr = ''; cid = r.id; J.store.set('kurye_id', r.id); const cc = DB.get('couriers', r.id); if(cc && cc.lat) pos = {lat:cc.lat, lng:cc.lng}; }
+    if(r.error) loginErr = r.error; else { loginErr = ''; cid = r.id; J.store.set('kurye_id', r.id); const cc = DB.get('couriers', r.id); if(cc && cc.lat) pos = {lat:cc.lat, lng:cc.lng}; if(locMode==='gps') startGps(); }
   }
   if(a==='create'){
     const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
@@ -266,7 +266,7 @@ setInterval(() => {
   J.strikeTick(); J.live(); renderCall();
 }, 1000);
 DB.on(render);
-DB.init().then(() => { const c = cour(); if(c && (c.online || myJob())){ J._wantAwake = true; J.keepAwake(true); if(locMode==='gps') startGps(); nativeServis(); } render(); });
+DB.init().then(() => { const c = cour(); if(c && locMode==='gps') startGps(); if(c && (c.online || myJob())){ J._wantAwake = true; J.keepAwake(true); if(locMode==='gps') startGps(); nativeServis(); } render(); });
 J.registerSW();
 </script>
 </body>

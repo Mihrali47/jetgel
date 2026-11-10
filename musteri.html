@@ -161,14 +161,15 @@ document.addEventListener('click', e => {
   if(a==='save-prof'){
     draft.name = document.getElementById('p-name').value.trim(); draft.note = document.getElementById('p-note').value.trim();
     if(!draft.name){ J.toast('Lütfen adını yaz.'); return; }
-    DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng});
+    DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng, loc_src: draft.src==='gps'||draft.src==='harita' ? draft.src : (prof && prof.loc_src) || null});
+    if(draft.src==='gps') J.autoRelocate(draft);
     draft = null; view = 'liste';
   }
   if(a==='show-reg'){ showReg = true; regErr = ''; }
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
     const r = J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
-    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); view = 'liste'; }
+    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); view = 'liste'; setTimeout(() => { loadProf(); autoLocate(); }, 300); }
   }
   if(a==='register'){
     const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
@@ -195,6 +196,18 @@ document.addEventListener('click', e => {
   render();
 });
 
+// Konum hiç seçilmediyse (varsayılan) telefonun konumunu kendiliğinden al
+let autoLocTried = false;
+function autoLocate(){
+  if(autoLocTried || !prof || prof.loc_src === 'gps' || prof.loc_src === 'harita' || !navigator.geolocation) return;
+  autoLocTried = true;
+  navigator.geolocation.getCurrentPosition(p => {
+    const pos = {lat:p.coords.latitude, lng:p.coords.longitude};
+    DB.patch('customers', prof.id, {lat:pos.lat, lng:pos.lng, loc_src:'gps'});
+    J.autoRelocate(pos);
+    J.toast('📍 Teslimat noktan konumuna göre ayarlandı.');
+  }, () => {}, {enableHighAccuracy:true, timeout:20000, maximumAge:60000});
+}
 document.addEventListener('input', e => {
   if(!draft) return;
   if(e.target.id==='p-name') draft.name = e.target.value;
@@ -203,7 +216,7 @@ document.addEventListener('input', e => {
 DB.on(() => { if(view !== 'profil' && view !== 'giris') render(); else renderCall(); document.getElementById('mode').innerHTML = J.modeBadge(); });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 DB.init().then(() => {
-  if(loadProf()){ view = 'liste'; if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
+  if(loadProf()){ view = 'liste'; setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
   render();
 });
 J.registerSW();
