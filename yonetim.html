@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jetgel · Yönetim</title>
+<meta name="theme-color" content="#1d1b18">
+<link rel="manifest" href="manifest-yonetim.webmanifest">
+<link rel="icon" href="ikonlar/ikon-192.png">
+<link rel="apple-touch-icon" href="ikonlar/ikon-192.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="app/app.css">
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/supabase/supabase.js"></script>
+<script src="app/config.js"></script>
+<script src="app/core.js"></script>
+</head>
+<body>
+<div class="top"><a class="brandname" href="./"><span>Jetgel</span> · Yönetim</a><span id="mode"></span></div>
+<div class="wrap wide">
+  <div class="tabbar" id="tabs"></div>
+  <div class="grid2" id="genel-grid">
+    <div><div class="card"><div class="row"><h3>Canlı harita</h3><span class="tiny muted">🟢 boşta · 🔵 teslimatta · soluk: çevrimdışı</span></div><div id="map" class="map tall" style="margin-bottom:0"></div><div id="maphint" class="tiny muted" style="margin-top:6px"></div></div></div>
+    <div id="side"></div>
+  </div>
+  <div id="panel"></div>
+</div>
+<script>
+const {DB} = J;
+let tab = 'genel', edit = null, confirmReset = false;
+const map = J.Map(document.getElementById('map'), {wheel:true});
+map.onClick(p => { if(tab==='isletmeler' && edit){ edit.lat = p.lat; edit.lng = p.lng; render(); } });
+
+const stTxt = o => o.state==='red' ? '<span class="pill bad">Reddedildi</span>' : o.state==='teslim' ? '<span class="pill ok">Teslim</span>' : o.state==='ulasilamadi' ? '<span class="pill bad">Ulaşılamadı</span>' :
+  `<span class="pill blue">${{bekliyor:'Onay bekliyor',hazirlaniyor:'Hazırlanıyor',hazir:'Hazır'}[o.prep]}</span> <span class="pill">${{yok:'—',araniyor:'Kurye aranıyor',isletmeye:'Kurye işletmeye',isletmede:'Kurye işletmede',yolda:'Yolda',kapida:'Kapıda'}[o.del]||o.del}</span>`;
+
+function drawMap(){
+  if(!map.ok) return;
+  const keys = [];
+  J.businesses().forEach(b => { const k = 'b'+b.id; keys.push(k); map.set(k, b, J.esc(b.emoji||'🏪'), (b.open && J.isAlive(b)) ? '' : 'off', b.name); });
+  J.couriers().forEach(c => { const k = 'c'+c.id; keys.push(k); const alive = c.online && J.isAlive(c); map.set(k, c, '🛵', 'cour ' + (c.busy?'busy':'') + (alive||c.busy?'':' off'), c.name); });
+  J.orders().filter(o => o.state==='aktif').forEach(o => { const k = 'o'+o.id; keys.push(k); map.set(k, o.customer, '🏠', 'home', '#'+o.no); });
+  if(tab==='isletmeler' && edit && edit.lat){ keys.push('edit'); map.set('edit', edit, '📍', '', edit.name || 'Yeni işletme'); }
+  map.keep(keys);
+  document.getElementById('maphint').textContent = tab==='isletmeler' && edit ? 'İşletmenin konumunu seçmek için haritaya dokunun.' : '';
+}
+
+function renderSide(){
+  const ev = J.events().slice(0,60);
+  const appeals = J.businesses().flatMap(b => (b.strikes||[]).filter(s => s.appeal==='beklemede').map(s => ({b,s})));
+  let h = '';
+  if(appeals.length) h += `<div class="card warn"><h3>İtiraz bekleyen ikazlar</h3>${appeals.map(({b,s}) => `<div class="row small"><span>${J.esc(b.name)} · #${J.esc(s.no)} · ${J.tl(s.refund)}</span><span><button class="sm ok" data-a="appeal-ok" data-b="${b.id}" data-id="${s.id}">Kabul</button> <button class="sm bad" data-a="appeal-no" data-b="${b.id}" data-id="${s.id}">Red</button></span></div>`).join('')}</div>`;
+  h += `<div class="card"><h3>Sistem günlüğü</h3><div class="log">${ev.map(e => `<div><time>${J.clock(e.t)}</time>${J.esc(e.txt)}</div>`).join('') || '<div class="muted">Henüz olay yok.</div>'}</div></div>`;
+  return h;
+}
+
+function renderGenel(){
+  const os = J.orders(), paid = os.filter(o => o.pay==='dagitildi' && o.shares);
+  const saved = paid.reduce((s,o) => s + Math.max(0, o.shares.business - o.subtotal*(1-J.COMMISSION_RATE)), 0);
+  const onlineC = J.couriers().filter(c => c.online && J.isAlive(c)).length, openB = J.businesses().filter(b => b.open && J.isAlive(b)).length;
+  let h = `<div class="kpis">
+    <div class="kpi"><div class="v">${os.filter(o => o.state==='aktif').length}</div><div class="l">Aktif sipariş</div></div>
+    <div class="kpi"><div class="v">${paid.length}</div><div class="l">Tamamlanan (ödeme dağıtıldı)</div></div>
+    <div class="kpi"><div class="v">${openB} / ${onlineC}</div><div class="l">Açık işletme / çevrimiçi kurye</div></div>
+    <div class="kpi"><div class="v">${J.tl(paid.length*J.FEE.platform)}</div><div class="l">Platform geliri · işletmelere ${J.tl(saved)} fazladan kazanç</div></div></div>`;
+  h += `<div class="card"><h3>Siparişler ve ödeme</h3>${os.length ? `<div style="overflow-x:auto"><table><tr><th>#</th><th>İşletme</th><th>Müşteri</th><th>Durum</th><th>Ödeme</th><th>Kurye</th><th>Saat</th></tr>${os.slice(0,30).map(o => `<tr><td>${J.esc(o.no)}</td><td>${J.esc(o.rname)}</td><td>${J.esc(o.customer.name)}</td><td>${stTxt(o)}</td><td>${J.payPill(o)}${o.shares?`<div class="tiny muted">İşletme ${J.tl(o.shares.business)} · Kurye ${J.tl(o.shares.courier)} · Platform ${J.tl(o.shares.platform)}${o.shares.refund?` · İade ${J.tl(o.shares.refund)}`:''}</div>`:''}</td><td>${J.esc(o.cname||'—')}</td><td class="tiny">${new Date(o.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Henüz sipariş yok.</div>'}</div>`;
+  return h;
+}
+
+function renderBiz(){
+  let h = '';
+  if(edit){
+    h += `<div class="card brand"><h3>${edit.id ? 'İşletmeyi düzenle' : 'Yeni işletme'}</h3>
+      <div class="row"><div style="flex:1"><label class="f" for="e-name">İşletme adı</label><input id="e-name" value="${J.esc(edit.name||'')}"></div><div style="width:90px"><label class="f" for="e-emoji">Simge</label><input id="e-emoji" value="${J.esc(edit.emoji||'🏪')}"></div></div>
+      <label class="f">Konum</label><div class="small">${edit.lat ? `📍 ${edit.lat.toFixed(5)}, ${edit.lng.toFixed(5)}` : '<span style="color:var(--bad)">Haritaya dokunarak konum seçin.</span>'}</div>
+      <label class="f" for="e-menu">Menü (her satıra: ürün adı ; fiyat)</label><textarea id="e-menu" rows="7" placeholder="Kıymalı Pide ; 280&#10;Ayran ; 45">${J.esc(edit.menuText||'')}</textarea>
+      <div class="row small" style="margin-top:8px"><label for="e-free" style="flex:1">Müşteri teslimat payını işletme üstlensin</label><input type="checkbox" id="e-free" style="width:auto" ${edit.free_delivery?'checked':''}></div>
+      <div class="btns"><button class="brand" data-a="save-biz">Kaydet</button><button class="sec" data-a="cancel">Vazgeç</button>${edit.id?`<button class="bad" data-a="del-biz">Sil</button>`:''}</div></div>`;
+  } else h += `<div class="btns" style="margin:0 0 12px"><button class="brand" data-a="new-biz">+ Yeni işletme ekle</button>${J.businesses().length?'':'<button class="sec" data-a="seed">Demo işletmelerini yükle</button>'}</div>`;
+  J.businesses().forEach(b => {
+    const n = J.activeStrikes(b).length;
+    h += `<div class="card"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b>${J.esc(b.name)}</b><div class="small muted">${(b.menu||[]).length} ürün · ${b.open && J.isAlive(b) ? '🟢 Açık' : '⚪️ Kapalı'}${b.free_delivery?' · ücretsiz teslimat':''} · ikaz ${n}/3${b.suspended?' · <b style="color:var(--bad)">askıda</b>':''}</div></div></div>
+      <div class="btns" style="margin:0"><button class="sm sec" data-a="edit-biz" data-id="${b.id}">Düzenle</button>${b.suspended?`<button class="sm ok" data-a="unsuspend" data-id="${b.id}">Askıyı kaldır</button>`:''}</div></div></div>`;
+  });
+  return h;
+}
+
+function renderCour(){
+  const cs = J.couriers().sort((a,b) => (b.seen_at||0)-(a.seen_at||0));
+  if(!cs.length) return `<div class="card soft small">Kayıtlı kurye yok. Kuryeler kurye uygulamasından kaydolur.</div>`;
+  return `<div class="card"><table><tr><th>Kurye</th><th>Durum</th><th>Son sinyal</th><th>Teslimat</th><th>Kazanç</th></tr>${cs.map(c => `<tr><td>${J.esc(c.name)}</td><td>${c.busy?'<span class="pill blue">Teslimatta</span>':c.online&&J.isAlive(c)?'<span class="pill ok">Çevrimiçi</span>':'<span class="pill">Çevrimdışı</span>'}${c.notif_ok?'':' <span class="pill warn">bildirim yok</span>'}</td><td class="tiny">${c.seen_at?J.clock(c.seen_at):'—'}</td><td>${(c.jobs||[]).length}</td><td class="money">${J.tl(c.earnings||0)}</td></tr>`).join('')}</table></div>`;
+}
+
+function renderCalls(){
+  const ks = J.calls().slice(0,40);
+  if(!ks.length) return `<div class="card soft small">Arama yok.</div>`;
+  const S = {caliyor:'<span class="pill warn">Çalıyor</span>', gorusme:'<span class="pill blue">Görüşmede</span>', bitti:'<span class="pill ok">Görüşüldü</span>', iptal:'<span class="pill">İptal</span>', cevapsiz:'<span class="pill bad">Cevapsız</span>', reddedildi:'<span class="pill bad">Reddedildi</span>'};
+  return `<div class="card"><h3>Arama kayıtları (kanıt)</h3><div style="overflow-x:auto"><table><tr><th>Saat</th><th>Arayan → Aranan</th><th>Sipariş</th><th>Sonuç</th><th>Ses</th><th>İkaz</th></tr>${ks.map(k => `<tr><td class="tiny">${J.clock(k.start)}</td><td>${J.esc(J.partyName(k.from))} → ${J.esc(J.partyName(k.to))}</td><td>#${J.esc(k.no)}</td><td>${S[k.state]||k.state}${k.answered_at?` <span class="tiny muted">${J.secs(k.answered_at-k.start)} sn çaldı</span>`:''}</td><td class="tiny">${k.answer_sdp?'bağlantı kuruldu':k.offer_sdp?'tek taraflı':'—'}</td><td>${k.cezalandi?'<span class="pill bad">Uygulandı</span>':k.cb_done?'<span class="pill ok">Geri arandı</span>':k.cb_deadline?'<span class="pill warn">Bekliyor</span>':''}</td></tr>`).join('')}</table></div></div>`;
+}
+
+function renderSettings(){
+  const s = J.settings();
+  return `<div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
+    ${DB.mode==='canli' ? `<div class="btns"><button class="sm sec" data-a="force-demo">Bu cihazda demo moduna geç</button></div>` : (window.JETGEL_CONFIG.supabaseUrl ? `<div class="btns"><button class="sm sec" data-a="force-live">Canlı moda dön</button></div>` : '')}</div>
+    <div class="card"><h3>Hızlı test modu</h3><div class="small muted">Açıkken süreler 10 kat kısalır: hazırlık 1 dk = 6 sn, işletmenin geri arama süresi 30 sn, müşteriye ulaşılamazsa bekleme 1 dk, demo sürüş 10 kat hızlı. Gerçek denemede kapatın.</div><div class="btns"><button class="${s.fast?'ok':'sec'}" data-a="fast" data-v="1">Açık</button><button class="${!s.fast?'ok':'sec'}" data-a="fast" data-v="0">Kapalı</button></div></div>
+    <div class="card"><h3>Demo verisi</h3><div class="small muted">Moda'da 3 örnek işletme ve menüleri ekler (aynı isimdekilerin üzerine yazar).</div><div class="btns"><button class="sec" data-a="seed">Demo işletmelerini yükle</button></div></div>
+    <div class="card bad"><h3>Tüm verileri sil</h3><div class="small">İşletmeler, kuryeler, siparişler, aramalar ve günlük kalıcı olarak silinir. ${DB.mode==='canli'?'<b>Canlı modda tüm cihazlardan silinir.</b>':''}</div>
+      <div class="btns">${confirmReset ? `<button class="bad" data-a="reset-yes">Evet, hepsini sil</button><button class="sec" data-a="reset-no">Vazgeç</button>` : `<button class="bad" data-a="reset">Tüm verileri sil…</button>`}</div></div>`;
+}
+
+function render(){
+  document.getElementById('mode').innerHTML = J.modeBadge();
+  document.getElementById('tabs').innerHTML = [['genel','Genel'],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}</button>`).join('');
+  const showMap = tab==='genel' || tab==='isletmeler';
+  document.getElementById('genel-grid').style.display = showMap ? '' : 'none';
+  J.render(document.getElementById('side'), tab==='isletmeler' ? renderBiz() : renderSide());
+  J.render(document.getElementById('panel'), tab==='genel' ? renderGenel() : tab==='kuryeler' ? renderCour() : tab==='aramalar' ? renderCalls() : tab==='ayarlar' ? renderSettings() : '');
+  if(showMap){ map.invalidate(); drawMap(); }
+}
+
+function menuToText(menu){ return (menu||[]).map(m => `${m.name} ; ${m.price}`).join('\n'); }
+function textToMenu(txt, old){
+  return txt.split('\n').map(l => l.trim()).filter(Boolean).map((l,i) => {
+    const [name, price] = l.split(';').map(s => s.trim());
+    const p = parseFloat(String(price||'').replace(',','.'));
+    if(!name || !(p > 0)) return null;
+    const prev = (old||[]).find(m => m.name === name);
+    return {id: prev ? prev.id : J.uid('u'), name, price:p, available: prev ? prev.available : true};
+  }).filter(Boolean);
+}
+function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.emoji = g('e-emoji').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; } }
+
+document.addEventListener('click', async e => {
+  const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
+  const a = el.dataset.a, id = el.dataset.id;
+  readForm();
+  if(a==='tab'){ tab = id; edit = null; confirmReset = false; }
+  if(a==='seed') J.seedDemo();
+  if(a==='new-biz') edit = {name:'', emoji:'🏪', lat:null, lng:null, menuText:'', free_delivery:false};
+  if(a==='edit-biz'){ const b = DB.get('businesses', id); edit = Object.assign({}, b, {menuText:menuToText(b.menu)}); map.fit([b]); }
+  if(a==='cancel') edit = null;
+  if(a==='save-biz'){
+    if(!edit.name.trim()){ J.toast('İşletme adını yazın.'); return; }
+    if(!edit.lat){ J.toast('Haritaya dokunarak konum seçin.'); return; }
+    const menu = textToMenu(edit.menuText, edit.menu);
+    const data = {name:edit.name.trim(), emoji:edit.emoji||'🏪', lat:edit.lat, lng:edit.lng, free_delivery:!!edit.free_delivery, menu};
+    if(edit.id) DB.patch('businesses', edit.id, data);
+    else DB.put('businesses', J.uid('b'), Object.assign(data, {open:false, suspended:false, notif_ok:false, strikes:[]}));
+    J.log(`İşletme kaydedildi: ${data.name} (${menu.length} ürün).`, 'ok');
+    edit = null;
+  }
+  if(a==='del-biz' && edit && edit.id){ DB.remove('businesses', edit.id); J.log(`İşletme silindi: ${edit.name}.`, 'warn'); edit = null; }
+  if(a==='unsuspend'){ const b = DB.get('businesses', id); DB.patch('businesses', id, {suspended:false}); J.log(`${b.name} askıdan çıkarıldı.`, 'ok'); }
+  if(a==='appeal-ok' || a==='appeal-no'){
+    const b = DB.get('businesses', el.dataset.b), ok = a==='appeal-ok';
+    const strikes = b.strikes.map(s => s.id===id ? Object.assign({}, s, {appeal: ok?'kabul':'red', removed: ok ? true : s.removed}) : s);
+    const patch = {strikes}; if(ok && b.suspended && strikes.filter(s => !s.removed).length < 3) patch.suspended = false;
+    DB.patch('businesses', b.id, patch); J.log(`İtiraz ${ok?'kabul edildi':'reddedildi'}: ${b.name}.`, ok?'ok':'');
+  }
+  if(a==='fast'){ const v = el.dataset.v==='1'; if(DB.get('settings','ayar')) DB.patch('settings','ayar',{fast:v}); else DB.put('settings','ayar',{fast:v}); J.log(`Hızlı test modu ${v?'açıldı':'kapatıldı'}.`); }
+  if(a==='force-demo'){ J.store.set('force_demo', true); location.reload(); return; }
+  if(a==='force-live'){ J.store.set('force_demo', false); location.reload(); return; }
+  if(a==='reset') confirmReset = true;
+  if(a==='reset-no') confirmReset = false;
+  if(a==='reset-yes'){ confirmReset = false; await DB.clearAll(); J.toast('Tüm veriler silindi.'); }
+  render();
+});
+document.addEventListener('input', () => readForm());
+
+DB.on(() => { if(!edit) render(); else { drawMap(); document.getElementById('mode').innerHTML = J.modeBadge(); } });
+setInterval(() => { J.strikeTick(); J.live(); if(tab==='genel') drawMap(); }, 2000);
+DB.init().then(render);
+J.registerSW();
+</script>
+</body>
+</html>

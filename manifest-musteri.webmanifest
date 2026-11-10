@@ -1,0 +1,31 @@
+{
+  "name": "Jetgel",
+  "short_name": "Jetgel",
+  "description": "Komisyonsuz yemek ve market siparişi",
+  "lang": "tr",
+  "id": "./musteri.html",
+  "start_url": "./musteri.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f2ee",
+  "theme_color": "#e8590c",
+  "icons": [
+    {
+      "src": "ikonlar/ikon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "ikonlar/ikon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "ikonlar/ikon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

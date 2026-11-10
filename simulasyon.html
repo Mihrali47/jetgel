@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jetgel · Simülasyon (tek ekranda demo)</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<script src="vendor/leaflet/leaflet.js"></script>
+<style>
+:root{
+  --bg:#f4f2ee; --card:#ffffff; --ink:#1d1b18; --muted:#6d6860; --line:#e4e0d8;
+  --brand:#e8590c; --brand-soft:#fff1e8; --ok:#2b8a3e; --ok-soft:#e6f4ea;
+  --warn:#c77700; --warn-soft:#fff6e0; --bad:#c92a2a; --bad-soft:#fdecec;
+  --blue:#1c6ed4; --blue-soft:#e8f1fc; --radius:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:9px 12px;background:var(--ink);color:#fff;font-weight:600}
+button.sec{background:#efece6;color:var(--ink)}
+button.brand{background:var(--brand)}
+button.ok{background:var(--ok)}
+button.bad{background:var(--bad)}
+button.ghost{background:transparent;color:var(--brand);padding:4px 6px}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.sm{padding:6px 9px;font-size:12px;border-radius:8px}
+a.btnlink{display:inline-block;text-decoration:none;font-weight:600;font-size:12px;padding:6px 9px;border-radius:8px;background:var(--blue-soft);color:var(--blue)}
+input,select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+header{padding:18px 22px 8px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+header h1{margin:0;font-size:22px;letter-spacing:-.3px}
+header h1 span{color:var(--brand)}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;background:#e9e5de;color:var(--muted)}
+.pill.brand{background:var(--brand-soft);color:var(--brand)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.blue{background:var(--blue-soft);color:var(--blue)}
+.sub{color:var(--muted);font-size:13px}
+.tabs{display:none;gap:6px;padding:0 14px 10px;overflow-x:auto;position:sticky;top:0;background:var(--bg);z-index:1000;padding-top:8px}
+.tabs button{background:#e9e5de;color:var(--ink);white-space:nowrap}
+.tabs button.on{background:var(--ink);color:#fff}
+.phones{display:grid;grid-template-columns:repeat(3,minmax(300px,1fr));gap:16px;padding:6px 22px 16px;align-items:start}
+.phone{background:var(--card);border-radius:24px;border:1px solid var(--line);box-shadow:0 8px 28px rgba(40,30,10,.07);overflow:hidden;display:flex;flex-direction:column;height:760px;position:relative}
+.phone .top{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.phone .top b{font-size:15px}
+.phone .body{padding:14px 16px;overflow-y:auto;flex:1}
+.card{border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:12px;background:#fff}
+.card.soft{background:#faf8f5}
+.card.brand{border-color:#f6c9ad;background:var(--brand-soft)}
+.card.warn{border-color:#f0d58a;background:var(--warn-soft)}
+.card.bad{border-color:#f2b8b8;background:var(--bad-soft)}
+.card.ok{border-color:#b6dfc0;background:var(--ok-soft)}
+.card h3{margin:0 0 6px;font-size:14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.row+.row{margin-top:6px}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.rest{display:flex;gap:10px;align-items:center;cursor:pointer}
+.rest .emo{font-size:26px;width:44px;height:44px;border-radius:12px;background:#f5f1ea;display:grid;place-items:center}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.big{font-size:20px;font-weight:800}
+.money{font-variant-numeric:tabular-nums;font-weight:700}
+.steps{list-style:none;margin:8px 0 0;padding:0}
+.steps li{display:flex;gap:8px;align-items:center;padding:4px 0;color:var(--muted);font-size:13px}
+.steps li i{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none;font-style:normal;font-size:10px;display:grid;place-items:center}
+.steps li.done{color:var(--ink)} .steps li.done i{background:var(--ok);border-color:var(--ok);color:#fff}
+.steps li.now{color:var(--ink);font-weight:700} .steps li.now i{border-color:var(--brand);background:var(--brand-soft)}
+.pin{font-size:30px;font-weight:800;letter-spacing:8px;text-align:center;margin:6px 0}
+.qr{display:block;margin:4px auto;width:110px;height:110px}
+.overlay{position:absolute;inset:0;background:rgba(20,16,10,.55);display:flex;align-items:flex-end;z-index:1100}
+.callbox{background:#1d1b18;color:#fff;width:100%;padding:22px 18px;border-radius:22px 22px 0 0;text-align:center}
+.callbox .who{font-size:19px;font-weight:800;margin:6px 0 2px}
+.callbox .btns{justify-content:center;margin-top:16px}
+.ring{animation:ring 1s infinite}
+@keyframes ring{0%,100%{transform:rotate(0)}20%{transform:rotate(-12deg)}40%{transform:rotate(12deg)}60%{transform:rotate(-6deg)}}
+.gate{text-align:center;padding:18px 8px}
+.gate .ic{font-size:40px}
+.switch{display:flex;align-items:center;gap:8px;font-weight:700}
+.admin{padding:0 22px 40px}
+.admin-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:12px}
+.kpi .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:12px;color:var(--muted)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{text-align:left;padding:6px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+.log{max-height:260px;overflow-y:auto;font-size:12.5px}
+.log div{padding:4px 0;border-bottom:1px dashed var(--line)}
+.log time{color:var(--muted);font-variant-numeric:tabular-nums;margin-right:6px}
+.map{width:100%;height:auto;background:#f7f4ee;border-radius:12px;border:1px solid var(--line);display:block}
+.mapslot{margin-bottom:6px}
+.lmap{height:250px;border-radius:12px;border:1px solid var(--line);overflow:hidden;z-index:0}
+.mapslot[data-map="yonetim"] .lmap{height:400px}
+.mapslot[data-map="kurye"] .lmap{height:270px}
+.pin-ic{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#fff;border:2px solid #2b8a3e;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.pin-ic.home{border-color:#1d1b18}
+.pin-ic.cour{background:#2b8a3e;border-color:#fff}
+.pin-ic.cour.busy{background:#1c6ed4}
+.pin-ic.cour.me{background:#e8590c}
+.pin-lbl{position:absolute;top:31px;left:50%;transform:translateX(-50%);white-space:nowrap;font:700 11px/1 system-ui,sans-serif;background:rgba(255,255,255,.9);padding:2px 5px;border-radius:5px;color:#1d1b18}
+.nav{background:#16351f;color:#fff;border-radius:14px;padding:12px 14px;margin-bottom:8px}
+.nav .turn{display:flex;align-items:center;gap:12px}
+.nav .arrow{font-size:34px;width:44px;text-align:center;line-height:1}
+.nav .d{font-size:22px;font-weight:800}
+.nav .t{font-size:14px;font-weight:600;opacity:.95}
+.nav .meta{display:flex;justify-content:space-between;font-size:12px;opacity:.8;margin-top:8px;border-top:1px solid rgba(255,255,255,.15);padding-top:6px}
+.navlist{font-size:12px;color:var(--muted);margin:4px 0 0;padding-left:18px}
+.rules li{margin-bottom:5px}
+.qty{display:inline-flex;align-items:center;gap:6px}
+.qty button{padding:2px 9px}
+.note{font-size:12px;color:var(--muted);background:#f5f2ec;border-radius:10px;padding:8px 10px;margin-top:8px}
+.toast{position:absolute;left:12px;right:12px;top:58px;z-index:1050;background:var(--ink);color:#fff;border-radius:12px;padding:10px 12px;font-size:13px;box-shadow:0 8px 20px rgba(0,0,0,.2)}
+@media (max-width:600px){ header .sub{display:none} header{padding:12px 14px 4px} }
+@media (max-width:1100px){
+  .tabs{display:flex}
+  .phones{grid-template-columns:1fr;padding:6px 12px}
+  .phone{height:auto;min-height:600px}
+  .phone .body{overflow:visible}
+  body[data-tab] [data-pane]{display:none}
+  body[data-tab="musteri"] [data-pane="musteri"],body[data-tab="isletme"] [data-pane="isletme"],
+  body[data-tab="kurye"] [data-pane="kurye"]{display:flex}
+  body[data-tab="yonetim"] [data-pane="yonetim"]{display:block}
+  .admin{padding:0 12px 40px}
+  .admin-grid{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body data-tab="musteri">
+<header>
+  <h1><a href="./" style="color:inherit;text-decoration:none"><span>Jetgel</span></a> · Simülasyon</h1>
+  <span class="pill">Geçici isim</span>
+  <label class="small muted">Simülasyon hızı
+    <select id="speed">
+      <option value="1000">1 dk = 1 sn (hızlı)</option>
+      <option value="2000" selected>1 dk = 2 sn</option>
+      <option value="5000">1 dk = 5 sn (yavaş)</option>
+    </select>
+  </label>
+  <span class="pill blue" id="mapmode">Harita yükleniyor…</span>
+  <div class="sub" style="flex-basis:100%">Komisyonsuz, sabit ücretli teslimat sistemi. Üç telefon aynı anda çalışır: müşteri olarak sipariş ver, işletme olarak onayla, kurye olarak gerçek sokaklar üzerinde yol tarifiyle teslim et. En altta yönetim paneli her şeyi kaydeder.</div>
+</header>
+<nav class="tabs" id="tabs">
+  <button data-tab="musteri" class="on">👤 Müşteri</button>
+  <button data-tab="isletme">🏪 İşletme</button>
+  <button data-tab="kurye">🛵 Kurye</button>
+  <button data-tab="yonetim">📊 Yönetim</button>
+</nav>
+<main>
+  <section class="phones">
+    <div class="phone" data-pane="musteri" id="p-musteri"></div>
+    <div class="phone" data-pane="isletme" id="p-isletme"></div>
+    <div class="phone" data-pane="kurye" id="p-kurye"></div>
+  </section>
+  <section class="admin" data-pane="yonetim" id="p-yonetim"></section>
+</main>
+
+<script>
+/* ===================== AYARLAR ===================== */
+let MIN = 2000;                    // 1 simülasyon dakikası kaç ms
+const RADIUS_M = 3000;             // kurye arama yarıçapı
+const OFFER_MS = 30 * 1000;        // kurye teklif süresi
+const RING_MS = 30 * 1000;         // arama çalma süresi
+const CALLBACK_MS = 15 * 1000;     // işletme geri dönüş penceresi (demo; gerçekte 5 dk)
+const PIN_RADIUS_M = 100;          // teslimat kodu yalnızca bu mesafede geçerli
+const WAIT_MIN = 10;               // müşteriye ulaşılamazsa bekleme (dk)
+const M_PER_MIN = 416;             // motorlu kurye ~25 km/sa
+const FEE = {custDel:50, custPlat:5, bizDel:50, bizPlat:5, courier:100, platform:10};
+const PENALTY_RATE = 0.15;
+const COMMISSION_RATE = 0.35;
+const BOX = {minLat:40.9790, maxLat:40.9935, minLng:29.0205, maxLng:29.0395}; // Moda / Kadıköy
+const ROUTER = 'https://router.project-osrm.org/route/v1/driving/';
+const TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+
+/* ===================== DURUM ===================== */
+const S = {
+  restaurants: [
+    {id:'r1', name:'Usta Pideci', emoji:'🫓', lat:40.98520, lng:29.02680, notif:false, open:false, freeDelivery:false, suspended:false, strikes:[],
+      menu:[{id:'m1',name:'Kıymalı Pide',price:280},{id:'m2',name:'Kaşarlı Pide',price:250},{id:'m3',name:'Ayran',price:45}]},
+    {id:'r2', name:'Moda Kebap', emoji:'🍢', lat:40.98780, lng:29.03060, notif:true, open:true, freeDelivery:false, suspended:false, strikes:[],
+      menu:[{id:'m4',name:'Adana Dürüm',price:320},{id:'m5',name:'Tavuk Şiş Porsiyon',price:360},{id:'m6',name:'Şalgam',price:50}]},
+    {id:'r3', name:'Anne Çorba Evi', emoji:'🍲', lat:40.99020, lng:29.02620, notif:true, open:true, freeDelivery:true, suspended:false, strikes:[],
+      menu:[{id:'m7',name:'Mercimek Çorbası',price:150},{id:'m8',name:'İşkembe Çorbası',price:190},{id:'m9',name:'Ekmek',price:15}]},
+  ],
+  couriers: [
+    {id:'c1', name:'Ali', isUser:true, lat:40.98880, lng:29.02830, online:false, notif:false, busy:null, offer:null, nav:null, earnings:0, jobs:[]},
+    {id:'c2', name:'Mehmet', lat:40.98620, lng:29.03500, online:true, notif:true, busy:null, offer:null, nav:null, earnings:0, jobs:[]},
+    {id:'c3', name:'Emre', lat:40.98100, lng:29.03100, online:true, notif:true, busy:null, offer:null, nav:null, earnings:0, jobs:[]},
+    {id:'c4', name:'Can', lat:40.99180, lng:29.03150, online:false, notif:true, busy:null, offer:null, nav:null, earnings:0, jobs:[]},
+  ],
+  customer: {name:'Ayşe', lat:40.98400, lng:29.03350, wallet:0, notif:false, notifDismissed:false},
+  orders: [], calls: [], callbacks: [], log: [],
+  ui: {custView:'liste', cartRid:null, cart:{}, bizId:'r1', pin:'', toast:{}},
+  seq: 1023, dirty: true
+};
+
+/* ===================== YARDIMCILAR ===================== */
+const $ = s => document.querySelector(s);
+const now = () => Date.now();
+function dist(a,b){ // metre (haversine)
+  const R=6371000, toR=Math.PI/180, dLat=(b.lat-a.lat)*toR, dLng=(b.lng-a.lng)*toR;
+  const h=Math.sin(dLat/2)**2+Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+const fmtDist = m => m >= 1000 ? (m/1000).toFixed(1).replace('.',',')+' km' : Math.round(m/10)*10+' m';
+const km = (a,b) => fmtDist(dist(a,b));
+const tl = n => Math.round(n).toLocaleString('tr-TR') + ' TL';
+const rest = id => S.restaurants.find(r => r.id === id);
+const cour = id => S.couriers.find(c => c.id === id);
+const order = id => S.orders.find(o => o.id === id);
+const userCourier = () => S.couriers.find(c => c.isUser);
+const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const clock = t => new Date(t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const secs = ms => Math.max(0, Math.ceil(ms/1000));
+const mins = ms => Math.max(0, Math.ceil(ms/MIN));
+const rand = (a,b) => a + Math.random()*(b-a);
+const gmaps = p => `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
+function log(txt, kind){ S.log.unshift({t:now(), txt, kind:kind||''}); if(S.log.length>150) S.log.pop(); S.dirty = true; }
+function toast(pane, txt){ S.ui.toast[pane] = {txt, until: now()+3500}; S.dirty = true; }
+function tlog(o, txt){ o.timeline.push({t:now(), txt}); }
+function activeStrikes(r){ return r.strikes.filter(s => !s.removed); }
+function partyName(p){
+  if(p.type==='musteri') return S.customer.name + ' (müşteri)';
+  if(p.type==='isletme') return rest(p.id).name + ' (işletme)';
+  return cour(p.id).name + ' (kurye)';
+}
+function isUserControlled(p){
+  if(p.type==='musteri') return true;
+  if(p.type==='isletme') return p.id === S.ui.bizId;
+  return cour(p.id).isUser;
+}
+function paneOf(p){ return p.type==='musteri' ? 'musteri' : p.type==='isletme' ? 'isletme' : 'kurye'; }
+
+/* ===================== ÖDEME AKIŞI =====================
+   Para platformun hesabına uğramaz. Lisanslı ödeme kuruluşunun "alt üye işyeri" modeli varsayılır:
+   blokaj → işletme onayında çekim → teslimata kadar bekletme → teslimde otomatik bölüştürme. */
+const PAY_TXT = {
+  blokaj:'Kartta bloke (henüz çekilmedi)',
+  bekletiliyor:'Çekildi · teslimata kadar bekletiliyor',
+  dagitildi:'Dağıtıldı',
+  kalkti:'Blokaj kaldırıldı · para çekilmedi',
+};
+function payShares(o){
+  return {business: o.subtotal - o.fees.biz - o.refund, courier: FEE.courier, platform: FEE.platform, refund: o.refund};
+}
+function payout(o){
+  o.pay = 'dagitildi'; o.shares = payShares(o);
+  log(`💳 #${o.id} ödeme dağıtıldı: işletme ${tl(o.shares.business)}, kurye ${tl(o.shares.courier)}, platform ${tl(o.shares.platform)}${o.refund?`, müşteriye iade ${tl(o.refund)}`:''}.`, 'pay');
+}
+
+/* ===================== SİPARİŞ ===================== */
+function placeOrder(){
+  const r = rest(S.ui.cartRid);
+  const items = r.menu.filter(m => S.ui.cart[m.id]).map(m => ({name:m.name, price:m.price, qty:S.ui.cart[m.id]}));
+  if(!items.length) return;
+  const subtotal = items.reduce((s,i) => s + i.price*i.qty, 0);
+  const fees = r.freeDelivery
+    ? {cust:0, biz:FEE.custDel+FEE.custPlat+FEE.bizDel+FEE.bizPlat}
+    : {cust:FEE.custDel+FEE.custPlat, biz:FEE.bizDel+FEE.bizPlat};
+  const o = {
+    id: ++S.seq, rid:r.id, items, subtotal, fees, state:'aktif', prep:'bekliyor', del:'yok', pay:'blokaj',
+    createdAt: now(), pin: String(Math.floor(1000+Math.random()*9000)), courierId:null, offer:null, tried:[],
+    prepUntil:null, refund:0, timeline:[], botAt: now()+rand(2500,4500), retryAt:null, photo:false
+  };
+  tlog(o, `Sipariş verildi, kartta ${tl(subtotal+fees.cust)} bloke edildi`);
+  S.orders.unshift(o);
+  S.ui.cart = {}; S.ui.custView = 'siparis'; S.ui.trackId = o.id;
+  log(`#${o.id} ${r.name} için sipariş geldi (${tl(subtotal)}). 💳 Kartta ${tl(subtotal+fees.cust)} bloke.`, 'order');
+  if(r.id === S.ui.bizId) toast('isletme', `🔔 Yeni sipariş #${o.id}`);
+}
+function acceptOrder(o, prepMin){
+  o.prep = 'hazirlaniyor'; o.prepUntil = now() + prepMin*MIN; o.pay = 'bekletiliyor';
+  tlog(o, `İşletme onayladı, hazırlık ${prepMin} dk. Ödeme çekildi, teslimata kadar bekletiliyor.`);
+  log(`#${o.id} işletme onayladı (${prepMin} dk). 💳 Ödeme çekildi, teslimata kadar bekletiliyor. Kurye aranıyor.`, 'order');
+  dispatch(o);
+}
+function rejectOrder(o){
+  o.state = 'red'; o.pay = 'kalkti'; tlog(o, 'İşletme reddetti, blokaj kaldırıldı');
+  log(`#${o.id} işletme tarafından reddedildi. 💳 Blokaj kaldırıldı, müşteriden para çekilmedi.`, 'bad');
+}
+function markReady(o){ o.prep = 'hazir'; tlog(o, 'Sipariş hazır'); log(`#${o.id} hazır.`); }
+
+/* ===================== KURYE ATAMA ===================== */
+function dispatch(o){
+  if(o.state !== 'aktif' || o.courierId) return;
+  o.del = 'araniyor';
+  const r = rest(o.rid);
+  const cands = S.couriers
+    .filter(c => c.online && c.notif && !c.busy && !c.offer && !o.tried.includes(c.id) && dist(c,r) <= RADIUS_M)
+    .sort((a,b) => dist(a,r) - dist(b,r));
+  if(!cands.length){
+    o.offer = null; o.retryAt = now() + 4000;
+    if(o.tried.length) o.tried = [];
+    log(`#${o.id} için ${RADIUS_M/1000} km içinde boşta kurye yok, 4 sn sonra tekrar denenecek.`, 'warn');
+    return;
+  }
+  const c = cands[0];
+  o.offer = {cid:c.id, exp: now()+OFFER_MS};
+  c.offer = o.id;
+  if(!c.isUser) c.decideAt = now() + rand(1500, 4000);
+  else toast('kurye', `🔔 Yeni teslimat teklifi: ${r.name}`);
+  log(`#${o.id} teklifi → ${c.name} (işletmeye kuş uçuşu ${km(c,r)}).`, 'dispatch');
+}
+function courierAccept(c, o){
+  c.offer = null; o.offer = null; c.busy = o.id; o.courierId = c.id; o.del = 'isletmeye';
+  navigate(c, rest(o.rid), 'isletme');
+  tlog(o, `Kurye ${c.name} kabul etti, işletmeye gidiyor`);
+  log(`#${o.id} ${c.name} kabul etti, rota hesaplanıyor.`, 'ok');
+}
+function courierDecline(c, o, why){
+  c.offer = null; o.offer = null; o.tried.push(c.id);
+  log(`#${o.id} ${c.name} ${why}. Sıradaki kuryeye geçiliyor.`, 'warn');
+  dispatch(o);
+}
+function pickup(c, o){
+  o.del = 'yolda'; navigate(c, S.customer, 'musteri');
+  tlog(o, 'Kurye paketi aldı (fiş QR okutuldu), yola çıktı');
+  log(`#${o.id} paket alındı, müşteriye gidiyor.`);
+  toast('musteri', '🛵 Siparişin yola çıktı');
+}
+function finishCourier(c, o){
+  c.busy = null; c.nav = null; c.earnings += FEE.courier;
+  c.jobs.unshift({id:o.id, t:now(), amount:FEE.courier, rname:rest(o.rid).name});
+}
+function complete(c, o, how){
+  o.del = 'teslim'; o.state = 'teslim'; o.deliveredAt = now();
+  finishCourier(c, o);
+  tlog(o, `Teslim edildi (${how})`);
+  log(`#${o.id} teslim edildi (${how})${o.photo?', fotoğraf eklendi':''}.`, 'ok');
+  payout(o);
+  toast('musteri', '✅ Siparişin teslim edildi. Afiyet olsun!');
+}
+function unreachable(c, o){
+  o.del = 'ulasilamadi'; o.state = 'ulasilamadi';
+  finishCourier(c, o);
+  tlog(o, 'Müşteriye ulaşılamadı: kurye adreste bekledi ve aradı');
+  log(`#${o.id} müşteriye ulaşılamadı (kurye ${WAIT_MIN} dk bekledi, arama kayıtlı). Kurallar gereği iade yok.`, 'bad');
+  payout(o);
+}
+
+/* ===================== NAVİGASYON =====================
+   Gerçek yol rotası OSRM'den alınır (OpenStreetMap verisi). Alınamazsa düz çizgi yedeği kullanılır. */
+function cumul(pts){ const c=[0]; for(let i=1;i<pts.length;i++) c.push(c[i-1]+dist(pts[i-1],pts[i])); return c; }
+function nearestIdx(pts, p){ let bi=0, bd=Infinity; pts.forEach((q,i) => { const d=dist(q,p); if(d<bd){bd=d;bi=i;} }); return bi; }
+const MOD_TR = {left:'sola', right:'sağa', 'slight left':'hafif sola', 'slight right':'hafif sağa', 'sharp left':'keskin sola', 'sharp right':'keskin sağa', straight:'düz', uturn:'U dönüşü'};
+const ARROW = {left:'⬅️', right:'➡️', 'slight left':'↖️', 'slight right':'↗️', 'sharp left':'↩️', 'sharp right':'↪️', straight:'⬆️', uturn:'🔄'};
+function maneuverText(s){
+  const m = s.maneuver || {}, mod = m.modifier, name = s.name ? ` · ${s.name}` : '';
+  const yon = MOD_TR[mod] || '';
+  switch(m.type){
+    case 'depart': return `Yola çık${name}`;
+    case 'arrive': return 'Varış noktası';
+    case 'roundabout': case 'rotary': case 'roundabout turn':
+      return `Göbekten ${m.exit ? m.exit+'. çıkıştan' : ''} çık${name}`;
+    case 'fork': return `Çatalda ${yon || 'devam'} yönüne geç${name}`;
+    case 'end of road': return `Yolun sonunda ${yon} dön${name}`;
+    case 'merge': return `${yon ? yon.charAt(0).toUpperCase()+yon.slice(1)+' ' : ''}katıl${name}`;
+    case 'new name': case 'continue':
+      return mod && mod!=='straight' ? `${cap(yon)} devam et${name}` : `Düz devam et${name}`;
+    default:
+      if(mod==='straight') return `Düz devam et${name}`;
+      if(mod==='uturn') return `U dönüşü yap${name}`;
+      return `${cap(yon)} dön${name}`;
+  }
+}
+function cap(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+async function fetchRoute(a, b){
+  if(!window.fetch) return null;
+  const url = `${ROUTER}${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson&steps=true`;
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 7000);
+  try{
+    const res = await fetch(url, {signal: ctl.signal});
+    clearTimeout(t);
+    if(!res.ok) return null;
+    const j = await res.json();
+    if(j.code !== 'Ok' || !j.routes || !j.routes.length) return null;
+    const rt = j.routes[0];
+    const pts = rt.geometry.coordinates.map(([lng,lat]) => ({lat,lng}));
+    pts.unshift({lat:a.lat, lng:a.lng}); pts.push({lat:b.lat, lng:b.lng});
+    const cum = cumul(pts);
+    const steps = [];
+    (rt.legs||[]).forEach(leg => (leg.steps||[]).forEach(s => {
+      const loc = {lat:s.maneuver.location[1], lng:s.maneuver.location[0]};
+      steps.push({text: maneuverText(s), arrow: s.maneuver.type==='arrive' ? '🏁' : (ARROW[s.maneuver.modifier] || '⬆️'), at: cum[nearestIdx(pts, loc)], type: s.maneuver.type});
+    }));
+    steps.sort((x,y) => x.at - y.at);
+    return {pts, cum, total: cum[cum.length-1], steps, source:'osrm'};
+  }catch(e){ clearTimeout(t); return null; }
+}
+function straightRoute(a, b){
+  const pts = [{lat:a.lat,lng:a.lng},{lat:b.lat,lng:b.lng}], cum = cumul(pts);
+  return {pts, cum, total: cum[1], source:'duz', steps:[
+    {text:'Hedefe doğru ilerle (yol rotası alınamadı)', arrow:'⬆️', at:0, type:'depart'},
+    {text:'Varış noktası', arrow:'🏁', at:cum[1], type:'arrive'}]};
+}
+async function navigate(c, dest, purpose){
+  const nav = {dest:{lat:dest.lat,lng:dest.lng}, purpose, loading:true, prog:0, seg:0, startedAt:now()};
+  c.nav = nav; S.dirty = true;
+  let r = await fetchRoute(c, dest);
+  if(c.nav !== nav) return;
+  if(!r){ r = straightRoute(c, dest); log(`🧭 ${c.name}: gerçek rota alınamadı, düz çizgi kullanılıyor.`, 'warn'); }
+  else log(`🧭 ${c.name}: rota hazır (${fmtDist(r.total)}, ~${Math.max(1,Math.round(r.total/M_PER_MIN))} dk).`);
+  Object.assign(nav, r, {loading:false});
+  S.dirty = true;
+}
+function advance(c, dt){
+  const n = c.nav; if(!n || n.loading) return;
+  n.prog += (M_PER_MIN * 1000 / MIN) * dt;
+  if(n.prog >= n.total){ c.lat = n.dest.lat; c.lng = n.dest.lng; c.nav = null; arrived(c, n.purpose); return; }
+  while(n.seg < n.cum.length-2 && n.cum[n.seg+1] <= n.prog) n.seg++;
+  const a = n.pts[n.seg], b = n.pts[n.seg+1], segLen = (n.cum[n.seg+1]-n.cum[n.seg]) || 1, f = (n.prog-n.cum[n.seg])/segLen;
+  c.lat = a.lat + (b.lat-a.lat)*f; c.lng = a.lng + (b.lng-a.lng)*f;
+}
+function nextStep(n){
+  if(!n || n.loading) return null;
+  const s = n.steps.find(x => x.at > n.prog + 3) || n.steps[n.steps.length-1];
+  return {step:s, inM: Math.max(0, s.at - n.prog), remain: Math.max(0, n.total - n.prog)};
+}
+function arrived(c, purpose){
+  const o = c.busy && order(c.busy);
+  if(!o) return;
+  if(purpose==='isletme'){ o.del = 'isletmede'; tlog(o,'Kurye işletmeye vardı'); log(`#${o.id} kurye işletmede.`); }
+  else { o.del = 'kapida'; o.arrivedAt = now(); tlog(o,'Kurye kapıda'); log(`#${o.id} kurye müşterinin kapısında.`); toast('musteri','🚪 Kuryen kapıda! Teslimat kodunu söyle.'); }
+  S.dirty = true;
+}
+
+/* ===================== UYGULAMA İÇİ ARAMA ===================== */
+function startCall(from, to, orderId){
+  const o = order(orderId);
+  if(!o || o.state !== 'aktif') return;
+  if(S.calls.some(c => (c.state==='caliyor'||c.state==='gorusme') && [c.from,c.to].some(p => p.type===from.type && p.id===from.id))) return;
+  const call = {id:'k'+(S.calls.length+1), from, to, orderId, start:now(), state:'caliyor'};
+  if(!isUserControlled(to)) call.botAt = now() + rand(2000, 4000);
+  S.calls.unshift(call);
+  if(from.type==='isletme' && to.type==='musteri'){
+    S.callbacks.filter(cb => !cb.done && cb.rid===from.id && cb.orderId===orderId).forEach(cb => {
+      cb.done = true; log(`${rest(cb.rid).name} müşteriyi geri aradı, ikaz uygulanmadı.`, 'ok');
+    });
+  }
+  log(`📞 ${partyName(from)} → ${partyName(to)} arıyor (sipariş #${orderId}).`, 'call');
+}
+function answerCall(call){ call.state = 'gorusme'; call.answeredAt = now(); log(`📞 ${partyName(call.to)} aramayı açtı (${secs(call.answeredAt-call.start)} sn çaldı).`, 'call'); }
+function endCall(call, state){
+  call.state = state; call.end = now();
+  if(state==='bitti') log(`📞 Görüşme bitti (${secs(call.end-(call.answeredAt||call.start))} sn).`, 'call');
+  if(state==='iptal') log('📞 Arayan aramayı iptal etti.', 'call');
+  if(state==='cevapsiz' || state==='reddedildi'){
+    log(`📞 ${partyName(call.to)} aramayı ${state==='cevapsiz'?'açmadı (30 sn çaldı)':'reddetti'}.`, 'bad');
+    if(call.to.type==='isletme' && call.from.type==='musteri'){
+      S.callbacks.push({rid:call.to.id, orderId:call.orderId, callId:call.id, deadline: now()+CALLBACK_MS, done:false});
+      log(`${rest(call.to.id).name}: ${secs(CALLBACK_MS)} sn içinde müşteriyi geri aramazsa ikaz alacak.`, 'warn');
+    }
+  }
+}
+function applyStrike(cb){
+  cb.done = true;
+  const r = rest(cb.rid), o = order(cb.orderId);
+  if(o.pay === 'dagitildi' || o.state === 'red') return;
+  const refund = Math.round(o.subtotal * PENALTY_RATE);
+  o.refund += refund; S.customer.wallet += refund;
+  r.strikes.push({id:'i'+now(), t:now(), orderId:o.id, refund, appeal:null, removed:false});
+  const n = activeStrikes(r).length;
+  let txt = `⚠️ ${r.name} ${n}. ikazı aldı. Müşteriye ${tl(refund)} iade (işletmenin payından düşülecek).`;
+  if(n >= 3){ r.suspended = true; r.open = false; txt += ' 3. ikaz: işletme askıya alındı.'; }
+  log(txt, 'bad');
+  toast('musteri', `💸 İşletmeye ulaşamadığın için ${tl(refund)} iade edilecek`);
+  if(r.id === S.ui.bizId) toast('isletme', `⚠️ ${n}. ikaz aldınız`);
+}
+
+/* ===================== ZAMANLAYICI ===================== */
+let last = now();
+function tick(){
+  const t = now(), dt = Math.min(0.5, (t - last)/1000); last = t;
+  S.couriers.forEach(c => advance(c, dt));
+  S.orders.forEach(o => {
+    if(o.state !== 'aktif') return;
+    const r = rest(o.rid), bot = r.id !== S.ui.bizId;
+    if(bot && o.prep==='bekliyor' && t > o.botAt) acceptOrder(o, Math.round(rand(6,10)));
+    if(bot && o.prep==='hazirlaniyor' && t > o.prepUntil) markReady(o);
+    if(o.offer && t > o.offer.exp){ courierDecline(cour(o.offer.cid), o, '30 sn içinde yanıt vermedi'); }
+    if(!o.offer && !o.courierId && o.del==='araniyor' && o.retryAt && t > o.retryAt){ o.retryAt = null; dispatch(o); }
+    const c = o.courierId && cour(o.courierId);
+    if(c && !c.isUser && o.del==='isletmede' && o.prep==='hazir'){ if(!c.waitAt) c.waitAt = t + 1200; if(t > c.waitAt){ c.waitAt=null; pickup(c,o); } }
+    if(c && !c.isUser && o.del==='kapida'){ if(!c.waitAt) c.waitAt = t + 2000; if(t > c.waitAt){ c.waitAt=null; complete(c,o,'kod ile onaylandı'); } }
+  });
+  S.couriers.forEach(c => {
+    if(c.isUser || !c.offer || !c.decideAt || t < c.decideAt) return;
+    const o = order(c.offer); c.decideAt = null;
+    if(Math.random() < 0.85) courierAccept(c, o); else courierDecline(c, o, 'teklifi reddetti');
+  });
+  S.calls.forEach(call => {
+    if(call.state==='caliyor'){
+      if(call.botAt && t > call.botAt){ answerCall(call); call.botEnd = t + rand(3000,5000); }
+      else if(t - call.start > RING_MS) endCall(call, 'cevapsiz');
+    }
+    if(call.state==='gorusme' && call.botEnd && t > call.botEnd) endCall(call, 'bitti');
+  });
+  S.callbacks.forEach(cb => { if(!cb.done && t > cb.deadline) applyStrike(cb); });
+  Object.keys(S.ui.toast).forEach(k => { if(S.ui.toast[k] && t > S.ui.toast[k].until){ S.ui.toast[k] = null; S.dirty = true; } });
+
+  if(S.dirty){ renderAll(); S.dirty = false; }
+  else updateLive();
+}
+
+/* ===================== HARİTA =====================
+   Gerçek harita: Leaflet + OpenStreetMap verili CARTO karoları.
+   Karolar yüklenemezse (ör. kısıtlı önizleme ortamı) şematik haritaya geçilir. */
+let MAPMODE = window.L ? 'real' : 'sema';
+const MAPS = {};
+let tilesOk = false, tileErr = 0;
+function setMapMode(m){
+  MAPMODE = m;
+  const el = $('#mapmode');
+  if(el){ el.textContent = m==='real' ? '🗺️ Gerçek harita · OSM' : '🗺️ Şematik harita (gerçek harita yüklenemedi)'; el.className = 'pill ' + (m==='real'?'ok':'warn'); }
+}
+function project(p){ return {x:(p.lng-BOX.minLng)/(BOX.maxLng-BOX.minLng)*100, y:(BOX.maxLat-p.lat)/(BOX.maxLat-BOX.minLat)*100}; }
+function svgMap(key){
+  const labels = key==='yonetim';
+  let g = '';
+  for(let i=8;i<100;i+=14){ g += `<line x1="${i}" y1="0" x2="${i}" y2="100" stroke="#e7e1d6" stroke-width="2"/><line x1="0" y1="${i}" x2="100" y2="${i}" stroke="#e7e1d6" stroke-width="2"/>`; }
+  g += `<path d="M0,0 L0,62 Q6,70 4,100 L0,100Z" fill="#d6e7f2"/>`;
+  S.couriers.forEach(c => {
+    if(!c.nav || c.nav.loading) return;
+    const d = c.nav.pts.map((p,i) => { const q = project(p); return (i?'L':'M')+q.x.toFixed(2)+','+q.y.toFixed(2); }).join(' ');
+    g += `<path d="${d}" fill="none" stroke="${c.isUser?'#e8590c':'#1c6ed4'}" stroke-width="1" stroke-dasharray="${c.nav.source==='duz'?'2 1.5':''}" opacity=".85"/>`;
+  });
+  S.restaurants.forEach(r => { const q = project(r); g += `<circle cx="${q.x}" cy="${q.y}" r="4.4" fill="#fff" stroke="${r.open?'#2b8a3e':'#bbb'}" stroke-width=".8"/><text x="${q.x}" y="${q.y+1.7}" font-size="4.6" text-anchor="middle">${r.emoji}</text>${labels?`<text x="${q.x}" y="${q.y-5.6}" font-size="3" text-anchor="middle" fill="#555">${esc(r.name)}</text>`:''}`; });
+  const h = project(S.customer);
+  g += `<text x="${h.x}" y="${h.y+2}" font-size="6" text-anchor="middle">🏠</text>`;
+  S.couriers.forEach(c => {
+    if(!c.online && !c.busy) return;
+    const q = project(c);
+    g += `<circle cx="${q.x}" cy="${q.y}" r="3.4" fill="${c.isUser?'#e8590c':c.busy?'#1c6ed4':'#2b8a3e'}"/><text x="${q.x}" y="${q.y+1.4}" font-size="3.8" text-anchor="middle">🛵</text>${labels?`<text x="${q.x}" y="${q.y-4.6}" font-size="3" text-anchor="middle" fill="#333" font-weight="700">${esc(c.name)}${c.isUser?' (sen)':''}</text>`:''}`;
+  });
+  return `<svg class="map" viewBox="0 0 100 100" role="img" aria-label="Şematik semt haritası">${g}</svg>`;
+}
+function mapBlock(key){ return `<div class="mapslot" data-map="${key}">${MAPMODE==='sema' ? svgMap(key) : ''}</div>`; }
+function icon(html, cls, label){
+  return L.divIcon({className:'', html:`<div class="pin-ic ${cls}">${html}</div>${label?`<div class="pin-lbl">${esc(label)}</div>`:''}`, iconSize:[30,30], iconAnchor:[15,15]});
+}
+function createMap(key, slot){
+  const el = document.createElement('div'); el.className = 'lmap';
+  slot.appendChild(el);
+  const map = L.map(el, {zoomControl:true, attributionControl:true, scrollWheelZoom: key==='yonetim'});
+  map.fitBounds([[BOX.minLat,BOX.minLng],[BOX.maxLat,BOX.maxLng]]);
+  const tiles = L.tileLayer(TILES, {maxZoom:19, subdomains:'abcd', attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıcıları © <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
+  tiles.on('tileload', () => { if(!tilesOk){ tilesOk = true; setMapMode('real'); } });
+  tiles.on('tileerror', () => { tileErr++; if(!tilesOk && tileErr >= 4) fallbackToSchema(); });
+  const m = {el, map, stat:L.layerGroup().addTo(map), routes:L.layerGroup().addTo(map), cmarks:{}, follow: key==='kurye', needFit: el.clientWidth === 0};
+  MAPS[key] = m;
+  return m;
+}
+function fallbackToSchema(){
+  if(MAPMODE === 'sema') return;
+  setMapMode('sema');
+  Object.keys(MAPS).forEach(k => { try{ MAPS[k].map.remove(); }catch(e){} MAPS[k].el.remove(); delete MAPS[k]; });
+  S.dirty = true;
+}
+function drawStatic(key){
+  const m = MAPS[key]; m.stat.clearLayers(); m.routes.clearLayers();
+  const labels = key==='yonetim';
+  S.restaurants.forEach(r => L.marker([r.lat,r.lng], {icon:icon(r.emoji, '', labels?r.name:'')}).addTo(m.stat));
+  L.marker([S.customer.lat,S.customer.lng], {icon:icon('🏠','home', labels?S.customer.name:'')}).addTo(m.stat);
+  if(key==='yonetim') S.orders.filter(o => o.state==='aktif' && o.del==='araniyor').forEach(o => {
+    const r = rest(o.rid); L.circle([r.lat,r.lng], {radius:RADIUS_M, color:'#e8590c', weight:1, dashArray:'4 4', fillOpacity:.03}).addTo(m.routes);
+  });
+  S.couriers.forEach(c => {
+    if(!c.nav || c.nav.loading) return;
+    if(key==='kurye' && !c.isUser) return;
+    L.polyline(c.nav.pts.map(p => [p.lat,p.lng]), {color: c.isUser?'#e8590c':'#1c6ed4', weight:5, opacity:.8, dashArray: c.nav.source==='duz'?'6 6':null}).addTo(m.routes);
+  });
+}
+function updateMarkers(key){
+  const m = MAPS[key]; if(!m) return;
+  const labels = key==='yonetim';
+  S.couriers.forEach(c => {
+    const show = (c.online || c.busy) && (key!=='musteri' || c.busy);
+    let mk = m.cmarks[c.id];
+    if(!show){ if(mk){ m.map.removeLayer(mk); delete m.cmarks[c.id]; } return; }
+    const cls = 'cour ' + (c.isUser?'me':c.busy?'busy':'');
+    if(!mk){ mk = L.marker([c.lat,c.lng], {icon:icon('🛵', cls, labels? c.name+(c.isUser?' (sen)':''):''), zIndexOffset:1000}).addTo(m.map); mk._cls = cls; m.cmarks[c.id] = mk; }
+    else { mk.setLatLng([c.lat,c.lng]); if(mk._cls !== cls){ mk.setIcon(icon('🛵', cls, labels? c.name+(c.isUser?' (sen)':''):'')); mk._cls = cls; } }
+  });
+  if(m.follow){
+    const c = userCourier();
+    if(c.nav && !c.nav.loading){
+      if(!m.zoomed){ m.map.setView([c.lat,c.lng], 16, {animate:false}); m.zoomed = true; }
+      else if(!m.map.getBounds().pad(-0.25).contains([c.lat,c.lng])) m.map.panTo([c.lat,c.lng], {animate:false});
+    } else m.zoomed = false;
+  }
+}
+function refreshSize(m){
+  m.map.invalidateSize(false);
+  // Gizli sekmede oluşturulan harita görünür olunca doğru yakınlaştırmayla yeniden ortalanır
+  if(m.needFit && m.el.clientWidth > 0){ m.map.fitBounds([[BOX.minLat,BOX.minLng],[BOX.maxLat,BOX.maxLng]]); m.needFit = false; }
+}
+function attachMaps(){
+  if(MAPMODE !== 'real') return;
+  document.querySelectorAll('.mapslot[data-map]').forEach(slot => {
+    const key = slot.dataset.map;
+    let m = MAPS[key];
+    if(!m) m = createMap(key, slot);
+    else { slot.appendChild(m.el); refreshSize(m); }
+    drawStatic(key); updateMarkers(key);
+  });
+}
+setTimeout(() => { if(MAPMODE==='real' && !tilesOk) fallbackToSchema(); }, 9000);
+
+/* ===================== ARAMA ARAYÜZÜ ===================== */
+function callOverlay(pane){
+  const me = c => paneOf(c.to)===pane && isUserControlled(c.to);
+  const caller = c => paneOf(c.from)===pane && isUserControlled(c.from);
+  const incoming = S.calls.find(c => c.state==='caliyor' && me(c));
+  if(incoming) return `<div class="overlay"><div class="callbox"><div class="ring" style="font-size:34px">📞</div><div class="small" style="opacity:.7">Uygulama içi arama · Sipariş #${incoming.orderId}</div><div class="who">${esc(partyName(incoming.from))}</div><div class="small" style="opacity:.7">Çalıyor · <span data-live="ring" data-start="${incoming.start}">${secs(RING_MS-(now()-incoming.start))}</span> sn sonra cevapsız sayılır</div><div class="btns"><button class="bad" data-act="call-decline" data-id="${incoming.id}">Reddet</button><button class="ok" data-act="call-answer" data-id="${incoming.id}">Aç</button></div></div></div>`;
+  const active = S.calls.find(c => (c.state==='gorusme' && (me(c)||caller(c))) || (c.state==='caliyor' && caller(c)));
+  if(active){
+    const other = caller(active) ? active.to : active.from;
+    const txt = active.state==='caliyor' ? `Aranıyor… <span data-live="up" data-start="${active.start}">0</span> sn` : `Görüşmede · <span data-live="up" data-start="${active.answeredAt}">0</span> sn`;
+    return `<div class="overlay"><div class="callbox"><div style="font-size:30px">🎧</div><div class="small" style="opacity:.7">İnternet üzerinden · numaralar gizli</div><div class="who">${esc(partyName(other))}</div><div class="small" style="opacity:.8">${txt}</div><div class="btns"><button class="bad" data-act="call-end" data-id="${active.id}">Kapat</button></div></div></div>`;
+  }
+  return '';
+}
+function toastHTML(pane){ const t = S.ui.toast[pane]; return t ? `<div class="toast">${esc(t.txt)}</div>` : ''; }
+function frame(pane, title, right, body){
+  return `<div class="top"><b>${title}</b>${right}</div><div class="body">${body}</div>${toastHTML(pane)}${callOverlay(pane)}`;
+}
+function payPill(o){ const cls = o.pay==='dagitildi'?'ok':o.pay==='kalkti'?'bad':o.pay==='bekletiliyor'?'blue':'warn'; return `<span class="pill ${cls}">💳 ${PAY_TXT[o.pay]}</span>`; }
+
+/* ===================== MÜŞTERİ ===================== */
+function renderCustomer(){
+  const ui = S.ui; let b = '';
+  if(!S.customer.notif && !S.customer.notifDismissed){
+    b += `<div class="card soft small"><b>🔔 Bildirimleri açmanı öneririz</b><div class="muted">Kurye kapıya geldiğinde haber verelim. Zorunlu değil; kapalı olsa da sipariş durumu ekranda canlı görünür.</div><div class="btns"><button class="sm" data-act="cust-notif">Aç</button><button class="sm sec" data-act="cust-notif-no">Şimdi değil</button></div></div>`;
+  }
+  const activeOrders = S.orders.filter(o => o.state==='aktif');
+  if(ui.custView==='liste'){
+    if(activeOrders.length) b += `<div class="card brand"><div class="row"><b>Aktif siparişin var</b><button class="sm brand" data-act="cust-track" data-id="${activeOrders[0].id}">Takip et</button></div></div>`;
+    b += `<div class="muted small" style="margin-bottom:8px">📍 Moda, Kadıköy · Teslimat ücretinin tamamı kuryeye gider</div>`;
+    S.restaurants.forEach(r => {
+      const fee = r.freeDelivery ? '<span class="pill ok">Ücretsiz teslimat</span>' : `<span class="pill">Teslimat ${tl(FEE.custDel)}</span>`;
+      b += `<div class="card"><div class="rest" data-act="${r.open?'cust-open':''}" data-id="${r.id}"><div class="emo">${r.emoji}</div><div style="flex:1"><b>${esc(r.name)}</b><div class="small muted">${km(r,S.customer)} · ${r.open?'Açık':r.suspended?'Hizmet dışı':'Şu an kapalı'}</div><div style="margin-top:4px">${fee}</div></div>${r.open?'<span>›</span>':''}</div></div>`;
+    });
+    if(S.customer.wallet) b += `<div class="card ok small">💸 Toplam iaden: <b>${tl(S.customer.wallet)}</b> (kartına geri yatırılır)</div>`;
+    const past = S.orders.filter(o => o.state!=='aktif');
+    if(past.length){ b += `<h3 style="font-size:13px;margin:14px 0 6px">Geçmiş siparişler</h3>`; past.slice(0,4).forEach(o => b += `<div class="row small" data-act="cust-track" data-id="${o.id}" style="cursor:pointer"><span>#${o.id} ${esc(rest(o.rid).name)}</span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim edildi':o.state==='ulasilamadi'?'Ulaşılamadı':'Reddedildi'}</span></div>`); }
+  }
+  if(ui.custView==='menu'){
+    const r = rest(ui.cartRid);
+    b += `<button class="ghost" data-act="cust-back">‹ Geri</button><div class="rest" style="margin:6px 0 12px"><div class="emo">${r.emoji}</div><div><b style="font-size:16px">${esc(r.name)}</b><div class="small muted">${r.freeDelivery?'Bu işletme teslimat ücretini üstleniyor':'Teslimat '+tl(FEE.custDel)+' + hizmet bedeli '+tl(FEE.custPlat)}</div></div></div>`;
+    r.menu.forEach(m => { const q = ui.cart[m.id]||0; b += `<div class="card"><div class="row"><div><b>${esc(m.name)}</b><div class="small muted">${tl(m.price)}</div></div><div class="qty">${q?`<button class="sm sec" data-act="cart-dec" data-id="${m.id}">−</button><b>${q}</b>`:''}<button class="sm brand" data-act="cart-inc" data-id="${m.id}">+</button></div></div></div>`; });
+    const sub = r.menu.reduce((s,m) => s + (ui.cart[m.id]||0)*m.price, 0);
+    if(sub){
+      const del = r.freeDelivery ? 0 : FEE.custDel, plat = r.freeDelivery ? 0 : FEE.custPlat;
+      b += `<div class="card soft"><div class="row"><span>Ürünler</span><span class="money">${tl(sub)}</span></div><div class="row"><span>Teslimat (tamamı kuryeye)</span><span class="money">${del?tl(del):'Ücretsiz'}</span></div><div class="row"><span>Platform hizmet bedeli</span><span class="money">${plat?tl(plat):'—'}</span></div><div class="row" style="border-top:1px solid var(--line);padding-top:6px"><b>Toplam</b><b class="money">${tl(sub+del+plat)}</b></div><div class="note">💳 Kartından şimdi sadece <b>blokaj</b> alınır. İşletme onaylarsa çekilir, reddederse blokaj kalkar. Para teslimata kadar bekletilir; ürün bedeli doğrudan işletmenin hesabına geçer (simülasyon).</div><button class="brand" style="width:100%;margin-top:10px" data-act="cust-order">Siparişi ver</button></div>`;
+    }
+  }
+  if(ui.custView==='siparis'){
+    const o = order(ui.trackId);
+    if(o){
+      const r = rest(o.rid), c = o.courierId && cour(o.courierId);
+      const steps = [
+        ['Sipariş alındı', true],
+        ['İşletme onayladı', o.prep!=='bekliyor' && o.state!=='red'],
+        ['Hazırlanıyor', o.prep==='hazir' || ['yolda','kapida','teslim','ulasilamadi'].includes(o.del)],
+        ['Kurye yolda', ['yolda','kapida','teslim','ulasilamadi'].includes(o.del)],
+        ['Kurye kapıda', ['kapida','teslim','ulasilamadi'].includes(o.del)],
+        ['Teslim edildi', o.del==='teslim'],
+      ];
+      const firstOpen = steps.findIndex(s => !s[1]);
+      const stTxt = {aktif:['brand','Aktif'], teslim:['ok','Teslim edildi'], red:['bad','Reddedildi'], ulasilamadi:['bad','Müşteriye ulaşılamadı']}[o.state];
+      b += `<button class="ghost" data-act="cust-back">‹ Restoranlar</button><div class="row" style="margin:6px 0 10px"><b style="font-size:16px">Sipariş #${o.id}</b><span class="pill ${stTxt[0]}">${stTxt[1]}</span></div>`;
+      let eta = '';
+      if(c && c.nav && !c.nav.loading && o.del==='yolda'){ const ns = nextStep(c.nav); eta = `<div class="small" style="margin-top:4px">🛵 Kuryen <b>${fmtDist(ns.remain)}</b> uzakta · tahmini varış <b><span data-live="eta" data-cid="${c.id}">${Math.max(1,Math.round(ns.remain/M_PER_MIN))}</span> dk</b></div>`; }
+      b += `<div class="card">${mapBlock('musteri')}<ul class="steps">${steps.map((s,i) => `<li class="${s[1]?'done':i===firstOpen&&o.state==='aktif'?'now':''}"><i>${s[1]?'✓':''}</i>${s[0]}</li>`).join('')}</ul>${o.prep==='hazirlaniyor'&&o.state==='aktif'?`<div class="small muted" style="margin-top:6px">Tahmini hazırlık: <span data-live="mdown" data-end="${o.prepUntil}">${mins(o.prepUntil-now())}</span> dk</div>`:''}${o.del==='araniyor'?'<div class="small muted">Yakındaki kuryeler aranıyor…</div>':''}${c?`<div class="small" style="margin-top:6px">Kuryen: <b>${esc(c.name)}</b></div>`:''}${eta}</div>`;
+      if(o.state==='aktif' && ['yolda','kapida'].includes(o.del)){
+        b += `<div class="card brand"><h3>Teslimat kodun</h3><div class="pin">${o.pin}</div><svg class="qr" viewBox="0 0 21 21">${qr(o.pin)}</svg><div class="small muted" style="text-align:center">Kodu sadece kurye kapına geldiğinde söyle. Kod, kurye adresine ${PIN_RADIUS_M} m'den yakın değilse kabul edilmez. SMS yok, her şey uygulamada.</div></div>`;
+      }
+      if(o.state==='aktif'){
+        b += `<div class="btns"><button class="sec" data-act="call" data-from="musteri" data-to="isletme:${r.id}" data-order="${o.id}">📞 İşletmeyi ara</button>${c?`<button class="sec" data-act="call" data-from="musteri" data-to="kurye:${c.id}" data-order="${o.id}">📞 Kuryeyi ara</button>`:''}</div><div class="note">Arama internet üzerinden yapılır, numaralar gizlidir. İşletme açmaz ve ${secs(CALLBACK_MS)} sn içinde geri dönmezse siparişinin %${PENALTY_RATE*100}'i sana iade edilir.</div>`;
+      }
+      if(o.state==='ulasilamadi') b += `<div class="card bad small">Kurye adresinde ${WAIT_MIN} dk bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
+      b += `<div class="card soft small"><div class="row"><span>Ürünler</span><span class="money">${tl(o.subtotal)}</span></div><div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?tl(o.fees.cust):'Ücretsiz'}</span></div>${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${tl(o.refund)}</span></div>`:''}<div style="margin-top:8px">${payPill(o)}</div></div>`;
+    }
+  }
+  return frame('musteri', `👤 ${S.customer.name}`, `<span class="pill">Müşteri</span>`, b);
+}
+function qr(pin){
+  let h = 0; for(const ch of pin+'jetgel') h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  let s = '<rect width="21" height="21" fill="#fff"/>';
+  const finder = (x,y) => `<rect x="${x}" y="${y}" width="7" height="7" fill="#1d1b18"/><rect x="${x+1}" y="${y+1}" width="5" height="5" fill="#fff"/><rect x="${x+2}" y="${y+2}" width="3" height="3" fill="#1d1b18"/>`;
+  s += finder(0,0) + finder(14,0) + finder(0,14);
+  for(let y=0;y<21;y++) for(let x=0;x<21;x++){
+    if((x<8&&y<8)||(x>12&&y<8)||(x<8&&y>12)) continue;
+    h = (h*1103515245 + 12345) >>> 0;
+    if(h & 0x10000) s += `<rect x="${x}" y="${y}" width="1" height="1" fill="#1d1b18"/>`;
+  }
+  return s;
+}
+
+/* ===================== İŞLETME ===================== */
+function renderBusiness(){
+  const r = rest(S.ui.bizId); let b = '';
+  b += `<div class="row" style="margin-bottom:10px"><select data-act="biz-select" style="flex:1">${S.restaurants.map(x => `<option value="${x.id}" ${x.id===r.id?'selected':''}>${x.emoji} ${esc(x.name)}${x.id===r.id?'':' (otomatik demo)'}</option>`).join('')}</select></div>`;
+  if(!r.notif){
+    b += `<div class="card warn gate"><div class="ic">🔔</div><h3>Bildirim izni zorunlu</h3><div class="small">Sipariş ve müşteri aramalarını kaçırmamanız için bildirimlerin açık olması gerekir. İzin verilmeden "Sipariş almaya açığım" konumuna geçilemez.</div><div class="btns" style="justify-content:center"><button class="brand" data-act="biz-notif">Bildirim izni ver</button></div><div class="note">Uygulama her açılışta tekrar kontrol eder. Bazı telefonlarda pil tasarrufu bildirimleri engelleyebilir; uygulama bu durumda adım adım ayar rehberi gösterir.</div></div>`;
+  }
+  if(r.suspended) b += `<div class="card bad"><h3>⛔ Hesap askıya alındı</h3><div class="small">Son 90 günde 3 ikaz alındı. Sözleşme gereği sipariş alamazsınız. İtirazlarınız yönetim tarafından incelenir.</div></div>`;
+  b += `<div class="card soft"><div class="row"><span class="switch">${r.open?'🟢 Sipariş almaya açığım':'⚪️ Kapalı'}</span><button class="sm ${r.open?'sec':'ok'}" data-act="biz-open" ${(!r.notif||r.suspended)?'disabled':''}>${r.open?'Kapat':'Aç'}</button></div><div class="row small"><span>Müşteri teslimat payını ben üstleneyim</span><input type="checkbox" data-act="biz-free" ${r.freeDelivery?'checked':''}></div>${r.notif?`<div class="row small"><span class="muted">Bildirimler açık</span><button class="ghost sm" data-act="biz-notif-off">Test: kapat</button></div>`:''}</div>`;
+  S.callbacks.filter(cb => !cb.done && cb.rid===r.id).forEach(cb => {
+    b += `<div class="card bad"><h3>📞 Cevapsız müşteri araması</h3><div class="small">Sipariş #${cb.orderId}: müşteriyi <b><span data-live="down" data-end="${cb.deadline}">${secs(cb.deadline-now())}</span> sn</b> içinde geri aramazsanız ikaz alırsınız ve müşteriye %${PENALTY_RATE*100} iade yapılır.</div><div class="btns"><button class="bad" data-act="call" data-from="isletme:${r.id}" data-to="musteri" data-order="${cb.orderId}">Müşteriyi geri ara</button></div></div>`;
+  });
+  const orders = S.orders.filter(o => o.rid===r.id && o.state==='aktif');
+  b += `<h3 style="font-size:13px;margin:12px 0 6px">Aktif siparişler (${orders.length})</h3>`;
+  if(!orders.length) b += `<div class="muted small">Şu an aktif sipariş yok.</div>`;
+  orders.forEach(o => {
+    const c = o.courierId && cour(o.courierId);
+    const st = o.prep==='bekliyor' ? '<span class="pill warn">Onay bekliyor</span>' : o.prep==='hazirlaniyor' ? '<span class="pill blue">Hazırlanıyor</span>' : '<span class="pill ok">Hazır</span>';
+    b += `<div class="card"><div class="row"><b>#${o.id} · ${esc(S.customer.name)}</b>${st}</div><div class="small muted">${o.items.map(i => `${i.qty}× ${esc(i.name)}`).join(', ')}</div><div class="row small" style="margin-top:4px"><span>Sipariş tutarı</span><span class="money">${tl(o.subtotal)}</span></div><div class="row small"><span>Sabit teslimat + hizmet</span><span class="money">−${tl(o.fees.biz)}</span></div>${o.refund?`<div class="row small" style="color:var(--bad)"><span>İkaz iadesi</span><span class="money">−${tl(o.refund)}</span></div>`:''}<div class="row small"><b>Hesabınıza geçecek (teslimatta)</b><b class="money">${tl(o.subtotal-o.fees.biz-o.refund)}</b></div><div class="row small muted"><span>%35 komisyonla olurdu</span><span class="money">${tl(o.subtotal*(1-COMMISSION_RATE))}</span></div>`;
+    if(o.prep==='bekliyor') b += `<div class="small" style="margin-top:8px">Hazırlık süresi seçip onaylayın:</div><div class="btns"><button class="sm ok" data-act="biz-accept" data-id="${o.id}" data-min="5">5 dk</button><button class="sm ok" data-act="biz-accept" data-id="${o.id}" data-min="10">10 dk</button><button class="sm ok" data-act="biz-accept" data-id="${o.id}" data-min="15">15 dk</button><button class="sm bad" data-act="biz-reject" data-id="${o.id}">Reddet</button></div>`;
+    if(o.prep==='hazirlaniyor') b += `<div class="small" style="margin-top:6px">Kalan süre: <span data-live="mdown" data-end="${o.prepUntil}">${mins(o.prepUntil-now())}</span> dk</div><div class="btns"><button class="sm ok" data-act="biz-ready" data-id="${o.id}">Hazır</button></div>`;
+    let cTxt = o.del==='araniyor' ? 'Kurye aranıyor…' : 'Onaydan sonra kurye atanır';
+    if(c){ const ns = c.nav && nextStep(c.nav); cTxt = `${esc(c.name)} · ${o.del==='isletmeye' ? (ns?`size ${fmtDist(ns.remain)} uzakta`:'rota hesaplanıyor') : o.del==='isletmede' ? 'işletmede bekliyor' : 'teslimatta'}`; }
+    b += `<div class="small" style="margin-top:6px">🛵 ${cTxt}</div><div class="btns"><button class="sm sec" data-act="call" data-from="isletme:${r.id}" data-to="musteri" data-order="${o.id}">📞 Müşteri</button>${c?`<button class="sm sec" data-act="call" data-from="isletme:${r.id}" data-to="kurye:${c.id}" data-order="${o.id}">📞 Kurye</button>`:''}</div></div>`;
+  });
+  const done = S.orders.filter(o => o.rid===r.id && o.pay==='dagitildi');
+  const subSum = done.reduce((s,o) => s+o.subtotal, 0), got = done.reduce((s,o) => s+o.shares.business, 0), viaComm = Math.round(subSum*(1-COMMISSION_RATE));
+  b += `<div class="card ok"><h3>💰 Komisyonsuz sistemle kazancınız</h3><div class="row small"><span>Tamamlanan sipariş</span><b>${done.length}</b></div><div class="row small"><span>Hesabınıza geçen</span><span class="money">${tl(got)}</span></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${tl(viaComm)}</span></div><div class="row"><b>Fark</b><b class="money" style="color:var(--ok)">+${tl(Math.max(0,got-viaComm))}</b></div><div class="note">Ürün bedeli platformun hesabına uğramaz; ödeme kuruluşu teslimatta doğrudan sizin hesabınıza aktarır.</div></div>`;
+  b += `<h3 style="font-size:13px;margin:12px 0 6px">İkazlar (${activeStrikes(r).length}/3 · 90 günde silinir)</h3>`;
+  if(!r.strikes.length) b += `<div class="small muted">İkaz yok. Müşteri aramalarını açtığınız sürece ikaz almazsınız.</div>`;
+  r.strikes.forEach((s,i) => { b += `<div class="card small ${s.removed?'soft':'warn'}"><div class="row"><b>${i+1}. ikaz · #${s.orderId}</b><span>${s.removed?'<span class="pill ok">İtiraz kabul edildi</span>':s.appeal==='beklemede'?'<span class="pill blue">İtiraz incelemede</span>':s.appeal==='red'?'<span class="pill bad">İtiraz reddedildi</span>':''}</span></div><div class="muted">Müşteriye ${tl(s.refund)} iade · ${clock(s.t)}</div>${!s.appeal&&!s.removed?`<div class="btns"><button class="sm sec" data-act="biz-appeal" data-rid="${r.id}" data-id="${s.id}">İtiraz et</button></div>`:''}</div>`; });
+  return frame('isletme', `🏪 ${esc(r.name)}`, `<span class="pill">İşletme</span>`, b);
+}
+
+/* ===================== KURYE ===================== */
+function navPanel(c){
+  const n = c.nav;
+  if(!n) return '';
+  if(n.loading) return `<div class="nav"><div class="turn"><div class="arrow">🧭</div><div><div class="t">Rota hesaplanıyor…</div></div></div></div>`;
+  const ns = nextStep(n);
+  const upcoming = n.steps.filter(s => s.at > n.prog + 3).slice(1, 4);
+  return `<div class="nav" id="navpanel"><div class="turn"><div class="arrow" data-live="nav-arrow">${ns.step.arrow}</div><div><div class="d" data-live="nav-dist">${ns.step.type==='arrive' && ns.inM<15 ? 'Vardın' : fmtDist(ns.inM)}</div><div class="t" data-live="nav-text">${esc(ns.step.text)}</div></div></div><div class="meta"><span>Kalan <b data-live="nav-remain">${fmtDist(ns.remain)}</b></span><span>~<b data-live="nav-eta">${Math.max(1,Math.round(ns.remain/M_PER_MIN))}</b> dk</span><span>${n.source==='osrm'?'Gerçek yol rotası':'Düz çizgi (yedek)'}</span></div></div>${upcoming.length?`<ol class="navlist" data-live="nav-list">${upcoming.map(s => `<li>${esc(s.text)}</li>`).join('')}</ol>`:''}`;
+}
+function renderCourier(){
+  const c = userCourier(); let b = '';
+  if(!c.notif){
+    b += `<div class="card warn gate"><div class="ic">🔔</div><h3>Bildirim izni zorunlu</h3><div class="small">Teslimat tekliflerini ve aramaları kaçırmaman için bildirimler açık olmalı. İzin verilmeden çevrimiçi olamazsın.</div><div class="btns" style="justify-content:center"><button class="brand" data-act="cour-notif">Bildirim izni ver</button></div></div>`;
+  }
+  b += `<div class="card soft"><div class="row"><span class="switch">${c.online?'🟢 Çevrimiçisin':'⚪️ Çevrimdışı'}</span><button class="sm ${c.online?'sec':'ok'}" data-act="cour-online" ${(!c.notif||c.busy)?'disabled':''}>${c.online?'Çevrimdışı ol':'Çevrimiçi ol'}</button></div>${c.notif?`<div class="row small"><span class="muted">Bildirimler açık</span><button class="ghost sm" data-act="cour-notif-off" ${c.busy?'disabled':''}>Test: kapat</button></div>`:''}</div>`;
+  if(c.offer){
+    const o = order(c.offer), r = rest(o.rid);
+    b += `<div class="card brand"><div class="row"><h3>🔔 Yeni teslimat teklifi</h3><span class="pill brand"><span data-live="down" data-end="${o.offer.exp}">${secs(o.offer.exp-now())}</span> sn</span></div><div class="big">${tl(FEE.courier)}</div><div class="small muted">Sabit ücret · bahşiş olursa tamamı senin</div><div class="row small" style="margin-top:8px"><span>Alış: ${r.emoji} ${esc(r.name)}</span><b>${km(c,r)}</b></div><div class="row small"><span>Teslim: 🏠 ${S.customer.name}</span><b>${km(r,S.customer)}</b></div><div class="small muted">Mesafeler kuş uçuşu; kabul edince gerçek yol rotası hesaplanır.</div><div class="btns"><button class="ok" style="flex:1" data-act="cour-accept">Kabul et</button><button class="sec" data-act="cour-decline">Reddet</button></div><div class="note">Reddetmenin cezası yok. Teklif 30 sn içinde kabul edilmezse sıradaki en yakın kuryeye geçer.</div></div>`;
+  }
+  if(c.busy){
+    const o = order(c.busy), r = rest(o.rid);
+    const steps = [['İşletmeye git', o.del!=='isletmeye'], ['Paketi al', ['yolda','kapida'].includes(o.del)], ['Müşteriye git', o.del==='kapida'], ['Kodla teslim et', false]];
+    const firstOpen = steps.findIndex(s => !s[1]);
+    const dest = o.del==='isletmeye' || o.del==='isletmede' ? r : S.customer;
+    b += `<div class="card"><div class="row"><h3>Aktif teslimat #${o.id}</h3><span class="pill brand">${tl(FEE.courier)}</span></div>${navPanel(c)}${mapBlock('kurye')}<div class="btns" style="margin-top:0"><a class="btnlink" href="${gmaps(dest)}" target="_blank" rel="noopener">🧭 Google Haritalar'da aç</a></div><ul class="steps">${steps.map((s,i) => `<li class="${s[1]?'done':i===firstOpen?'now':''}"><i>${s[1]?'✓':''}</i>${s[0]}</li>`).join('')}</ul>`;
+    if(o.del==='isletmede') b += o.prep==='hazir'
+      ? `<div class="btns"><button class="ok" style="flex:1" data-act="cour-pickup">📷 Fiş QR'ını okut, paketi al</button></div>`
+      : `<div class="small">İşletmedesin. Sipariş henüz hazır değil${o.prepUntil?` (~<span data-live="mdown" data-end="${o.prepUntil}">${mins(o.prepUntil-now())}</span> dk)`:''}.</div>`;
+    if(o.del==='kapida'){
+      const called = S.calls.some(k => k.orderId===o.id && k.from.type==='kurye' && k.start >= o.arrivedAt);
+      const waitEnd = o.arrivedAt + WAIT_MIN*MIN;
+      b += `<div class="small" style="margin-top:6px"><b>Müşteriden 4 haneli kodu iste:</b></div><div class="row" style="margin-top:6px"><input id="pin-input" inputmode="numeric" maxlength="4" placeholder="••••" value="${esc(S.ui.pin)}" style="flex:1;font-size:20px;letter-spacing:6px;text-align:center"><button class="ok" data-act="cour-pin">Onayla</button></div><div class="btns"><button class="sec sm" data-act="cour-qr">📷 Müşterinin QR'ını okut</button><label class="sm sec" style="padding:6px 9px;border-radius:8px;background:#efece6;font-weight:600;font-size:12px;cursor:pointer">📸 Teslimat fotoğrafı${o.photo?' ✓':''}<input type="file" accept="image/*" data-act="cour-photo" style="display:none"></label></div>${S.ui.pinErr?`<div class="small" style="color:var(--bad);margin-top:4px">${esc(S.ui.pinErr)}</div>`:''}`;
+      b += `<div class="card soft small" style="margin-top:10px"><b>Müşteri kapıyı açmıyor mu?</b><div class="muted">Önce uygulamadan ara${called?' ✓':''}, sonra ${WAIT_MIN} dk bekle (<span data-live="mdown" data-end="${waitEnd}">${mins(waitEnd-now())}</span> dk kaldı). Konumun kayıtlı; ücretini her durumda alırsın.</div><div class="btns"><button class="sm bad" data-act="cour-unreach" data-wait="${waitEnd}" ${called?'':'disabled'}>Müşteriye ulaşılamadı</button></div></div>`;
+    }
+    b += `<div class="btns"><button class="sm sec" data-act="call" data-from="kurye:${c.id}" data-to="musteri" data-order="${o.id}">📞 Müşteri</button><button class="sm sec" data-act="call" data-from="kurye:${c.id}" data-to="isletme:${r.id}" data-order="${o.id}">📞 İşletme</button></div></div>`;
+  }
+  if(!c.offer && !c.busy && c.online) b += `<div class="card soft small" style="text-align:center">⏳ Teklif bekleniyor… İşletmelere yakın durursan teklif gelme ihtimalin artar.</div>`;
+  b += `<div class="card ok"><div class="row"><h3>Bugünkü kazancın</h3><b class="big">${tl(c.earnings)}</b></div><div class="small muted">${c.jobs.length} teslimat · Günlük ödeme: her akşam hesabında. Ceza puanı yok.</div>${c.jobs.slice(0,5).map(j => `<div class="row small"><span>#${j.id} ${esc(j.rname)}</span><span class="money">+${tl(j.amount)}</span></div>`).join('')}</div>`;
+  return frame('kurye', '🛵 Ali', `<span class="pill">Kurye</span>`, b);
+}
+
+/* ===================== YÖNETİM ===================== */
+function renderAdmin(){
+  const paid = S.orders.filter(o => o.pay==='dagitildi');
+  const courierPay = paid.length*FEE.courier, platform = paid.length*FEE.platform;
+  const saved = paid.reduce((s,o) => s + Math.max(0, o.shares.business - o.subtotal*(1-COMMISSION_RATE)), 0);
+  const delTxt = {yok:'—',araniyor:'Kurye aranıyor',isletmeye:'Kurye işletmeye',isletmede:'Kurye işletmede',yolda:'Yolda',kapida:'Kapıda',teslim:'Teslim',ulasilamadi:'Ulaşılamadı'};
+  const stateTxt = o => o.state==='red' ? '<span class="pill bad">Reddedildi</span>' : o.state==='teslim' ? '<span class="pill ok">Teslim</span>' : o.state==='ulasilamadi' ? '<span class="pill bad">Ulaşılamadı</span>' :
+    `<span class="pill blue">${{bekliyor:'Onay bekliyor',hazirlaniyor:'Hazırlanıyor',hazir:'Hazır'}[o.prep]}</span> <span class="pill">${delTxt[o.del]}</span>`;
+  const appeals = S.restaurants.flatMap(r => r.strikes.filter(s => s.appeal==='beklemede').map(s => ({r,s})));
+  return `<h2 style="margin:6px 0 10px;font-size:18px">📊 Yönetim paneli</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="v">${paid.length}</div><div class="l">Ödemesi dağıtılan sipariş</div></div>
+    <div class="kpi"><div class="v">${tl(courierPay)}</div><div class="l">Kuryelere (sipariş başı ${FEE.courier} TL)</div></div>
+    <div class="kpi"><div class="v">${tl(platform)}</div><div class="l">Platform geliri (sipariş başı ${FEE.platform} TL)</div></div>
+    <div class="kpi"><div class="v" style="color:var(--ok)">${tl(saved)}</div><div class="l">İşletmelerin komisyona göre fazladan kazancı</div></div>
+  </div>
+  <div class="admin-grid">
+    <div>
+      <div class="card"><div class="row"><h3>Canlı harita</h3><span class="small muted">🟠 sen · 🟢 boşta · 🔵 teslimatta · çizgi: gerçek yol rotası</span></div>${mapBlock('yonetim')}</div>
+      <div class="card"><h3>Siparişler ve ödeme durumu</h3>${S.orders.length?`<table><tr><th>#</th><th>İşletme</th><th>Durum</th><th>Ödeme</th><th>Kurye</th></tr>${S.orders.slice(0,10).map(o => `<tr><td>${o.id}</td><td>${esc(rest(o.rid).name)}</td><td>${stateTxt(o)}</td><td>${payPill(o)}${o.shares?`<div class="small muted">İşletme ${tl(o.shares.business)} · Kurye ${tl(o.shares.courier)} · Platform ${tl(o.shares.platform)}${o.refund?` · İade ${tl(o.refund)}`:''}</div>`:''}</td><td>${o.courierId?esc(cour(o.courierId).name):'—'}</td></tr>`).join('')}</table>`:'<div class="small muted">Henüz sipariş yok. Müşteri ekranından bir sipariş ver.</div>'}</div>
+      <div class="card"><h3>Arama kayıtları (kanıt)</h3>${S.calls.length?`<table><tr><th>Saat</th><th>Arayan → Aranan</th><th>Sipariş</th><th>Sonuç</th></tr>${S.calls.slice(0,10).map(k => `<tr><td>${clock(k.start)}</td><td>${esc(partyName(k.from))} → ${esc(partyName(k.to))}</td><td>#${k.orderId}</td><td>${{caliyor:'<span class="pill warn">Çalıyor</span>',gorusme:'<span class="pill blue">Görüşmede</span>',bitti:'<span class="pill ok">Görüşüldü</span>',iptal:'<span class="pill">İptal</span>',cevapsiz:'<span class="pill bad">Cevapsız</span>',reddedildi:'<span class="pill bad">Reddedildi</span>'}[k.state]}${k.answeredAt?` <span class="small muted">${secs(k.answeredAt-k.start)} sn çaldı</span>`:''}</td></tr>`).join('')}</table>`:'<div class="small muted">Arama yok.</div>'}</div>
+    </div>
+    <div>
+      ${appeals.length?`<div class="card warn"><h3>İtiraz bekleyen ikazlar</h3>${appeals.map(({r,s}) => `<div class="row small"><span>${esc(r.name)} · #${s.orderId}</span><span><button class="sm ok" data-act="adm-appeal-ok" data-rid="${r.id}" data-id="${s.id}">Kabul</button> <button class="sm bad" data-act="adm-appeal-no" data-rid="${r.id}" data-id="${s.id}">Red</button></span></div>`).join('')}</div>`:''}
+      <div class="card"><h3>Sistem günlüğü</h3><div class="log">${S.log.map(l => `<div><time>${clock(l.t)}</time>${esc(l.txt)}</div>`).join('') || '<div class="muted">Henüz olay yok.</div>'}</div></div>
+      <div class="card soft"><h3>Bu sürümdeki kurallar</h3><ul class="rules small">
+        <li><b>Ücret:</b> Müşteri ${FEE.custDel}+${FEE.custPlat} TL, işletme ${FEE.bizDel}+${FEE.bizPlat} TL öder. Kuryeye ${FEE.courier} TL, platforma ${FEE.platform} TL. İşletme isterse müşteri payını üstlenir.</li>
+        <li><b>Ödeme:</b> Para platformun hesabına uğramaz. Siparişte kartta blokaj, işletme onayında çekim, teslimata kadar bekletme, teslimde otomatik bölüştürme. Reddedilen siparişte blokaj kalkar.</li>
+        <li><b>Kurye atama:</b> ${RADIUS_M/1000} km içindeki en yakın, boşta ve bildirimi açık kuryeye teklif; 30 sn içinde yanıt yoksa sıradakine. Reddetmenin cezası yok.</li>
+        <li><b>Navigasyon:</b> Gerçek yol rotası ve adım adım tarif; istenirse Google Haritalar'da açılır.</li>
+        <li><b>Teslimat onayı:</b> Serbest "teslim edildi" butonu yok. Müşterinin 4 haneli kodu veya QR'ı gerekir; kod yalnızca kurye adrese ${PIN_RADIUS_M} m'den yakınken geçerli. İsteğe bağlı teslimat fotoğrafı.</li>
+        <li><b>Müşteriye ulaşılamazsa:</b> Kurye uygulamadan arar ve ${WAIT_MIN} dk bekler; sonra sipariş kapanır. İade yapılmaz, kurye ve işletme ücretini alır.</li>
+        <li><b>İkaz:</b> İşletme müşteri aramasını açmaz ve ${secs(CALLBACK_MS)} sn (gerçekte 5 dk) içinde geri aramazsa müşteriye %${PENALTY_RATE*100} iade (işletme payından). 3 ikazda askıya alma; 90 günde silinir; itiraz hakkı var.</li>
+        <li><b>Bildirim:</b> Kurye ve işletme için zorunlu; müşteri için önerilir.</li>
+      </ul></div>
+    </div>
+  </div>`;
+}
+
+/* ===================== RENDER ===================== */
+function renderAll(){
+  const act = document.activeElement, actId = act && act.id, sel = act && act.selectionStart;
+  $('#p-musteri').innerHTML = renderCustomer();
+  $('#p-isletme').innerHTML = renderBusiness();
+  $('#p-kurye').innerHTML = renderCourier();
+  $('#p-yonetim').innerHTML = renderAdmin();
+  attachMaps();
+  if(actId){ const el = document.getElementById(actId); if(el){ el.focus(); try{ el.setSelectionRange(sel,sel); }catch(e){} } }
+}
+let lastMapDraw = 0;
+function updateLive(){
+  const t = now();
+  document.querySelectorAll('[data-live]').forEach(el => {
+    const k = el.dataset.live;
+    if(k==='down') el.textContent = secs(+el.dataset.end - t);
+    if(k==='mdown') el.textContent = mins(+el.dataset.end - t);
+    if(k==='ring') el.textContent = secs(RING_MS - (t - +el.dataset.start));
+    if(k==='up') el.textContent = secs(t - +el.dataset.start);
+    if(k==='eta'){ const c = cour(el.dataset.cid); const ns = c && nextStep(c.nav); if(ns) el.textContent = Math.max(1, Math.round(ns.remain/M_PER_MIN)); }
+  });
+  const c = userCourier(), ns = c.nav && nextStep(c.nav);
+  if(ns && document.getElementById('navpanel')){
+    const set = (k,v) => { const el = document.querySelector(`[data-live="${k}"]`); if(el && el.textContent !== v) el.textContent = v; };
+    set('nav-arrow', ns.step.arrow);
+    set('nav-dist', ns.step.type==='arrive' && ns.inM<15 ? 'Vardın' : fmtDist(ns.inM));
+    set('nav-text', ns.step.text);
+    set('nav-remain', fmtDist(ns.remain));
+    set('nav-eta', String(Math.max(1,Math.round(ns.remain/M_PER_MIN))));
+  }
+  const moving = S.couriers.some(x => x.nav && !x.nav.loading);
+  if(moving && t - lastMapDraw > 120){
+    lastMapDraw = t;
+    if(MAPMODE==='real') Object.keys(MAPS).forEach(updateMarkers);
+    else document.querySelectorAll('.mapslot[data-map]').forEach(slot => { slot.innerHTML = svgMap(slot.dataset.map); });
+  }
+}
+
+/* ===================== OLAYLAR ===================== */
+function parseParty(s){ const [type,id] = s.split(':'); return {type, id}; }
+document.addEventListener('click', e => {
+  const tabBtn = e.target.closest('#tabs button');
+  if(tabBtn){
+    document.body.dataset.tab = tabBtn.dataset.tab;
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b===tabBtn));
+    window.scrollTo(0,0);
+    setTimeout(() => Object.values(MAPS).forEach(refreshSize), 50);
+    return;
+  }
+  const el = e.target.closest('[data-act]'); if(!el || el.disabled) return;
+  const a = el.dataset.act, id = el.dataset.id, ui = S.ui, c = userCourier();
+  switch(a){
+    case 'cust-notif': S.customer.notif = true; break;
+    case 'cust-notif-no': S.customer.notifDismissed = true; break;
+    case 'cust-open': ui.cartRid = id; ui.cart = {}; ui.custView = 'menu'; break;
+    case 'cust-back': ui.custView = 'liste'; break;
+    case 'cust-track': ui.trackId = +id; ui.custView = 'siparis'; break;
+    case 'cart-inc': ui.cart[id] = (ui.cart[id]||0)+1; break;
+    case 'cart-dec': ui.cart[id] = Math.max(0,(ui.cart[id]||0)-1); if(!ui.cart[id]) delete ui.cart[id]; break;
+    case 'cust-order': placeOrder(); break;
+    case 'biz-notif': rest(ui.bizId).notif = true; log(`${rest(ui.bizId).name} bildirim izni verdi.`); break;
+    case 'biz-notif-off': { const r = rest(ui.bizId); r.notif = false; r.open = false; log(`${r.name} bildirimleri kapattı → otomatik olarak sipariş almaya kapatıldı.`, 'warn'); break; }
+    case 'biz-open': { const r = rest(ui.bizId); r.open = !r.open; log(`${r.name} ${r.open?'sipariş almaya açıldı':'kapandı'}.`); break; }
+    case 'biz-free': { const r = rest(ui.bizId); r.freeDelivery = el.checked; log(`${r.name}: müşteri teslimat payını ${r.freeDelivery?'üstleniyor':'üstlenmiyor'}.`); break; }
+    case 'biz-accept': acceptOrder(order(+id), +el.dataset.min); break;
+    case 'biz-reject': rejectOrder(order(+id)); break;
+    case 'biz-ready': markReady(order(+id)); break;
+    case 'biz-appeal': { const s = rest(el.dataset.rid).strikes.find(x => x.id===id); s.appeal = 'beklemede'; log(`${rest(el.dataset.rid).name} #${s.orderId} ikazına itiraz etti.`); break; }
+    case 'adm-appeal-ok': { const r = rest(el.dataset.rid), s = r.strikes.find(x => x.id===id); s.appeal = 'kabul'; s.removed = true; if(r.suspended && activeStrikes(r).length < 3) r.suspended = false; log(`İtiraz kabul edildi: ${r.name} #${s.orderId} ikazı silindi.`, 'ok'); break; }
+    case 'adm-appeal-no': { const r = rest(el.dataset.rid), s = r.strikes.find(x => x.id===id); s.appeal = 'red'; log(`İtiraz reddedildi: ${r.name} #${s.orderId}.`); break; }
+    case 'cour-notif': c.notif = true; log('Ali bildirim izni verdi.'); break;
+    case 'cour-notif-off': c.notif = false; c.online = false; if(c.offer) courierDecline(c, order(c.offer), 'bildirimleri kapattı'); log('Ali bildirimleri kapattı → otomatik çevrimdışı.', 'warn'); break;
+    case 'cour-online': c.online = !c.online; if(!c.online && c.offer) courierDecline(c, order(c.offer), 'çevrimdışı oldu'); log(`Ali ${c.online?'çevrimiçi':'çevrimdışı'} oldu.`); break;
+    case 'cour-accept': courierAccept(c, order(c.offer)); break;
+    case 'cour-decline': courierDecline(c, order(c.offer), 'teklifi reddetti'); break;
+    case 'cour-pickup': pickup(c, order(c.busy)); break;
+    case 'cour-pin': case 'cour-qr': {
+      const o = order(c.busy), d = dist(c, S.customer);
+      if(d > PIN_RADIUS_M){ ui.pinErr = `Adrese ${fmtDist(d)} uzaktasın. Kod yalnızca ${PIN_RADIUS_M} m içinde kabul edilir.`; log(`#${o.id} kod adrese uzakken girilmeye çalışıldı (${fmtDist(d)}).`, 'warn'); break; }
+      if(a==='cour-pin' && ui.pin !== o.pin){ ui.pinErr = 'Kod yanlış. Kod doğrulanmadan teslimat tamamlanamaz.'; log(`#${o.id} yanlış teslimat kodu girildi.`, 'warn'); break; }
+      ui.pin = ''; ui.pinErr = false; complete(c, o, a==='cour-pin' ? 'kod ile onaylandı' : 'QR ile onaylandı'); break;
+    }
+    case 'cour-unreach': {
+      const o = order(c.busy);
+      if(now() < +el.dataset.wait){ ui.pinErr = `${WAIT_MIN} dk bekleme süresi dolmadan sipariş kapatılamaz.`; break; }
+      ui.pinErr = false; unreachable(c, o); break;
+    }
+    case 'call': startCall(parseParty(el.dataset.from), parseParty(el.dataset.to), +el.dataset.order); break;
+    case 'call-answer': answerCall(S.calls.find(k => k.id===id)); break;
+    case 'call-decline': endCall(S.calls.find(k => k.id===id), 'reddedildi'); break;
+    case 'call-end': { const k = S.calls.find(x => x.id===id); endCall(k, k.state==='caliyor' ? 'iptal' : 'bitti'); break; }
+    case 'cour-photo': return;
+    default: return;
+  }
+  S.dirty = true;
+});
+document.addEventListener('change', e => {
+  const a = e.target.dataset.act;
+  if(a === 'biz-select'){ S.ui.bizId = e.target.value; log(`İşletme ekranı: ${rest(S.ui.bizId).name} (diğerleri otomatik demo).`); S.dirty = true; }
+  if(a === 'cour-photo' && e.target.files && e.target.files.length){ const o = order(userCourier().busy); if(o){ o.photo = true; log(`#${o.id} teslimat fotoğrafı eklendi.`); S.dirty = true; } }
+  if(e.target.id === 'speed'){ MIN = +e.target.value; log(`Simülasyon hızı: 1 dk = ${MIN/1000} sn.`); }
+});
+document.addEventListener('input', e => {
+  if(e.target.id === 'pin-input'){ S.ui.pin = e.target.value.replace(/\D/g,'').slice(0,4); S.ui.pinErr = false; }
+});
+
+setMapMode(MAPMODE);
+if(MAPMODE==='real') $('#mapmode').textContent = 'Harita yükleniyor…';
+log('Prototip v2 başladı. İpucu: önce İşletme ve Kurye ekranında bildirim izni verip çevrimiçi ol, sonra Müşteri ekranından Usta Pideci\'den sipariş ver.');
+renderAll();
+setInterval(tick, 100);
+</script>
+</body>
+</html>

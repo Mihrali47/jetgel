@@ -1,27 +1,48 @@
 # Jetgel (geçici isim)
 
-Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin **çalışan bir prototipini** içerir.
+Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin **kullanılabilir prototipini** içerir.
 
 **Canlı site:** https://mihrali47.github.io/jetgel/
 
-> Bu bir simülasyondur: gerçek ödeme ve gerçek arama yoktur. Harita ve yol rotaları gerçektir (OpenStreetMap). Zaman hızlandırılmıştır (üstteki seçiciden ayarlanır). Sayfa yenilenince her şey sıfırlanır.
+## Ne var?
 
-## Nasıl denenir
+| Sayfa | Kim için | Ne yapar |
+|---|---|---|
+| `musteri.html` | Müşteri | Teslimat noktası seçer, işletmeden sipariş verir, siparişi canlı takip eder, teslimat kodunu görür, işletmeyi/kuryeyi arar |
+| `isletme.html` | İşletme | Sipariş almaya açılır, siparişi onaylar/reddeder, "hazır" der, menüde ürünleri satışta/tükendi yapar, kazanç ve ikazları görür |
+| `kurye.html` | Kurye | Çevrimiçi olur, 30 sn'lik teklifleri alır, gerçek yol rotası ve adım adım tarifle gider, kodla teslim eder |
+| `yonetim.html` | Yönetim | İşletme ekler/düzenler (haritadan konum, menü), kuryeleri, siparişleri, ödemeleri, aramaları, ikaz itirazlarını yönetir |
+| `simulasyon.html` | Esnafa sunum | Tüm sistemi tek ekranda gösteren simülasyon (sürüm 2) |
 
-Müşteri, işletme ve kurye ekranları aynı anda çalışır; en altta yönetim paneli her şeyi kaydeder. Telefonda ekranlar sekme olarak gelir.
+**Gerçek olanlar:** Telefonlar arası canlı sipariş akışı (Supabase), telefonun GPS konumu, harita ve yol rotası (OpenStreetMap/OSRM), uygulama içi **gerçek sesli arama** (WebRTC), bildirimler ve sesli uyarılar, telefona uygulama gibi yükleme (PWA).
 
-1. **İşletme** ekranında bildirim izni verin ve "Aç"a basın.
-2. **Kurye** ekranında bildirim izni verin ve çevrimiçi olun.
-3. **Müşteri** ekranından Usta Pideci'den sipariş verin.
-4. İşletme olarak hazırlık süresini seçip onaylayın. Kuryeye 30 saniyelik teklif gelir, kabul edin.
-5. Kurye ekranında gerçek sokaklar üzerinde rota ve adım adım yol tarifi görünür. "Google Haritalar'da aç" ile gerçek navigasyona geçilebilir.
-6. Kurye kapıya varınca müşteri ekranındaki 4 haneli kodu girin.
+**Simülasyon olanlar:** Ödeme (para çekilmez, sadece durumları gösterilir), kimlik doğrulama (giriş sistemi yok; prototip).
 
-**İkaz sistemini denemek için:** sipariş aktifken müşteri ekranından işletmeyi arayın, işletme ekranında reddedin ve 15 saniye geri aramayın.
+## Nasıl denenir (3 telefonla)
 
-**Müşteriye ulaşılamadı akışını denemek için:** kurye kapıdayken kodu girmeyin; kurye ekranından müşteriyi arayın, 10 dakika (simülasyon) bekleyin, sonra "Müşteriye ulaşılamadı"ya basın.
+1. **Yönetim** → Ayarlar → "Demo işletmelerini yükle" (bir kere).
+2. **1. telefon → İşletme:** işletme seç, bildirim izni ver, "Aç".
+3. **2. telefon → Kurye:** adını yaz, bildirim izni ver, "Çevrimiçi ol". Masa başında "Demo sürüş", sokakta "Gerçek GPS".
+4. **3. telefon → Müşteri:** adını ve teslimat noktanı seç, sipariş ver.
+5. İşletme onaylar → kuryeye teklif düşer → kurye kabul eder, navigasyonla gider → işletme "hazır" der → kurye paketi alır → müşterinin kapısında kodu girer.
 
-## Kurallar (sürüm 2)
+Yönetim → Ayarlar'daki **hızlı test modu** açıkken süreler 10 kat kısalır. Gerçek denemede kapatın.
+
+## Modlar
+
+- **Canlı mod:** `app/config.js` içinde Supabase bilgileri varsa tüm cihazlar aynı veritabanına bağlanır.
+- **Demo modu:** Supabase bilgisi yoksa (ya da Yönetim → Ayarlar'dan seçilirse) veriler sadece o cihazın tarayıcısında tutulur; aynı cihazdaki sekmeler birbirini görür.
+
+Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir kez çalıştırılır.
+
+## Sesli arama hakkında
+
+- Ses doğrudan iki telefon arasında akar (WebRTC). Bağlantı bilgisi veritabanındaki arama kaydı üzerinden değiş tokuş edilir.
+- Aranan kişinin uygulaması açık olmalıdır (arka planda açık sekme de olur).
+- İlk aramada mikrofon izni istenir.
+- Bazı mobil operatör ağlarında doğrudan bağlantı kurulamayabilir; o durumda `app/config.js` içindeki `iceServers` listesine bir TURN sunucusu eklenmelidir. Ses bağlanmasa bile çalma, kayıt ve ikaz kuralı çalışır.
+
+## Kurallar
 
 | Konu | Kural |
 |---|---|
@@ -38,10 +59,19 @@ Müşteri, işletme ve kurye ekranları aynı anda çalışır; en altta yöneti
 
 ## Dosyalar
 
-- `index.html`: Prototipin tamamı
-- `vendor/leaflet/`: Harita kütüphanesi (Leaflet 1.9.4)
-- `sablonlar/jetgel-urun-yukleme-sablonu.xlsx`: İşletmelerin toplu ürün yükleme şablonu (market ve restoran)
-- `AGENTS.md`: Bu repoda çalışan yapay zekâ asistanları (Claude, ChatGPT/Codex, Copilot vb.) için talimatlar
+| Yol | Ne |
+|---|---|
+| `index.html` | Giriş sayfası |
+| `musteri.html`, `isletme.html`, `kurye.html`, `yonetim.html` | Rol uygulamaları |
+| `simulasyon.html` | Tek ekranda simülasyon (eski `index.html`) |
+| `app/core.js` | Ortak çekirdek: veri katmanı, iş kuralları, kurye atama, navigasyon, sesli arama, uyarılar, harita |
+| `app/app.css` | Ortak görünüm |
+| `app/config.js` | Supabase bağlantı bilgisi (sadece URL ve publishable key) ve arama sunucuları |
+| `supabase/kurulum.sql` | Veritabanı kurulum betiği |
+| `manifest-*.webmanifest`, `sw.js`, `ikonlar/` | Telefona yüklenebilir uygulama (PWA) |
+| `vendor/` | Leaflet ve Supabase kütüphanelerinin yerel kopyaları |
+| `sablonlar/` | Toplu ürün yükleme Excel şablonu |
+| `AGENTS.md` | Yapay zekâ asistanları için talimatlar |
 
 > **Yapay zekâ ile çalışırken:** Hangi asistanı kullanırsanız kullanın, ilk mesajda "Önce AGENTS.md ve README.md dosyalarını oku" deyin. Aynı anda iki asistana değişiklik yaptırmayın.
 
@@ -56,10 +86,14 @@ Müşteri, işletme ve kurye ekranları aynı anda çalışır; en altta yöneti
 - [ ] İsmi kesinleştirmek
 - [ ] İlk semti seçmek
 - [ ] Yoğun saatlerde aynı yöndeki siparişleri tek kuryeye birleştirme
-- [ ] Prototipe Excel ile ürün yükleme
+- [ ] Excel ile toplu ürün yükleme
 - [ ] Gerçek ödeme altyapısı (alt üye işyeri modeli; PayTR, iyzico vb. ile görüşme)
-- [ ] Gerçek uygulama içi arama altyapısı
-- [ ] Kurye ve işletme mobil uygulamaları
+- [x] Uygulama içi gerçek sesli arama (WebRTC)
+- [ ] Mobil veride arama için TURN sunucusu
+- [x] Telefonlar arası çalışan prototip (Supabase) ve telefona yüklenebilir sürüm (PWA)
+- [ ] Kullanıcı girişi ve veritabanı güvenlik kuralları (gerçek kullanımdan önce şart)
+- [ ] Uygulama kapalıyken bildirim (push) için sunucu tarafı
+- [ ] Kurye ve işletme için mağaza uygulamaları (Android önce)
 - [ ] Mali müşavir ile şirket yapısı ve faturalandırma
 
 ### İleride

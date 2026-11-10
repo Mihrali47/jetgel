@@ -6,7 +6,7 @@ Bu dosya, bu repoda çalışan her yapay zekâ asistanı (Claude, ChatGPT/Codex,
 
 **Jetgel** (geçici isim): İstanbul'da tek bir semtten başlayacak, **komisyonsuz, sabit ücretli** yemek ve market teslimat sistemi. Yemeksepeti, Getir ve Trendyol Go'nun yüzde komisyonuna karşı esnafa sabit ücret sunar.
 
-Şu an repoda **çalışan bir prototip (simülasyon)** var: tek bir `index.html` içinde müşteri, işletme, kurye ekranları ve yönetim paneli. Gerçek sunucu, veritabanı, ödeme ve arama yok; hepsi tarayıcıda simüle ediliyor.
+Şu an repoda **kullanılabilir bir prototip** var: müşteri, işletme, kurye ve yönetim için ayrı sayfalar; telefonlar Supabase üzerinden canlı bağlı; gerçek GPS, gerçek yol rotası ve uygulama içi gerçek sesli arama (WebRTC) var. **Ödeme simülasyondur**, kullanıcı girişi yoktur. Ayrıca tek ekranda her şeyi gösteren `simulasyon.html` vardır.
 
 Canlı site: https://mihrali47.github.io/jetgel/ (GitHub Pages, `main` dalının kökünden yayınlanır).
 
@@ -32,19 +32,25 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 
 | Yol | Ne |
 |---|---|
-| `index.html` | Prototipin tamamı: HTML, CSS ve JavaScript tek dosyada |
-| `vendor/leaflet/` | Harita kütüphanesi (Leaflet 1.9.4), yerel kopya |
-| `sablonlar/` | İşletmeler için ürün yükleme Excel şablonu |
-| `README.md` | Kurallar, yol haritası, teknik notlar (tek gerçek kaynak) |
+| `index.html` | Giriş sayfası |
+| `musteri.html`, `isletme.html`, `kurye.html`, `yonetim.html` | Rol uygulamaları; her biri kendi arayüzünü çizer, iş mantığı `app/core.js`'te |
+| `app/core.js` | Veri katmanı (`J.DB`), iş kuralları (`J.FEE`, süreler), sipariş akışı, kurye atama (`J.dispatchTick`), ikaz (`J.strikeTick`), rota/navigasyon, WebRTC arama, uyarılar, harita (`J.Map`) |
+| `app/config.js` | Supabase URL + publishable key, ICE/TURN sunucuları. Secret key buraya ASLA yazılmaz |
+| `app/app.css` | Ortak stil |
+| `supabase/kurulum.sql` | Veritabanı: tek tablo `kayitlar(tbl, id, data jsonb)`, `jg_patch` (alan bazlı güncelleme) ve `jg_claim` (tek seferlik iş) fonksiyonları, realtime |
+| `simulasyon.html` | Bağımsız tek dosyalık simülasyon (sürüm 2); kendi kodunu içerir |
+| `sw.js`, `manifest-*.webmanifest`, `ikonlar/` | PWA |
+| `vendor/` | Leaflet 1.9.4 ve supabase-js 2 yerel kopyaları |
+| `sablonlar/` | Excel ürün şablonu |
 | `.nojekyll` | GitHub Pages'in dosyaları işlemesini kapatır; silme |
 
-## `index.html` içinde yapı
+## Mimari notlar
 
-- Üstte `AYARLAR` bloğu: ücretler, süreler, mesafeler sabit olarak tanımlı (`FEE`, `RADIUS_M`, `PIN_RADIUS_M` vb.). Ücret veya süre değişikliği önce buradan yapılır.
-- `S` nesnesi: tüm durum (işletmeler, kuryeler, müşteri, siparişler, aramalar, günlük).
-- Bölümler başlıklarla ayrılmış: ÖDEME AKIŞI, SİPARİŞ, KURYE ATAMA, NAVİGASYON, UYGULAMA İÇİ ARAMA, ZAMANLAYICI, HARİTA, ekran render fonksiyonları, OLAYLAR.
-- Ekranlar her değişiklikte yeniden çizilir (`renderAll`), sık değişen sayaçlar `updateLive` ile güncellenir.
-- Harita: Leaflet + CARTO karoları; rota OSRM demo sunucusundan. Erişilemezse otomatik şematik haritaya ve düz çizgi rotasına geçer. Bu yedek davranışı bozma.
+- Sunucu yok; her cihaz kendi rolünün işini yapar: **işletme cihazı** kendi siparişleri için kurye atar ve teklif süresini takip eder; **arayan cihaz** cevapsız aramayı işaretler; **ikaz** herhangi bir cihazda `jg_claim` ile tek sefer uygulanır.
+- Kayıt güncellemelerinde her zaman `J.DB.patch` kullan (sadece değişen alanlar gönderilir; farklı cihazlar birbirinin alanını ezmesin).
+- Süreler `J.D(ms)` ile hızlı test moduna uyarlanır; yeni süre eklerken bunu kullan.
+- `J.render` yeniden çizimde odak ve kaydırmayı korur; sayaçlar `data-live` ile güncellenir.
+- Harita/rota servisleri erişilemezse uygulama çalışmaya devam etmeli (rota düz çizgiye düşer).
 
 ## Çalışma kuralları
 
@@ -53,9 +59,9 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 3. **İş kurallarını bozmadığını kontrol et.** Ücret, ödeme ve teslimat kurallarına dokunan bir değişiklik yaptıysan sahibe açıkça söyle.
 4. **README'yi güncel tut.** Yeni bir kural, özellik ya da karar eklediysen `README.md`'deki ilgili bölümü de güncelle. Yol haritasında biten maddeleri işaretle.
 5. **Dış bağımlılık eklerken dikkatli ol.** Kütüphaneleri mümkünse `vendor/` altına yerel kopya olarak ekle; site GitHub Pages'te sunucusuz çalışıyor.
-6. **Test et.** Değişiklikten sonra en azından şu akışı tarayıcıda dene: işletme bildirim izni ver ve aç → kurye bildirim izni ver ve çevrimiçi ol → müşteri Usta Pideci'den sipariş ver → işletme onayla → kurye kabul et → hazır → paketi al → kodla teslim et. Telefon genişliğinde (390 px) de bak.
+6. **Test et.** Değişiklikten sonra en azından şu akışı dört sekmede (demo modu) dene: yönetim → demo işletmelerini yükle; işletme → seç, bildirim izni, aç; kurye → kaydol, bildirim izni, çevrimiçi (demo sürüş); müşteri → profil, sipariş → işletme onayla → kurye kabul → hazır → paketi al → kodla teslim. Bir sesli arama da dene. Telefon genişliğinde (390 px) bak.
 7. **Gizli bilgi koyma.** API anahtarı, şifre, kişisel veri repoya girmez.
 
 ## Henüz yapılmayanlar (bilinçli olarak)
 
-Stok takibi, kasa entegrasyonu, gerçek ödeme, gerçek arama ve sunucu tarafı henüz yok. Bunlar `README.md`'deki yol haritasında. Sahip istemeden bunlara başlama.
+Stok takibi, kasa entegrasyonu, gerçek ödeme, kullanıcı girişi ve sunucu tarafı (push bildirim) henüz yok. Veritabanı politikası prototip için herkese açıktır. Bunlar `README.md`'deki yol haritasında. Sahip istemeden bunlara başlama.

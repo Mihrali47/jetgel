@@ -1,0 +1,31 @@
+{
+  "name": "Jetgel Yönetim",
+  "short_name": "Jetgel Yön.",
+  "description": "Yönetim paneli",
+  "lang": "tr",
+  "id": "./yonetim.html",
+  "start_url": "./yonetim.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f2ee",
+  "theme_color": "#1d1b18",
+  "icons": [
+    {
+      "src": "ikonlar/ikon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "ikonlar/ikon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "ikonlar/ikon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
