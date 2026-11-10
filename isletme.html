@@ -17,6 +17,7 @@
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
+<script src="app/excel.js"></script>
 </head>
 <body class="p">
 <div class="wrap"><div id="panel"></div></div>
@@ -33,7 +34,8 @@ const ago = t => { const m = Math.max(0, Math.floor((J.now()-t)/60000)); return 
 const today = t => new Date(t).toDateString() === new Date().toDateString();
 
 let loginErr = '';
-let nf = {name:'', price:'', cat:'', desc:''};   // ürün ekleme formu (yeniden çizimde kaybolmasın)
+let nf = {name:'', price:'', cat:'', desc:''};
+let imp = null;   // Excel'den okunan, onay bekleyen ürünler   // ürün ekleme formu (yeniden çizimde kaybolmasın)
 function renderPick(){
   return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div><div class="small muted">Komisyonsuz sipariş paneli</div></div><div class="p-body">` +
     J.loginForm({title:'İşletme girişi 🏪', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr}) + `</div>`;
@@ -88,11 +90,28 @@ function tabOrders(b){
   return h;
 }
 
+function importCard(b){
+  if(imp){
+    const {items, errors, fname} = imp;
+    const names = new Set((b.menu||[]).map(m => J.norm(m.name)));
+    const upd = items.filter(i => names.has(J.norm(i.name))).length;
+    return `<div class="p-card" style="margin-top:14px;border:2px solid var(--brand)"><h3>📥 ${J.esc(fname)}</h3>
+      <div class="p-stats" style="margin:4px 0 10px"><div style="background:#f6f5f2"><b>${items.length}</b><span>okunan ürün</span></div><div style="background:#f6f5f2"><b>${items.length-upd}</b><span>yeni</span></div><div style="background:#f6f5f2"><b>${upd}</b><span>güncellenecek</span></div></div>
+      ${items.slice(0,6).map(i => `<div class="row small"><span>${J.esc(i.name)} <span class="muted">${J.esc(i.cat)}</span>${i.available?'':' <span class="pill bad">Tükendi</span>'}</span><b>${J.tl(i.price)}</b></div>`).join('')}${items.length>6?`<div class="tiny muted" style="margin-top:6px">… ve ${items.length-6} ürün daha</div>`:''}
+      ${items.some(J.isTemplateExample)?`<div class="card warn small" style="margin:10px 0 0"><b>Şablondaki örnek ürünler de okundu (${items.filter(J.isTemplateExample).length} adet).</b><div class="btns"><button class="sm brand" data-a="imp-strip">Örnekleri çıkar</button></div></div>`:''}
+      ${errors.length?`<div class="card warn small" style="margin:10px 0 0"><b>${errors.length} satır atlandı:</b>${errors.slice(0,5).map(e => `<div>• ${J.esc(e)}</div>`).join('')}${errors.length>5?`<div>… ve ${errors.length-5} satır daha</div>`:''}</div>`:''}
+      <div class="note">Aynı isimli ürünlerin fiyatı, kategorisi ve durumu güncellenir; listede olmayan ürünleriniz silinmez. Şablondaki gri örnek satırları sildiğinizden emin olun.</div>
+      <div class="p-act"><button class="brand" data-a="imp-ok" ${items.length?'':'disabled'}>Menüye aktar</button><button class="sec" data-a="imp-cancel">Vazgeç</button></div></div>`;
+  }
+  return `<div class="p-card" style="margin-top:14px"><div class="row"><div><b>📥 Excel'den toplu ürün yükle</b><div class="tiny muted">Yüzlerce ürünü tek seferde ekleyin ya da fiyatları güncelleyin.</div></div></div>
+    <div class="p-grid2" style="margin-top:10px"><a class="btnlink" style="justify-content:center" href="sablonlar/jetgel-urun-yukleme-sablonu.xlsx" download>⬇️ Şablonu indir</a><label class="btnlink" style="justify-content:center;cursor:pointer;background:var(--brand);color:#fff">📤 Dosya seç<input type="file" id="imp-file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style="display:none"></label></div>
+    <div class="tiny muted" style="margin-top:8px">Şablonda market ve restoran için iki sayfa var; hangisini doldurduysanız o okunur. .xlsx ya da .csv kabul edilir.</div></div>`;
+}
 function tabMenu(b){
   const menu = b.menu||[], cats = [];
   menu.forEach(m => { const c = m.cat || 'Diğer'; if(!cats.includes(c)) cats.push(c); });
   const off = menu.filter(m => m.available===false).length;
-  let h = `<div class="small muted" style="margin:14px 2px 0">Tükenen ürünü anahtarla kapatın; müşteriler onu sipariş edemez. ${off?`<b>${off} ürün kapalı.</b>`:''}</div>`;
+  let h = importCard(b) + `<div class="small muted" style="margin:14px 2px 0">Tükenen ürünü anahtarla kapatın; müşteriler onu sipariş edemez. ${off?`<b>${off} ürün kapalı.</b>`:''}</div>`;
   cats.forEach(c => {
     h += `<div class="p-sec">${J.esc(c)}<span class="n">${menu.filter(m => (m.cat||'Diğer')===c).length}</span></div><div class="p-card p-menu">`;
     menu.filter(m => (m.cat||'Diğer')===c).forEach(m => { const on = m.available !== false;
@@ -183,6 +202,15 @@ document.addEventListener('click', async e => {
     nf = {name:'', price:'', cat:'', desc:''};
     J.toast('Ürün eklendi.');
   }
+  if(a==='imp-cancel'){ imp = null; }
+  if(a==='imp-strip' && imp){ imp.items = imp.items.filter(i => !J.isTemplateExample(i)); }
+  if(a==='imp-ok' && b && imp){
+    const r = J.mergeMenu(b.menu, imp.items);
+    DB.patch('businesses', b.id, {menu: r.menu});
+    J.log(`${b.name} Excel'den ${r.added} yeni ürün ekledi, ${r.updated} ürünü güncelledi.`);
+    J.toast(`✅ ${r.added} ürün eklendi, ${r.updated} ürün güncellendi.`);
+    imp = null;
+  }
   if(a==='appeal' && b){ DB.patch('businesses', b.id, {strikes: b.strikes.map(s => s.id===id ? Object.assign({}, s, {appeal:'beklemede'}) : s)}); J.log(`${b.name} bir ikaza itiraz etti.`); }
   if(a==='call'){ const o = DB.get('orders', id); const to = el.dataset.to==='musteri' ? {type:'musteri', id:o.customer.id, name:o.customer.name} : {type:'kurye', id:o.courier_id}; J.startCall(me(), to, id); }
   render();
@@ -200,6 +228,15 @@ setInterval(() => {
   }
   J.strikeTick(); J.live(); renderCall();
 }, 1000);
+document.addEventListener('change', async e => {
+  if(e.target.id !== 'imp-file' || !e.target.files || !e.target.files.length) return;
+  const f = e.target.files[0];
+  if(f.size > 5*1024*1024){ J.toast('Dosya çok büyük (en fazla 5 MB).'); return; }
+  J.toast('Dosya okunuyor…');
+  try{ const sheets = await J.readSheetFile(f); const r = J.productsFromSheets(sheets); imp = {items:r.items, errors:r.errors, fname:f.name}; if(!r.items.length && !r.errors.length) imp.errors = ['Dosyada ürün satırı bulunamadı.']; }
+  catch(err){ imp = {items:[], errors:[err.message || 'Dosya okunamadı.'], fname:f.name}; }
+  render();
+});
 document.addEventListener('input', e => { const m = /^new-(name|price|cat|desc)$/.exec(e.target.id||''); if(m) nf[m[1]] = e.target.value; });
 // Giriş ekranında veri değişince formu yeniden çizme (yazılanlar silinmesin)
 DB.on(() => { if(bid) render(); });

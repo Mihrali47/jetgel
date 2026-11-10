@@ -28,7 +28,7 @@ const TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}
 J.now = () => Date.now();
 J.uid = (p) => (p||'') + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 J.esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-J.tl = n => Math.round(n||0).toLocaleString('tr-TR') + ' TL';
+J.tl = n => { const v = Math.round((n||0)*100)/100; return v.toLocaleString('tr-TR', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2}) + ' TL'; };
 J.dist = function(a,b){
   if(!a || !b || a.lat == null || b.lat == null) return Infinity;
   const R=6371000, r=Math.PI/180, dLat=(b.lat-a.lat)*r, dLng=(b.lng-a.lng)*r;

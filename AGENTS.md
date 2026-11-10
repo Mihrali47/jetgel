@@ -38,6 +38,7 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | `app/config.js` | Supabase URL + publishable key, ICE/TURN sunucuları. Secret key buraya ASLA yazılmaz |
 | `app/app.css` | Ortak stil |
 | `app/musteri.css` | Müşteri uygulamasına özel stil (`m-` önekli sınıflar) |
+| `app/excel.js` | Dış kütüphanesiz .xlsx/.csv okuyucu (`J.readSheetFile`), şablondan ürün çıkarma (`J.productsFromSheets`), menüyle birleştirme (`J.mergeMenu`). Sadece işletme sayfası yükler |
 | `app/panel.css` | İşletme ve kurye uygulamalarının ortak stili (`p-` önekli sınıflar) |
 | `supabase/kurulum.sql` | Veritabanı: tek tablo `kayitlar(tbl, id, data jsonb)`, `jg_patch` (alan bazlı güncelleme) ve `jg_claim` (tek seferlik iş) fonksiyonları, realtime |
 | `simulasyon.html` | Bağımsız tek dosyalık simülasyon (sürüm 2); kendi kodunu içerir |

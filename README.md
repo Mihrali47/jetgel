@@ -9,7 +9,7 @@ Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin 
 | Sayfa | Kim için | Ne yapar |
 |---|---|---|
 | `musteri.html` | Müşteri | Yemek uygulaması düzeninde: adres çubuğu, arama (restoran ve ürün), kategori filtreleri, "Tekrar sipariş ver", fotoğraf yerine renkli kapaklı restoran kartları (tahmini süre, mesafe, teslimat ücreti açıkça). Restoran sayfasında kategorili menü ve alttan sepet çubuğu; sepette işletmeye not ve gizli ücretsiz tam döküm. Takipte büyük tahmini varış, 4 adımlı ilerleme, harita, kurye/işletme arama, teslimat kodu. Alt menü: Keşfet · Siparişlerim · Hesabım. Stili `app/musteri.css` |
-| `isletme.html` | İşletme | Koyu başlıkta açık/kapalı anahtarı ve bugünün özeti (teslim, aktif, hesaba geçen). Siparişler "Yeni / Hazırlanıyor / Hazır" gruplarında; yeni sipariş kartı yanıp söner, hazırlık süresi büyük düğmelerle seçilir, müşteri notu sarı kutuda. Menüde kategoriye göre ürünler ve satışta/tükendi anahtarı, kategori ve açıklamalı ürün ekleme. Kazanç (komisyonlu platformla fark) ve ikazlar. Alt menü: Siparişler · Menü · Kazanç · Ayarlar. Stili `app/panel.css` |
+| `isletme.html` | İşletme | Koyu başlıkta açık/kapalı anahtarı ve bugünün özeti (teslim, aktif, hesaba geçen). Siparişler "Yeni / Hazırlanıyor / Hazır" gruplarında; yeni sipariş kartı yanıp söner, hazırlık süresi büyük düğmelerle seçilir, müşteri notu sarı kutuda. Menüde kategoriye göre ürünler ve satışta/tükendi anahtarı, kategori ve açıklamalı ürün ekleme, **Excel/CSV ile toplu ürün yükleme** (şablon indirilebilir; okunan ürünler önce önizlenir, hatalı satırlar ve şablondaki örnek satırlar gösterilir). Kazanç (komisyonlu platformla fark) ve ikazlar. Alt menü: Siparişler · Menü · Kazanç · Ayarlar. Stili `app/panel.css` |
 | `kurye.html` | Kurye | Koyu başlıkta çevrimiçi anahtarı ve bugünkü kazanç. Büyük turuncu teklif kartı (geri sayım, 100 TL, alış/teslim mesafeleri). Aktif teslimatta 4 adımlı ilerleme, gerçek yol rotası ve adım adım tarif, hedef kartında arama; kapıda büyük kod alanı (harita gizlenir). Alt menü: Görev · Kazanç · Hesap (GPS/demo sürüş seçimi burada). Stili `app/panel.css` |
 | `yonetim.html` | Yönetim | İşletme ekler/düzenler (haritadan konum, menü), kuryeleri, siparişleri, ödemeleri, aramaları, ikaz itirazlarını yönetir |
 | `simulasyon.html` | Esnafa sunum | Tüm sistemi tek ekranda gösteren simülasyon (sürüm 2) |
@@ -120,7 +120,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - [x] Müşteri uygulamasının yeni tasarımı (Trendyol Go / Yemeksepeti düzeni, kendi renklerimizle)
 - [x] Kurye ve işletme ekranlarının yeni tasarımı
 - [ ] Yönetim panelinin yeni tasarımı
-- [ ] Excel ile toplu ürün yükleme
+- [x] Excel ile toplu ürün yükleme (işletme → Menü → "Excel'den toplu ürün yükle"; .xlsx ve .csv, önizleme, aynı isimli ürünleri günceller)
 - [ ] Gerçek ödeme altyapısı (alt üye işyeri modeli; PayTR, iyzico vb. ile görüşme)
 - [x] Uygulama içi gerçek sesli arama (WebRTC)
 - [ ] Mobil veride arama için TURN sunucusu
