@@ -28,7 +28,7 @@
 <script>
 const {DB} = J;
 let cid = J.store.get('kurye_id', null);
-let locMode = J.store.get('kurye_konum', 'demo');   // 'gps' | 'demo'
+let locMode = J.store.get('kurye_konum', J.native ? 'gps' : 'demo');   // 'gps' | 'demo' (uygulamada varsayılan gerçek GPS)
 let pos = J.store.get('kurye_pos', {lat:40.98880, lng:29.02830});
 let gpsWatch = null, gpsErr = '', gpsAcc = null;
 let route = null, routeKey = '', routeAt = 0, routing = false, prog = 0;

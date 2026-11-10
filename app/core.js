@@ -444,7 +444,7 @@ J.Map = function(el, opts){
   const api = {ok:false, markers:{}, lines:{}, set(){}, remove(){}, line(){}, clearLine(){}, fit(){}, center(){}, invalidate(){}, onClick(){}};
   if(!window.L){ el.innerHTML = '<div class="nomap">Harita yüklenemedi</div>'; return api; }
   const map = L.map(el, {zoomControl:true, attributionControl:true, scrollWheelZoom:!!opts.wheel});
-  map.fitBounds([[J.BOX.minLat,J.BOX.minLng],[J.BOX.maxLat,J.BOX.maxLng]]);
+  map.fitBounds(J.homeBox ? J.homeBox() : [[J.BOX.minLat,J.BOX.minLng],[J.BOX.maxLat,J.BOX.maxLng]]);
   L.tileLayer(TILES, {maxZoom:19, subdomains:'abcd', attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
   const icon = (html, cls, label) => L.divIcon({className:'', html:`<div class="pin-ic ${cls||''}">${html}</div>${label?`<div class="pin-lbl">${J.esc(label)}</div>`:''}`, iconSize:[30,30], iconAnchor:[15,15]});
   api.ok = true; api.map = map;
@@ -696,6 +696,29 @@ J.ensureTestAccounts = function(reset){
   if(made) J.log(reset ? 'Test hesapları sıfırlandı.' : `Test hesapları oluşturuldu (${made} kayıt).`, 'ok');
 };
 J.seedDemo = () => J.ensureTestAccounts(false);
+// Test dükkânlarını, kuryelerini ve müşterisini verilen noktanın çevresine taşır (aynı yerleşim düzeniyle)
+J.relocateTests = function(center){
+  const c0 = {lat:40.9868, lng:29.0305};
+  const dLat = center.lat - c0.lat, dLng = center.lng - c0.lng;
+  let n = 0;
+  DB.rows('businesses').filter(b => /^b_test\d$/.test(b.id)).forEach(b => {
+    const i = +b.id.slice(6) - 1; DB.patch('businesses', b.id, {lat:GRID[i][0]+dLat, lng:GRID[i][1]+dLng}); n++;
+  });
+  DB.rows('couriers').filter(c => /^c_\dtest$/.test(c.id)).forEach(c => {
+    const k = +c.id.slice(2,3); const g = GRID[(k+3)%9];
+    if(!c.busy) DB.patch('couriers', c.id, {lat:g[0]+0.0012+dLat, lng:g[1]-0.0010+dLng}); n++;
+  });
+  if(DB.get('customers','m_test')) DB.patch('customers', 'm_test', {lat:40.9840+dLat, lng:29.0335+dLng});
+  if(DB.get('settings','ayar')) DB.patch('settings','ayar',{center}); else DB.put('settings','ayar',{fast:true, center});
+  J.log(`Test hesapları yeni konuma taşındı (${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}).`, 'ok');
+  return n;
+};
+// Haritanın ilk açılışta göstereceği bölge: test hesapları taşındıysa orası, değilse Moda
+J.homeBox = function(){
+  const c = (J.settings() || {}).center;
+  if(!c) return [[J.BOX.minLat,J.BOX.minLng],[J.BOX.maxLat,J.BOX.maxLng]];
+  return [[c.lat-0.0078, c.lng-0.0100],[c.lat+0.0067, c.lng+0.0090]];
+};
 document.addEventListener('keydown', e => { if(e.key==='Enter' && (e.target.id==='l-pass' || e.target.id==='l-user')){ const b = document.querySelector('[data-a="login"]'); if(b) b.click(); } });
 // Ortak giriş formu
 J.loginForm = function(o){

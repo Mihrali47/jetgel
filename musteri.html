@@ -51,14 +51,15 @@ function renderLogin(){
   return J.loginForm({title:'Hoş geldin 👋', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button>`;
 }
 function renderProfile(){
-  if(!draft) draft = Object.assign({lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, src:'varsayilan'}, prof || {});
+  const c0 = J.settings().center || J.DEFAULT_POS;
+  if(!draft) draft = Object.assign({lat:c0.lat, lng:c0.lng, src:'varsayilan'}, prof || {});
   showMap(true);
   map.set('ev', draft, '🏠', 'home'); map.keep(['ev']); map.clearLine('r');
   return `<div class="card"><h3>Bilgilerin ve teslimat noktan</h3><div class="small muted">Siparişin nereye gelecek? Haritaya dokunarak ya da konumunu bularak teslimat noktanı seç. Telefon numarası istemiyoruz; kuryeyle uygulama içinden konuşursun.</div>
     <label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">
     <label class="f" for="p-note">Adres tarifi</label><input id="p-note" value="${J.esc(draft.note)}" placeholder="Örn. Moda Cd. No 12, kat 3, zil: Yılmaz">
     <div class="btns"><button class="sec" data-a="gps">📍 Konumumu bul</button></div>
-    <div class="tiny muted" style="margin-top:6px">Teslimat noktası: ${draft.src==='gps'?'telefonunun konumu':draft.src==='harita'?'haritada seçtiğin nokta':'Moda (varsayılan), haritaya dokunarak değiştir'}</div>
+    <div class="tiny muted" style="margin-top:6px">Teslimat noktası: ${draft.src==='gps'?'telefonunun konumu':draft.src==='harita'?'haritada seçtiğin nokta':'kayıtlı nokta · "Konumumu bul" ya da haritaya dokunarak değiştir'}</div>
     <button class="brand wide" style="margin-top:12px" data-a="save-prof">Kaydet ve devam et</button><button class="ghost wide" data-a="logout">Çıkış yap</button></div>`;
 }
 

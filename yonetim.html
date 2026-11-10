@@ -119,6 +119,7 @@ function renderSettings(){
     <div class="card"><h3>🧪 Test hesapları</h3><div class="small">Dükkânlar: <b>test1 … test9</b> · Kuryeler: <b>1test … 9test</b> · Müşteri: <b>test</b> · Tüm şifreler: <b>test</b></div>
       <div class="small muted" style="margin-top:6px">Eksik olanlar ilk açılışta kendiliğinden oluşturulur. "Sıfırla" test hesaplarını ilk haline getirir (açık/kapalı durumu, kazanç, ikazlar sıfırlanır; siparişler silinmez).</div>
       <div class="btns"><button class="sec" data-a="seed">Eksik test hesaplarını oluştur</button><button class="sec" data-a="reset-test">Test hesaplarını sıfırla</button></div>
+      <div class="card soft" style="margin-top:12px"><b>📍 Test dükkânlarını bulunduğun yere taşı</b><div class="small muted">9 test dükkânı, 9 test kuryesi ve test müşterisi, bu cihazın şu anki konumunun çevresine (yaklaşık 1 km içine) taşınır. Böylece her şeyi kendi mahallende deneyebilirsin.${s.center?` Şu anki merkez: ${s.center.lat.toFixed(4)}, ${s.center.lng.toFixed(4)}`:' Şu an Moda/Kadıköy\'de.'}</div><div class="btns"><button class="brand" data-a="relocate">Konumumu bul ve taşı</button>${s.center?'<button class="sec" data-a="relocate-moda">Moda\'ya geri al</button>':''}</div></div>
       <div class="note">⚠️ Prototip girişi: şifreler veritabanında düz metin durur ve veritabanı herkese açıktır. Bu gerçek bir güvenlik değildir; gerçek kullanımdan önce değiştirilecek.</div></div>
     <div class="card bad"><h3>Tüm verileri sil</h3><div class="small">İşletmeler, kuryeler, siparişler, aramalar ve günlük kalıcı olarak silinir. ${DB.mode==='canli'?'<b>Canlı modda tüm cihazlardan silinir.</b>':''}</div>
       <div class="btns">${confirmReset ? `<button class="bad" data-a="reset-yes">Evet, hepsini sil</button><button class="sec" data-a="reset-no">Vazgeç</button>` : `<button class="bad" data-a="reset">Tüm verileri sil…</button>`}</div></div>`;
@@ -151,6 +152,14 @@ document.addEventListener('click', async e => {
   const a = el.dataset.a, id = el.dataset.id;
   readForm();
   if(a==='tab'){ tab = id; edit = null; confirmReset = false; }
+  if(a==='relocate'){
+    if(!navigator.geolocation){ J.toast('Bu cihaz konum desteklemiyor.'); return; }
+    J.toast('Konum alınıyor…');
+    navigator.geolocation.getCurrentPosition(p => { J.relocateTests({lat:p.coords.latitude, lng:p.coords.longitude}); J.toast('Test hesapları konumuna taşındı.'); setTimeout(() => { map.fit(J.businesses()); render(); }, 400); },
+      err => J.toast('Konum alınamadı: ' + (err.code===1 ? 'izin verilmedi' : err.message)), {enableHighAccuracy:true, timeout:20000});
+    return;
+  }
+  if(a==='relocate-moda'){ J.relocateTests({lat:40.9868, lng:29.0305}); DB.patch('settings','ayar',{center:null}); setTimeout(() => { map.fit(J.businesses()); render(); }, 400); }
   if(a==='seed') J.ensureTestAccounts(false);
   if(a==='reset-test') J.ensureTestAccounts(true);
   if(a==='new-biz') edit = {name:'', emoji:'🏪', lat:null, lng:null, menuText:'', free_delivery:false, user:'', pass:''};
@@ -198,7 +207,7 @@ document.addEventListener('input', () => readForm());
 
 DB.on(() => { if(!edit) render(); else { drawMap(); document.getElementById('mode').innerHTML = J.modeBadge(); } });
 setInterval(() => { J.strikeTick(); J.live(); if(tab==='genel') drawMap(); }, 2000);
-DB.init().then(render);
+DB.init().then(() => { render(); if(J.businesses().length) map.fit(J.businesses()); });
 J.registerSW();
 </script>
 </body>
