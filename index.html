@@ -110,6 +110,7 @@ th{color:var(--muted);font-weight:600}
 .qty button{padding:2px 9px}
 .note{font-size:12px;color:var(--muted);background:#f5f2ec;border-radius:10px;padding:8px 10px;margin-top:8px}
 .toast{position:absolute;left:12px;right:12px;top:58px;z-index:1050;background:var(--ink);color:#fff;border-radius:12px;padding:10px 12px;font-size:13px;box-shadow:0 8px 20px rgba(0,0,0,.2)}
+@media (max-width:600px){ header .sub{display:none} header{padding:12px 14px 4px} }
 @media (max-width:1100px){
   .tabs{display:flex}
   .phones{grid-template-columns:1fr;padding:6px 12px}
@@ -545,7 +546,7 @@ function createMap(key, slot){
   const tiles = L.tileLayer(TILES, {maxZoom:19, subdomains:'abcd', attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> katkıcıları © <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
   tiles.on('tileload', () => { if(!tilesOk){ tilesOk = true; setMapMode('real'); } });
   tiles.on('tileerror', () => { tileErr++; if(!tilesOk && tileErr >= 4) fallbackToSchema(); });
-  const m = {el, map, stat:L.layerGroup().addTo(map), routes:L.layerGroup().addTo(map), cmarks:{}, follow: key==='kurye'};
+  const m = {el, map, stat:L.layerGroup().addTo(map), routes:L.layerGroup().addTo(map), cmarks:{}, follow: key==='kurye', needFit: el.clientWidth === 0};
   MAPS[key] = m;
   return m;
 }
@@ -588,13 +589,18 @@ function updateMarkers(key){
     } else m.zoomed = false;
   }
 }
+function refreshSize(m){
+  m.map.invalidateSize(false);
+  // Gizli sekmede oluşturulan harita görünür olunca doğru yakınlaştırmayla yeniden ortalanır
+  if(m.needFit && m.el.clientWidth > 0){ m.map.fitBounds([[BOX.minLat,BOX.minLng],[BOX.maxLat,BOX.maxLng]]); m.needFit = false; }
+}
 function attachMaps(){
   if(MAPMODE !== 'real') return;
   document.querySelectorAll('.mapslot[data-map]').forEach(slot => {
     const key = slot.dataset.map;
     let m = MAPS[key];
     if(!m) m = createMap(key, slot);
-    else { slot.appendChild(m.el); m.map.invalidateSize(false); }
+    else { slot.appendChild(m.el); refreshSize(m); }
     drawStatic(key); updateMarkers(key);
   });
 }
@@ -851,7 +857,7 @@ document.addEventListener('click', e => {
     document.body.dataset.tab = tabBtn.dataset.tab;
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b===tabBtn));
     window.scrollTo(0,0);
-    setTimeout(() => Object.values(MAPS).forEach(m => m.map.invalidateSize(false)), 50);
+    setTimeout(() => Object.values(MAPS).forEach(refreshSize), 50);
     return;
   }
   const el = e.target.closest('[data-act]'); if(!el || el.disabled) return;

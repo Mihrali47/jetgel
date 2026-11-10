@@ -41,6 +41,9 @@ Müşteri, işletme ve kurye ekranları aynı anda çalışır; en altta yöneti
 - `index.html`: Prototipin tamamı
 - `vendor/leaflet/`: Harita kütüphanesi (Leaflet 1.9.4)
 - `sablonlar/jetgel-urun-yukleme-sablonu.xlsx`: İşletmelerin toplu ürün yükleme şablonu (market ve restoran)
+- `AGENTS.md`: Bu repoda çalışan yapay zekâ asistanları (Claude, ChatGPT/Codex, Copilot vb.) için talimatlar
+
+> **Yapay zekâ ile çalışırken:** Hangi asistanı kullanırsanız kullanın, ilk mesajda "Önce AGENTS.md ve README.md dosyalarını oku" deyin. Aynı anda iki asistana değişiklik yaptırmayın.
 
 ## Teknik notlar
 
