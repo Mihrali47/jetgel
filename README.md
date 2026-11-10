@@ -53,6 +53,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - İlk aramada mikrofon izni istenir.
 - Bazı ağlarda (mobil veri, bazı modemler) telefonlar doğrudan bağlanamaz; sesi bir aktarma sunucusu (TURN) taşımalıdır. TURN bilgisi **Yönetim → Ayarlar → Sesli arama** alanına yapıştırılır (Metered Open Relay: ücretsiz 20 GB/ay). Tüm telefonlar otomatik kullanır.
 - Telefon gelen sesi otomatik çalmazsa arama ekranında **🔊 Sesi aç** butonu çıkar.
+- **Ahize/hoparlör:** Tarayıcılar (Android Chrome, iPhone Safari) sesin ahizeden (kulaktan) çalmasını seçtirmez; ses hoparlörden gelir. Kulaklık takılırsa kulaklıktan gelir. Ahize seçimi ancak mağaza uygulamasıyla (ör. Capacitor ile paketlenmiş Android uygulaması) mümkün; yol haritasında.
 - Her aramanın bağlantı teşhisi (doğrudan / aktarma / bağlanamadı ve aday türleri) **Yönetim → Aramalar** sekmesinde görünür.
 - Ses bağlanmasa bile çalma, kayıt ve ikaz kuralı çalışır.
 
@@ -107,7 +108,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - [x] Telefonlar arası çalışan prototip (Supabase) ve telefona yüklenebilir sürüm (PWA)
 - [ ] Kullanıcı girişi ve veritabanı güvenlik kuralları (gerçek kullanımdan önce şart)
 - [ ] Uygulama kapalıyken bildirim (push) için sunucu tarafı
-- [ ] Kurye ve işletme için mağaza uygulamaları (Android önce)
+- [ ] Kurye ve işletme için mağaza uygulamaları (Android önce): aramada ahize/hoparlör seçimi, telefon kilitliyken çalan arama ve bildirim, arka planda GPS
 - [ ] Mali müşavir ile şirket yapısı ve faturalandırma
 
 ### İleride
