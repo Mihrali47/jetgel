@@ -111,3 +111,6 @@ body.p #map{margin:12px 14px 0;border-radius:16px;height:260px}
 .p-cour > span{display:grid;color:#6d6860}
 .p-timer span:first-child{display:flex;align-items:center;gap:6px}
 .p-ord.prio .hd{background:#fff5f5}
+.p-opts{display:block;font-size:12px;color:var(--brand);font-weight:600;margin-top:2px}
+.p-ed{width:34px;height:34px;border-radius:10px;padding:0;background:#f6f5f2;color:#6d6860;display:grid;place-items:center;flex:none}
+.p-edit{padding:12px 0;border-bottom:1px solid #f0ede7}

@@ -35,7 +35,8 @@ const ago = t => { const m = Math.max(0, Math.floor((J.now()-t)/60000)); return 
 const today = t => new Date(t).toDateString() === new Date().toDateString();
 
 let loginErr = '';
-let nf = {name:'', price:'', cat:'', desc:''};
+let nf = {name:'', price:'', cat:'', desc:'', opts:''};
+let ed = null;   // düzenlenen ürün: {id, name, price, cat, desc, opts}
 let imp = null;   // Excel'den okunan, onay bekleyen ürünler   // ürün ekleme formu (yeniden çizimde kaybolmasın)
 function renderPick(){
   return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div><div class="small muted">Komisyonsuz sipariş paneli</div></div><div class="p-body">` +
@@ -65,7 +66,7 @@ function orderCard(o){
   const net = o.subtotal-o.fees.biz-(o.refund||0);
   let h = `<div class="p-ord ${o.prep==='bekliyor'?'new':''} ${o.priority?'prio':''}"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${ago(o.created_at)}${o.customer.note?` · ${J.fmtDist(J.dist(b,o.customer))}`:''}</div>${o.priority?`<span class="pill bad">${J.ic('timer',11)} Hızlı</span>`:''}${st}</div><div class="bd">
     ${o.priority?`<div class="p-note" style="background:var(--bad-soft);margin:0 0 8px">${J.ic('timer',15)} <b>Hızlı teslimat:</b> müşteri ek ücret ödedi, lütfen öne alın.</div>`:''}
-    <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}</span></li>`).join('')}</ul>
+    <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}${i.opts&&i.opts.length?`<span class="p-opts">${i.opts.map(J.esc).join(' · ')}</span>`:''}</span></li>`).join('')}</ul>
     ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
     <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
   if(o.prep==='bekliyor') h += `<div class="small" style="margin-top:12px"><b>Hazırlık süresini seçip onaylayın</b></div><div class="p-prep">${[5,10,15,20].map(m => `<button data-a="accept" data-id="${o.id}" data-min="${m}">${m}<small>dakika</small></button>`).join('')}</div><button class="ghost wide" style="color:var(--bad);margin-top:6px" data-a="reject" data-id="${o.id}">Siparişi reddet</button>`;
@@ -110,6 +111,11 @@ function importCard(b){
     <div class="p-grid2" style="margin-top:10px"><a class="btnlink" style="justify-content:center" href="sablonlar/jetgel-urun-yukleme-sablonu.xlsx" download>${J.ic('download',16)} Şablonu indir</a><label class="btnlink" style="justify-content:center;cursor:pointer;background:var(--brand);color:#fff">${J.ic('upload',16)} Dosya seç<input type="file" id="imp-file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style="display:none"></label></div>
     <div class="tiny muted" style="margin-top:8px">Şablonda market ve restoran için iki sayfa var; hangisini doldurduysanız o okunur. .xlsx ya da .csv kabul edilir.</div></div>`;
 }
+function editForm(cats){
+  return `<div class="p-edit"><input id="ed-name" placeholder="Ürün adı" value="${J.esc(ed.name)}"><div class="p-grid2" style="margin-top:8px"><input id="ed-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(ed.price)}"><input id="ed-cat" placeholder="Kategori" list="cats" value="${J.esc(ed.cat)}"></div>
+    <input id="ed-desc" placeholder="Kısa açıklama" style="margin-top:8px" value="${J.esc(ed.desc)}"><input id="ed-opts" placeholder="Seçenekler: Ekstra kaşar=40 | Soğansız=0" style="margin-top:8px" value="${J.esc(ed.opts)}">
+    <div class="p-act"><button class="brand" data-a="ed-save">Kaydet</button><button class="sec" data-a="ed-cancel">Vazgeç</button></div><button class="ghost wide" style="color:var(--bad)" data-a="ed-del">Ürünü sil</button></div>`;
+}
 function tabMenu(b){
   const menu = b.menu||[], cats = [];
   menu.forEach(m => { const c = m.cat || 'Diğer'; if(!cats.includes(c)) cats.push(c); });
@@ -118,10 +124,11 @@ function tabMenu(b){
   cats.forEach(c => {
     h += `<div class="p-sec">${J.esc(c)}<span class="n">${menu.filter(m => (m.cat||'Diğer')===c).length}</span></div><div class="p-card p-menu">`;
     menu.filter(m => (m.cat||'Diğer')===c).forEach(m => { const on = m.available !== false;
-      h += `<div class="it ${on?'':'off'}"><div class="tx"><b>${J.esc(m.name)}</b><span class="small muted">${J.tl(m.price)}${m.desc?' · '+J.esc(m.desc):''}</span></div><button class="p-tog ${on?'on':''}" data-a="avail" data-id="${m.id}" aria-label="${on?'Satışta':'Tükendi'}" title="${on?'Satışta':'Tükendi'}"></button></div>`; });
+      if(ed && ed.id === m.id){ h += editForm(cats); return; }
+      h += `<div class="it ${on?'':'off'}"><div class="tx"><b>${J.esc(m.name)}</b><span class="small muted">${J.tl(m.price)}${m.desc?' · '+J.esc(m.desc):''}</span>${(m.opts||[]).length?`<span class="p-opts">${m.opts.map(J.optLabel).map(J.esc).join(' · ')}</span>`:''}</div><button class="p-ed" data-a="edit-item" data-id="${m.id}" aria-label="Düzenle">${J.ic('notebook-pen',16)}</button><button class="p-tog ${on?'on':''}" data-a="avail" data-id="${m.id}" aria-label="${on?'Satışta':'Tükendi'}" title="${on?'Satışta':'Tükendi'}"></button></div>`; });
     h += `</div>`;
   });
-  h += `<div class="p-sec">Ürün ekle</div><div class="p-card"><input id="new-name" placeholder="Ürün adı" value="${J.esc(nf.name)}"><div class="p-grid2" style="margin-top:8px"><input id="new-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(nf.price)}"><input id="new-cat" placeholder="Kategori" list="cats" value="${J.esc(nf.cat)}"></div><datalist id="cats">${cats.map(c => `<option value="${J.esc(c)}">`).join('')}</datalist><input id="new-desc" placeholder="Kısa açıklama (isteğe bağlı)" style="margin-top:8px" value="${J.esc(nf.desc)}"><button class="brand wide" style="margin-top:10px" data-a="add-item">Ekle</button><div class="note">Çok ürününüz varsa Excel şablonuyla toplu yükleme bir sonraki sürümde gelecek.</div></div>`;
+  h += `<div class="p-sec">Ürün ekle</div><div class="p-card"><input id="new-name" placeholder="Ürün adı" value="${J.esc(nf.name)}"><div class="p-grid2" style="margin-top:8px"><input id="new-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(nf.price)}"><input id="new-cat" placeholder="Kategori" list="cats" value="${J.esc(nf.cat)}"></div><datalist id="cats">${cats.map(c => `<option value="${J.esc(c)}">`).join('')}</datalist><input id="new-desc" placeholder="Kısa açıklama (isteğe bağlı)" style="margin-top:8px" value="${J.esc(nf.desc)}"><input id="new-opts" placeholder="Seçenekler (isteğe bağlı): Ekstra kaşar=40 | Soğansız=0" style="margin-top:8px" value="${J.esc(nf.opts)}"><button class="brand wide" style="margin-top:10px" data-a="add-item">Ekle</button><div class="note">Seçenekleri <b>|</b> ile ayırın; eşittirden sonra ek ücret yazın (ücretsizse 0, indirimse eksi: Yarım porsiyon=-100).</div></div>`;
   return h;
 }
 
@@ -199,11 +206,21 @@ document.addEventListener('click', async e => {
   if(a==='avail' && b) DB.patch('businesses', b.id, {menu: b.menu.map(m => m.id===id ? Object.assign({}, m, {available: m.available===false}) : m)});
   if(a==='add-item' && b){
     const name = document.getElementById('new-name').value.trim(), price = parseFloat(document.getElementById('new-price').value.replace(',','.'));
-    const cat = document.getElementById('new-cat').value.trim(), desc = document.getElementById('new-desc').value.trim();
+    const cat = document.getElementById('new-cat').value.trim(), desc = document.getElementById('new-desc').value.trim(), opts = J.parseOpts(document.getElementById('new-opts').value);
     if(!name || !(price > 0)){ J.toast('Ürün adı ve fiyat girin.'); return; }
-    DB.patch('businesses', b.id, {menu: (b.menu||[]).concat([{id:J.uid('u'), name, price, cat, desc, available:true}])});
-    nf = {name:'', price:'', cat:'', desc:''};
+    DB.patch('businesses', b.id, {menu: (b.menu||[]).concat([Object.assign({id:J.uid('u'), name, price, cat, desc, available:true}, opts.length ? {opts} : {})])});
+    nf = {name:'', price:'', cat:'', desc:'', opts:''};
     J.toast('Ürün eklendi.');
+  }
+  if(a==='edit-item' && b){ const m = b.menu.find(x => x.id === id); if(m) ed = {id, name:m.name, price:String(m.price), cat:m.cat||'', desc:m.desc||'', opts:J.optsText(m.opts)}; }
+  if(a==='ed-cancel'){ ed = null; }
+  if(a==='ed-del' && b && ed){ DB.patch('businesses', b.id, {menu: b.menu.filter(m => m.id !== ed.id)}); ed = null; J.toast('Ürün silindi.'); }
+  if(a==='ed-save' && b && ed){
+    const price = parseFloat(String(ed.price).replace(',','.'));
+    if(!ed.name.trim() || !(price > 0)){ J.toast('Ürün adı ve fiyat girin.'); return; }
+    const opts = J.parseOpts(ed.opts);
+    DB.patch('businesses', b.id, {menu: b.menu.map(m => { if(m.id !== ed.id) return m; const n = Object.assign({}, m, {name:ed.name.trim(), price, cat:ed.cat.trim(), desc:ed.desc.trim()}); if(opts.length) n.opts = opts; else delete n.opts; return n; })});
+    ed = null; J.toast('Ürün güncellendi.');
   }
   if(a==='imp-cancel'){ imp = null; }
   if(a==='imp-strip' && imp){ imp.items = imp.items.filter(i => !J.isTemplateExample(i)); }
@@ -240,7 +257,10 @@ document.addEventListener('change', async e => {
   catch(err){ imp = {items:[], errors:[err.message || 'Dosya okunamadı.'], fname:f.name}; }
   render();
 });
-document.addEventListener('input', e => { const m = /^new-(name|price|cat|desc)$/.exec(e.target.id||''); if(m) nf[m[1]] = e.target.value; });
+document.addEventListener('input', e => {
+  const m = /^new-(name|price|cat|desc|opts)$/.exec(e.target.id||''); if(m) nf[m[1]] = e.target.value;
+  const k = /^ed-(name|price|cat|desc|opts)$/.exec(e.target.id||''); if(k && ed) ed[k[1]] = e.target.value;
+});
 // Giriş ekranında veri değişince formu yeniden çizme (yazılanlar silinmesin)
 DB.on(() => { if(bid) render(); });
 DB.init().then(() => { const b = biz(); if(b && b.open){ J._wantAwake = true; J.keepAwake(true); J.nativeService(true, {baslik:`Jetgel İşletme · ${b.name}`, metin:'Açık: yeni siparişler ve aramalar için hazır', konum:false}); } render(); });

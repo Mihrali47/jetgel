@@ -143,7 +143,7 @@ function textToMenu(txt, old){
     const p = parseFloat(String(price||'').replace(',','.'));
     if(!name || !(p > 0)) return null;
     const prev = (old||[]).find(m => m.name === name);
-    return {id: prev ? prev.id : J.uid('u'), name, price:p, cat: cat != null ? cat : (prev && prev.cat) || '', desc: desc != null ? desc : (prev && prev.desc) || '', available: prev ? prev.available !== false : true};
+    return {id: prev ? prev.id : J.uid('u'), name, price:p, cat: cat != null ? cat : (prev && prev.cat) || '', desc: desc != null ? desc : (prev && prev.desc) || '', available: prev ? prev.available !== false : true, ...(prev && prev.opts ? {opts: prev.opts} : {})};
   }).filter(Boolean);
 }
 function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.kind = g('e-kind').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; edit.user = g('e-user').value.trim(); edit.pass = g('e-pass').value; } }

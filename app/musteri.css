@@ -162,3 +162,22 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-prio .sw:after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
 .m-prio.on .sw{background:var(--brand)}
 .m-prio.on .sw:after{left:21px}
+.m-badge{position:absolute;right:-4px;top:-6px;min-width:18px;height:18px;border-radius:99px;background:var(--brand);color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center;padding:0 5px}
+.m-optnote{color:var(--muted);font-weight:500;font-size:12px}
+.opt{color:var(--muted);font-weight:500}
+.m-sheet-bg{position:fixed;inset:0;background:rgba(20,16,10,.45);z-index:2500}
+.m-sheet{position:fixed;left:0;right:0;bottom:0;z-index:2600;background:#fff;border-radius:22px 22px 0 0;max-width:560px;margin:0 auto;max-height:85vh;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom);animation:msup .2s ease-out}
+@keyframes msup{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+.m-sheet .hd{display:flex;gap:12px;align-items:flex-start;padding:18px 16px 10px}
+.m-sheet .hd > div{flex:1}
+.m-sheet .hd b{font-size:18px}
+.m-sheet .x{width:36px;height:36px;border-radius:50%;padding:0;background:#f3f1ed;color:var(--ink);display:grid;place-items:center;flex:none}
+.m-sheet .lbl{padding:6px 16px 6px;font-weight:800;font-size:14px;border-top:1px solid #f0ede7}
+.m-sheet .opts{overflow-y:auto;padding:0 16px}
+.m-sheet .opts button{display:flex;align-items:center;gap:10px;width:100%;background:none;color:var(--ink);padding:12px 0;border-radius:0;border-bottom:1px solid #f0ede7;font-weight:500;text-align:left}
+.m-sheet .opts .ck{width:22px;height:22px;border-radius:7px;border:2px solid #d6d1c8;display:grid;place-items:center;flex:none;color:#fff}
+.m-sheet .opts button.on .ck{background:var(--brand);border-color:var(--brand)}
+.m-sheet .opts .nm{flex:1}
+.m-sheet .opts .pr{color:var(--muted);font-size:13.5px}
+.m-sheet .ft{display:flex;gap:10px;align-items:center;padding:12px 16px 14px;border-top:1px solid #f0ede7}
+.m-sheet .ft .m-qty button{width:36px;height:36px}

@@ -111,7 +111,7 @@ J.productsFromSheets = function(sheets){
     used++;
     const H = rows[hi].map(norm);
     const col = (...names) => H.findIndex(h => names.some(n => h === n || h.startsWith(n)));
-    const cName = col('ürün adı'), cCat = col('kategori'), cPrice = col('fiyat (tl)', 'satış fiyatı', 'fiyat'), cDesc = col('açıklama'), cUnit = col('birim'), cStat = col('durum'), cBar = col('barkod');
+    const cName = col('ürün adı'), cCat = col('kategori'), cPrice = col('fiyat (tl)', 'satış fiyatı', 'fiyat'), cDesc = col('açıklama'), cUnit = col('birim'), cStat = col('durum'), cBar = col('barkod'), cOpt = col('seçenekler');
     rows.slice(hi + 1).forEach((r, k) => {
       r = r || [];
       const name = String(r[cName] == null ? '' : r[cName]).trim();
@@ -125,7 +125,8 @@ J.productsFromSheets = function(sheets){
       const desc = [unit, cDesc >= 0 && r[cDesc] != null ? String(r[cDesc]).trim() : ''].filter(Boolean).join(' · ');
       const st = norm(cStat >= 0 ? r[cStat] : '');
       items.push({name: name.slice(0, 80), price: Math.round(price*100)/100, cat: cCat >= 0 && r[cCat] != null ? String(r[cCat]).trim().slice(0, 40) : '', desc: desc.slice(0, 160),
-        available: !(st === 'tükendi' || st === 'tukendi' || st === 'hayır' || st === 'yok'), barcode: cBar >= 0 && r[cBar] != null ? String(r[cBar]).trim() : ''});
+        available: !(st === 'tükendi' || st === 'tukendi' || st === 'hayır' || st === 'yok'), barcode: cBar >= 0 && r[cBar] != null ? String(r[cBar]).trim() : '',
+        opts: cOpt >= 0 && r[cOpt] != null && J.parseOpts ? J.parseOpts(String(r[cOpt])) : []});
     });
   });
   if(!used) errors.unshift('Dosyada "Ürün Adı" başlıklı bir sütun bulunamadı. Lütfen Jetgel şablonunu kullanın.');
@@ -140,8 +141,9 @@ J.mergeMenu = function(menu, items){
   let added = 0, updated = 0;
   items.forEach(it => {
     const m = out.find(x => norm(x.name) === norm(it.name));
-    if(m){ Object.assign(m, {price:it.price, cat:it.cat || m.cat || '', desc:it.desc || m.desc || '', available:it.available}, it.barcode ? {barcode:it.barcode} : {}); updated++; }
-    else { out.push(Object.assign({id: J.uid('u')}, it)); added++; }
+    const clean = Object.assign({}, it); if(!(clean.opts||[]).length) delete clean.opts; if(!clean.barcode) delete clean.barcode;
+    if(m){ Object.assign(m, {price:it.price, cat:it.cat || m.cat || '', desc:it.desc || m.desc || '', available:it.available}, it.barcode ? {barcode:it.barcode} : {}, (it.opts||[]).length ? {opts:it.opts} : {}); updated++; }
+    else { out.push(Object.assign({id: J.uid('u')}, clean)); added++; }
   });
   return {menu: out, added, updated};
 };

@@ -26,6 +26,7 @@
   <div id="panel"></div>
 </div>
 <div id="mbar"></div>
+<div id="msheet"></div>
 <div id="call"></div>
 <script>
 const {DB} = J;
@@ -61,7 +62,9 @@ const bizOpen = b => b && b.open && J.isAlive(b) && !b.suspended;
 const cover = b => `background:linear-gradient(135deg, ${J.bizColor(b)}, ${J.bizColor(b)}cc)`;
 const soft = b => `background:${J.bizColor(b)}22`;
 const cartCount = () => Object.values(cart).reduce((s,n) => s+n, 0);
-function cartSum(b){ return (b.menu||[]).reduce((s,m) => s + (cart[m.id]||0)*m.price, 0); }
+function cartSum(b){ return J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0); }
+const inCart = mid => Object.keys(cart).filter(k => k === mid || k.startsWith(mid+'|')).reduce((t,k) => t + cart[k], 0);
+let sheet = null;   // seçenek penceresi: {mid, sel:[], qty}
 function fees(b){ return b.free_delivery ? {del:0, plat:0} : {del:J.FEE.custDel, plat:J.FEE.custPlat}; }
 function etaTxt(b){ const [a,z] = J.etaRange(b, prof); return `${a}-${z} dk`; }
 const ST = {aktif:['brand','Yolda / hazırlanıyor'], teslim:['ok','Teslim edildi'], red:['bad','Reddedildi'], ulasilamadi:['bad','Ulaşılamadı']};
@@ -123,7 +126,7 @@ function renderList(){
     myOrders().filter(o => o.state==='teslim').forEach(o => { if(!seen.has(o.rid) && again.length < 6){ seen.add(o.rid); again.push(o); } });
     if(again.length && group==='Hepsi') h += `<div class="m-h"><b>Tekrar sipariş ver</b><span>tek dokunuşla sepete</span></div><div class="m-row">${again.map(o => {
       const b = DB.get('businesses', o.rid);
-      return `<div class="m-again"><div class="n">${J.esc(o.rname)}</div><div class="i">${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</div><button class="sm sec" data-a="reorder" data-id="${o.id}" ${bizOpen(b)?'':'disabled'}>${bizOpen(b)?J.ic('rotate-ccw',14)+' Tekrarla':'Şu an kapalı'}</button></div>`; }).join('')}</div>`;
+      return `<div class="m-again"><div class="n">${J.esc(o.rname)}</div><div class="i">${o.items.map(i => i.qty+'× '+J.itemLabel(i)).join(', ')}</div><button class="sm sec" data-a="reorder" data-id="${o.id}" ${bizOpen(b)?'':'disabled'}>${bizOpen(b)?J.ic('rotate-ccw',14)+' Tekrarla':'Şu an kapalı'}</button></div>`; }).join('')}</div>`;
   }
   let list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: bizOpen(b)})).filter(x => x.d < 5000);
   if(group==='Ücretsiz') list = list.filter(x => x.b.free_delivery);
@@ -158,9 +161,9 @@ function renderMenu(){
   cats.forEach((c,i) => {
     h += `<h4 id="cat${i}">${J.esc(c)}</h4>`;
     menu.filter(m => (m.cat||'Menü')===c).forEach(m => {
-      const n = cart[m.id] || 0, av = m.available !== false;
-      const ctl = !av ? '' : n ? `<div class="m-step"><button data-a="dec" data-id="${m.id}" aria-label="Azalt">−</button><b>${n}</b><button data-a="inc" data-id="${m.id}" aria-label="Arttır">+</button></div>` : `<button class="m-add" data-a="inc" data-id="${m.id}" aria-label="Sepete ekle">+</button>`;
-      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}</div></div><div class="act">${ctl}</div></div>`;
+      const av = m.available !== false, hasOpt = (m.opts||[]).length > 0, n = hasOpt ? inCart(m.id) : (cart[m.id] || 0);
+      const ctl = !av ? '' : hasOpt ? `<button class="m-add" data-a="opt-open" data-id="${m.id}" aria-label="Seçenekleri gör">+</button>${n?`<span class="m-badge">${n}</span>`:''}` : n ? `<div class="m-step"><button data-a="dec" data-id="${m.id}" aria-label="Azalt">−</button><b>${n}</b><button data-a="inc" data-id="${m.id}" aria-label="Arttır">+</button></div>` : `<button class="m-add" data-a="inc" data-id="${m.id}" aria-label="Sepete ekle">+</button>`;
+      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}${hasOpt&&av?' <span class="m-optnote">· seçenekli</span>':''}</div></div><div class="act">${ctl}</div></div>`;
     });
   });
   if(!menu.length) h += `<div class="m-empty"><div>${J.ic('list',36)}</div>Bu işletme henüz ürün eklemedi.</div>`;
@@ -173,9 +176,9 @@ function renderCart(){
   showMap(false);
   const b = DB.get('businesses', curBiz);
   if(!bizOpen(b) || !cartCount()){ view = b && bizOpen(b) ? 'menu' : 'liste'; return view==='menu' ? renderMenu() : renderList(); }
-  const sub = cartSum(b), f = fees(b), items = (b.menu||[]).filter(m => cart[m.id]);
+  const sub = cartSum(b), f = fees(b), lines = J.cartLines(b, cart);
   return topBar('Sepetim', 'to-menu') + `<div class="m-body">
-    <div class="m-box"><h3>${J.esc(b.name)}</h3>${items.map(m => `<div class="m-line"><div class="tx">${J.esc(m.name)}<div class="tiny muted">${J.tl(m.price)}</div></div><div class="m-qty"><button data-a="dec" data-id="${m.id}">−</button><b>${cart[m.id]}</b><button data-a="inc" data-id="${m.id}">+</button></div><b class="money" style="min-width:70px;text-align:right">${J.tl(m.price*cart[m.id])}</b></div>`).join('')}
+    <div class="m-box"><h3>${J.esc(b.name)}</h3>${lines.map(l => `<div class="m-line"><div class="tx">${J.esc(l.m.name)}${l.opts.length?`<div class="tiny" style="color:var(--brand)">${l.opts.map(o => J.esc(o.name)).join(', ')}</div>`:''}<div class="tiny muted">${J.tl(l.unit)}</div></div><div class="m-qty"><button data-a="dec" data-id="${l.key}">−</button><b>${l.qty}</b><button data-a="inc" data-id="${l.key}">+</button></div><b class="money" style="min-width:70px;text-align:right">${J.tl(l.unit*l.qty)}</b></div>`).join('')}
       <button class="ghost sm" data-a="to-menu">+ Ürün ekle</button></div>
     <div class="m-box"><h3>İşletmeye not</h3><textarea id="o-note" class="m-note" maxlength="200" placeholder="Örn. soğansız olsun, zile basmayın">${J.esc(orderNote)}</textarea></div>
     <button class="m-prio ${prio?'on':''}" data-a="prio"><span class="ic">${J.ic('timer',20)}</span><span class="tx"><b>Hızlı teslimat · +${J.tl(J.FEE.priority)}</b><small>İşletme siparişini öne alır, kurye daha hızlı atanır. Hedef: 5-10 dk daha erken. Ücretin tamamı kuryeye.</small></span><span class="sw"></span></button>
@@ -232,7 +235,7 @@ function renderTrack(){
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
   if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
-  h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.esc(i.name)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
+  h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.itemLabel(i)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
     ${o.priority?`<div class="row"><span>Hızlı teslimat</span><span class="money">${J.tl(o.prio_fee)}</span></div>`:''}
     ${o.tip||o.tip_after?`<div class="row"><span>Kurye bahşişi</span><span class="money">${J.tl((o.tip||0)+(o.tip_after||0))}</span></div>`:''}
@@ -296,6 +299,19 @@ function renderBar(){
   const el = document.getElementById('mbar'); if(el.innerHTML !== h) el.innerHTML = h;
 }
 
+function renderSheet(){
+  let h = '';
+  const b = sheet && DB.get('businesses', curBiz), m = b && (b.menu||[]).find(x => x.id === sheet.mid);
+  if(sheet && m && view === 'menu'){
+    const unit = Math.max(0, m.price + sheet.sel.reduce((t,i) => t + ((m.opts[i]||{}).price||0), 0));
+    h = `<div class="m-sheet-bg" data-a="opt-close"></div><div class="m-sheet" role="dialog" aria-label="${J.esc(m.name)}">
+      <div class="hd"><div><b>${J.esc(m.name)}</b>${m.desc?`<div class="small muted">${J.esc(m.desc)}</div>`:''}<div class="small" style="margin-top:4px;font-weight:700">${J.tl(m.price)}</div></div><button class="x" data-a="opt-close" aria-label="Kapat">${J.ic('x',20)}</button></div>
+      <div class="lbl">Seçenekler <span class="tiny muted">· isteğe bağlı, birden çok seçilebilir</span></div>
+      <div class="opts">${(m.opts||[]).map((o,i) => `<button class="${sheet.sel.includes(i)?'on':''}" data-a="opt-tog" data-i="${i}"><span class="ck">${sheet.sel.includes(i)?J.ic('check',14):''}</span><span class="nm">${J.esc(o.name)}</span><span class="pr">${o.price>0?'+'+J.tl(o.price):o.price<0?'−'+J.tl(-o.price):''}</span></button>`).join('')}</div>
+      <div class="ft"><div class="m-qty"><button data-a="opt-dec">−</button><b>${sheet.qty}</b><button data-a="opt-inc">+</button></div><button class="brand" data-a="opt-add" style="flex:1;display:flex;justify-content:space-between"><span>Sepete ekle</span><span class="money">${J.tl(unit*sheet.qty)}</span></button></div></div>`;
+  }
+  const el = document.getElementById('msheet'); if(el.innerHTML !== h) el.innerHTML = h;
+}
 function render(){
   loadProf();
   if(!prof && view !== 'giris'){ view = 'giris'; }
@@ -305,6 +321,7 @@ function render(){
   J.render(document.getElementById('panel'), html);
   placeMap();
   renderBar();
+  renderSheet();
   renderCall();
 }
 let lastCall = '';
@@ -350,13 +367,23 @@ document.addEventListener('click', e => {
   if(a==='back'){ draft = null; go('liste'); }
   if(a==='to-menu'){ go('menu'); }
   if(a==='cart'){ go('sepet'); }
+  if(a==='opt-open'){ sheet = {mid:id, sel:[], qty:1}; }
+  if(a==='opt-close'){ sheet = null; }
+  if(a==='opt-tog' && sheet){ const i = +el.dataset.i; sheet.sel = sheet.sel.includes(i) ? sheet.sel.filter(x => x !== i) : sheet.sel.concat([i]); }
+  if(a==='opt-inc' && sheet) sheet.qty = Math.min(50, sheet.qty + 1);
+  if(a==='opt-dec' && sheet) sheet.qty = Math.max(1, sheet.qty - 1);
+  if(a==='opt-add' && sheet){ const k = J.cartKey(sheet.mid, sheet.sel); cart[k] = (cart[k]||0) + sheet.qty; sheet = null; J.toast('Sepete eklendi.'); }
   if(a==='inc') cart[id] = (cart[id]||0) + 1;
   if(a==='dec'){ cart[id] = Math.max(0,(cart[id]||0)-1); if(!cart[id]) delete cart[id]; }
   if(a==='reorder'){
     const o = DB.get('orders', id), b = o && DB.get('businesses', o.rid);
     if(!bizOpen(b)){ J.toast('Bu işletme şu an kapalı.'); return; }
     cart = {}; let miss = 0;
-    o.items.forEach(i => { const m = (b.menu||[]).find(m => m.name === i.name && m.available !== false); if(m) cart[m.id] = i.qty; else miss++; });
+    o.items.forEach(i => {
+      const m = (b.menu||[]).find(m => m.name === i.name && m.available !== false); if(!m){ miss++; return; }
+      const sel = (i.opts||[]).map(n => (m.opts||[]).findIndex(x => x.name === n)).filter(x => x >= 0);
+      const k = J.cartKey(m.id, sel); cart[k] = (cart[k]||0) + i.qty;
+    });
     curBiz = b.id; orderNote = o.note || '';
     if(miss) J.toast(`${miss} ürün artık satışta değil, sepete eklenmedi.`);
     go(cartCount() ? 'sepet' : 'menu');
