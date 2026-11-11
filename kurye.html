@@ -31,7 +31,7 @@
 <script>
 const {DB} = J;
 let cid = J.store.get('kurye_id', null);
-let locMode = J.store.get('kurye_konum', J.native ? 'gps' : 'demo');   // 'gps' | 'demo' (uygulamada varsayılan gerçek GPS)
+let locMode = J.store.get('kurye_konum2', 'gps');   // 'gps' | 'demo'. Varsayılan her zaman telefonun gerçek konumu; sahte sürüş yalnızca test için elle seçilir
 let pos = J.store.get('kurye_pos', {lat:40.98880, lng:29.02830});
 let gpsWatch = null, gpsErr = '', gpsAcc = null;
 let route = null, routeKey = '', routeAt = 0, routing = false, prog = 0;
@@ -144,6 +144,8 @@ function incidentBox(o){
 function tabTask(c){
   const offer = myOffer(), o = myJob();
   let h = '';
+  if(locMode === 'gps' && gpsErr && (c.online || o)) h += `<div class="card bad small">${J.ic('locate-fixed',15)} <b>Konumun alınamıyor.</b> ${J.esc(gpsErr)} Telefonun konum servisini açık tut; konum gelmeden müşteri seni haritada göremez.</div>`;
+  if(locMode === 'demo') h += `<div class="card warn small">${J.ic('triangle-alert',15)} <b>Test sürüşü açık:</b> haritadaki konumun sahte. Gerçek teslimat için Hesap > Konum'dan "Gerçek GPS"i seç.</div>`;
   if(offer){
     const b = DB.get('businesses', offer.rid);
     h += `<div class="p-offer"><div class="top2"><span>${J.ic('bell',17)} Yeni teslimat teklifi</span><span class="cd" data-live="down" data-end="${offer.offer.exp}">…</span></div><div class="amt">${J.tl(J.FEE.courier + (offer.tip||0) + (offer.prio_fee||0))}</div><div class="small" style="opacity:.9">${[`Sabit ${J.tl(J.FEE.courier)}`].concat(offer.priority?[`hızlı teslimat +${J.tl(offer.prio_fee)}`]:[]).concat(offer.tip?[`bahşiş +${J.tl(offer.tip)}`]:[]).join(' · ')}${offer.priority?'<div style="margin-top:6px;font-weight:800">Hızlı teslimat: lütfen öncelik ver</div>':''}</div>
@@ -198,7 +200,7 @@ function tabEarn(c){
   return h;
 }
 function tabAccount(c){
-  return `${c.online ? J.batteryCard() : ''}<div class="p-card"><h3>Konum</h3><div class="p-grid2"><button class="${locMode==='gps'?'ok':'sec'}" data-a="loc" data-id="gps">${J.ic('locate-fixed',16)} Gerçek GPS</button><button class="${locMode==='demo'?'ok':'sec'}" data-a="loc" data-id="demo">${J.ic('gamepad-2',16)} Demo sürüş</button></div>
+  return `${c.online ? J.batteryCard() : ''}<div class="p-card"><h3>Konum</h3><div class="p-grid2"><button class="${locMode==='gps'?'ok':'sec'}" data-a="loc" data-id="gps">${J.ic('locate-fixed',16)} Gerçek GPS</button><button class="${locMode==='demo'?'warn':'sec'}" data-a="loc" data-id="demo">${J.ic('gamepad-2',16)} Test sürüşü (sahte)</button></div>
     <div class="tiny muted" style="margin-top:8px">${locMode==='gps' ? (gpsErr ? J.esc(gpsErr) : `Telefonunun konumu kullanılıyor${gpsAcc?` (±${gpsAcc} m)`:''}. Hedefe yaklaşınca durum kendiliğinden güncellenir.`) : 'Demo sürüş: masa başında denemek için kurye rotada kendiliğinden ilerler.'}</div></div>
     <div class="p-card small"><h3>Hesap</h3><div class="row"><span>Kullanıcı adı</span><b>${J.esc(c.login ? c.login.user : '')}</b></div><div class="row"><span>Bildirimler</span><b>${notifOk()?'Açık':'Kapalı'}</b></div><button class="sec wide" style="margin-top:12px" data-a="logout" ${myJob()?'disabled':''}>Çıkış yap</button>${myJob()?'<div class="tiny muted" style="margin-top:6px">Aktif teslimat bitmeden çıkış yapılamaz.</div>':''}</div>`;
 }
@@ -290,7 +292,7 @@ document.addEventListener('click', async e => {
     if(online && locMode==='gps') startGps();
     setTimeout(nativeServis, 300);
   }
-  if(a==='loc'){ locMode = el.dataset.id; J.store.set('kurye_konum', locMode); if(locMode==='gps') startGps(); else stopGps(); routeKey = ''; setTimeout(nativeServis, 300); }
+  if(a==='loc'){ locMode = el.dataset.id; J.store.set('kurye_konum2', locMode); if(locMode==='gps') startGps(); else stopGps(); routeKey = ''; setTimeout(nativeServis, 300); }
   if(a==='accept'){ const o = myOffer(); if(o && c){ await J.courierAccept(c, o); route = null; prog = 0; routeKey = ''; J.alarm('teklif', false); } }
   if(a==='decline'){ const o = myOffer(); if(o && c){ J.courierDecline(c, o, 'teklifi reddetti'); J.alarm('teklif', false); } }
   if(a==='pickup'){ const o = myJob(); if(o){ J.pickup(o); route = null; prog = 0; routeKey = ''; } }

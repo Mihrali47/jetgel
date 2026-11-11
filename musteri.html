@@ -635,7 +635,7 @@ function guestLocate(){
     () => J.toast('Konum alınamadı. Adres kaydetmek için giriş yap.'), {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
 }
 DB.init().then(() => {
-  if(!cuid){ view = 'liste'; loadProf(); if(!J.store.get('misafir_konum', null) && !J.store.get('konum_taslak', null) && navigator.permissions) navigator.permissions.query({name:'geolocation'}).then(st => { if(st.state === 'granted') guestLocate(); }).catch(() => {}); openPendingBiz(); }
+  if(!cuid){ view = 'liste'; loadProf(); if(!J.store.get('misafir_konum', null) && !J.store.get('konum_taslak', null)) setTimeout(guestLocate, 400); openPendingBiz(); }
   else if(loadProf()){ view = 'liste'; applyDraftAddr(); openPendingBiz(); setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
   render();
 });
