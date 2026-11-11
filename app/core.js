@@ -167,8 +167,8 @@ J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?
 function payout(o){
   const tip = o.tip || 0;   // bahşişin tamamı kuryeye
   const prio = o.priority ? (o.prio_fee || 0) : 0;   // hızlı teslimat ücreti de kuryeye
-  const disc = o.discount || 0;   // Başkan kuponu indirimi: kampanyaya katılan işletmenin payından
-  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0) - disc, discount: disc, courier: J.FEE.courier + tip + prio, tip, priority: prio, platform: J.FEE.platform, refund: o.refund||0};
+  const disc = (o.discount || 0) + (o.loyalty_disc || 0);   // kupon + sadakat indirimi, ikisi de işletmenin payından   // Başkan kuponu indirimi: kampanyaya katılan işletmenin payından
+  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0) - disc, discount: o.discount||0, loyalty: o.loyalty_disc||0, courier: J.FEE.courier + tip + prio, tip, priority: prio, platform: J.FEE.platform, refund: o.refund||0};
   DB.patch('orders', o.id, {pay:'dagitildi', shares});
   J.log(`#${o.no} ödeme dağıtıldı: işletme ${J.tl(shares.business)}, kurye ${J.tl(shares.courier)}, platform ${J.tl(shares.platform)}${shares.refund?`, iade ${J.tl(shares.refund)}`:''}.`, 'pay', o.id);
 }
@@ -218,16 +218,19 @@ J.placeOrder = function(b, cart, cust, extra){
     pin: String(Math.floor(1000+Math.random()*9000)), courier_id:null, offer:null, tried:[],
     created_at: J.now()
   };
+  // Sadakat kartı: bu sipariş N. sipariş ise işletmenin tanımladığı indirim
+  const lp = extra && extra.loyalty ? J.loyaltyProgress(b, cust.id) : null;
+  o.loyalty_disc = lp && lp.eligible ? Math.min(lp.amount, subtotal) : 0;
   // Başkan kuponu: sadece kampanyaya katılan işletmede, siparişte en fazla J.COUPON.per TL
   if(extra && extra.coupon && b.race_join){
     const cp = (cust.coupons||[]).find(c => c.id === extra.coupon && c.left > 0 && c.exp > J.now());
     if(cp){
-      o.discount = Math.min(J.COUPON.per, cp.left, subtotal); o.coupon_id = cp.id;
+      o.discount = Math.max(0, Math.min(J.COUPON.per, cp.left, subtotal - o.loyalty_disc)); o.coupon_id = o.discount ? cp.id : null;
       DB.patch('customers', cust.id, {coupons: cust.coupons.map(c => c.id === cp.id ? Object.assign({}, c, {left: c.left - o.discount}) : c)});
     }
   }
   DB.put('orders', id, o);
-  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip+o.prio_fee-o.discount)} bloke.${o.discount?` Başkan kuponu −${J.tl(o.discount)}.`:''}${o.priority?' Hızlı teslimat.':''}${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
+  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip+o.prio_fee-o.discount-o.loyalty_disc)} bloke.${o.loyalty_disc?` Sadakat indirimi −${J.tl(o.loyalty_disc)}.`:''}${o.discount?` Başkan kuponu −${J.tl(o.discount)}.`:''}${o.priority?' Hızlı teslimat.':''}${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
   return o;
 };
 /* Hazırlık süresi işletmeye sorulmaz; sistem hesaplar:
@@ -350,6 +353,15 @@ J.qrSvg = function(text, cell){
   if(typeof qrcode !== 'function') return '';
   const q = qrcode(0, 'M'); q.addData(text); q.make();
   return q.createSvgTag({cellSize: cell || 5, margin: 2, scalable: true});
+};
+/* ===================== SADAKAT KARTI =====================
+   İşletme isterse açar: her N. teslim edilmiş siparişte müşteriye X TL indirim, işletmenin payından. */
+J.loyaltyProgress = function(b, custId){
+  const L = b && b.loyalty;
+  if(!L || !L.on || !(L.every >= 2) || !(L.amount > 0)) return null;
+  const mine = J.orders().filter(o => o.rid === b.id && o.customer && o.customer.id === custId && o.state === 'teslim').sort((a,c) => (a.created_at||0) - (c.created_at||0));
+  let count = 0; mine.forEach(o => { count = o.loyalty_disc ? 0 : count + 1; });
+  return {every:L.every, amount:L.amount, count, eligible: count >= L.every - 1};
 };
 /* ===================== SORUN BİLDİRİMİ VE İADE =====================
    Müşteri teslimden sonra 24 saat içinde eksik/yanlış/bozuk ürünü (isteğe bağlı fotoğrafla) bildirir, siparişte bir kez.

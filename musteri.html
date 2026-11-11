@@ -75,7 +75,10 @@ function cartSum(b){ return J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qt
 const inCart = mid => Object.keys(cart).filter(k => k === mid || k.startsWith(mid+'|')).reduce((t,k) => t + cart[k], 0);
 let sheet = null, sort = 'onerilen', addrPick = false, useCoupon = true, mayorChecked = false;
 const SORTS = [['onerilen','Önerilen'],['yakin','En yakın'],['hizli','En hızlı'],['puan','Puan']];
-const cdisc = (b, sub) => { const cp = J.activeCoupon(prof); return cp && useCoupon && b && b.race_join ? Math.min(cp.per, cp.left, sub) : 0; };
+const ldisc = (b, sub) => { const lp = prof && J.loyaltyProgress(b, prof.id); return lp && lp.eligible ? Math.min(lp.amount, sub) : 0; };
+const loyalStrip = b => { const lp = prof && J.loyaltyProgress(b, prof.id); if(!lp) return '';
+  return `<div class="m-loyal"><div class="row"><b>${J.ic('award',15)} Sadakat kartı</b><span class="small">${lp.eligible?`<b style="color:var(--ok)">Bu siparişte ${J.tl(lp.amount)} indirim!</b>`:`${lp.count}/${lp.every}`}</span></div><div class="dots">${Array.from({length:lp.every}, (_,i) => `<i class="${i<lp.count?'on':''} ${i===lp.every-1?'gift':''}"></i>`).join('')}</div><div class="tiny muted">Her ${lp.every}. siparişinde ${J.tl(lp.amount)} indirim · işletmenin hediyesi</div></div>`; };
+const cdisc = (b, sub) => { const cp = J.activeCoupon(prof); return cp && useCoupon && b && b.race_join ? Math.max(0, Math.min(cp.per, cp.left, sub - ldisc(b, sub))) : 0; };
 const favs = () => (prof && prof.favs) || [];
 const addrs = () => (prof && prof.addresses) || [];
 let rate = {id:null, biz:0, cour:0, note:''};
@@ -215,7 +218,7 @@ function renderMenu(){
   const cats = []; menu.forEach(m => { const c = m.cat || 'Menü'; if(!cats.includes(c)) cats.push(c); });
   let h = `<div class="m-hero" style="${cover(b)}"><button class="back" data-a="back" aria-label="Geri">${J.ic('chevron-left',22)}</button><span class="cv-ic big">${J.bizIcon(b,44)}</span></div>
     <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||'')}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
-    <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div></div>`;
+    <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div>${loyalStrip(b)}</div>`;
   if(cats.length > 1) h += `<div class="m-cats">${cats.map((c,i) => `<button data-a="jump" data-id="cat${i}">${J.esc(c)}</button>`).join('')}</div>`;
   h += `<div class="m-menu">`;
   cats.forEach((c,i) => {
@@ -249,10 +252,11 @@ function renderCart(){
       <div class="row"><span>Ürünler</span><span class="money">${J.tl(sub)}</span></div>
       <div class="row"><span>Teslimat ücreti<small>Tamamı kuryeye gider</small></span><span class="money">${f.del?J.tl(f.del):'<span style="color:var(--ok)">Ücretsiz</span>'}</span></div>
       <div class="row"><span>Hizmet bedeli<small>Platformun sipariş başına sabit payı</small></span><span class="money">${f.plat?J.tl(f.plat):'—'}</span></div>
+      ${ldisc(b, sub)?`<div class="row" style="color:var(--ok)"><span>Sadakat indirimi<small>${J.esc(b.name)} teşekkür ediyor</small></span><span class="money">−${J.tl(ldisc(b, sub))}</span></div>`:''}
       ${cdisc(b, sub)?`<div class="row" style="color:var(--ok)"><span>Başkan kuponu<small>İşletmenin katkısı</small></span><span class="money">−${J.tl(cdisc(b, sub))}</span></div>`:''}
       ${prio?`<div class="row"><span>Hızlı teslimat<small>Tamamı kuryeye gider</small></span><span class="money">${J.tl(J.FEE.priority)}</span></div>`:''}
       ${tip?`<div class="row"><span>Kurye bahşişi<small>Tamamı kuryeye gider</small></span><span class="money">${J.tl(tip)}</span></div>`:''}
-      <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, sub))}</b></div></div>
+      <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, sub)-ldisc(b, sub))}</b></div></div>
     <div class="m-fair"><i>${J.ic('handshake',22)}</i><div><b>Komisyon yok.</b> ${b.free_delivery?'Bu işletme teslimat ücretini senin yerine ödüyor.':'İşletme de bu sipariş için sabit ücret öder; ürün fiyatlarına yüzde eklenmez.'}</div></div>
     <div class="note" style="margin-bottom:12px">Ödeme simülasyonu: gerçek para çekilmez. Gerçek sistemde önce kartında yalnızca blokaj olur; işletme onaylarsa çekilir, reddederse kalkar.</div></div>`;
 }
@@ -300,12 +304,13 @@ function renderTrack(){
   if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
   h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.itemLabel(i)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
+    ${o.loyalty_disc?`<div class="row" style="color:var(--ok)"><span>Sadakat indirimi</span><span class="money">−${J.tl(o.loyalty_disc)}</span></div>`:''}
     ${o.claim_refund?`<div class="row" style="color:var(--ok)"><span>İade (sorun bildirimi)</span><span class="money">−${J.tl(o.claim_refund)}</span></div>`:''}
     ${o.discount?`<div class="row" style="color:var(--ok)"><span>Başkan kuponu</span><span class="money">−${J.tl(o.discount)}</span></div>`:''}
     ${o.priority?`<div class="row"><span>Hızlı teslimat</span><span class="money">${J.tl(o.prio_fee)}</span></div>`:''}
     ${o.tip||o.tip_after?`<div class="row"><span>Kurye bahşişi</span><span class="money">${J.tl((o.tip||0)+(o.tip_after||0))}</span></div>`:''}
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
-    <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.refund||0) - (o.claim_refund||0))}</b></div>
+    <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0) - (o.refund||0) - (o.claim_refund||0))}</b></div>
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
   if(o.state==='teslim') h += claimBox(o);
   if(o.state==='teslim' && !o.rated){
@@ -386,7 +391,7 @@ function renderBar(){
     if(b) h = `<div class="m-bar"><button data-a="cart"><span class="cnt">${cartCount()}</span><span>Sepete git</span><span class="money">${J.tl(cartSum(b))}</span></button></div>`;
   } else if(view==='sepet'){
     const b = DB.get('businesses', curBiz);
-    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>Siparişi onayla</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b)))}</span></button></div>`; }
+    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>Siparişi onayla</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b))-ldisc(b, cartSum(b)))}</span></button></div>`; }
   } else if(TABS.includes(view) || view==='takip'){
     const t = view==='takip' ? 'siparisler' : view, act = activeOrders().length;
     h = `<nav class="m-tabs">${[['liste','house','Keşfet'],['siparisler','receipt','Siparişlerim'],['hesap','user','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${J.ic(ic,22)}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;
@@ -496,7 +501,7 @@ document.addEventListener('click', e => {
   }
   if(a==='order'){
     const b = DB.get('businesses', curBiz);
-    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
+    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
   }
   if(a==='prio'){ prio = !prio; }

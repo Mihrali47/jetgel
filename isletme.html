@@ -64,12 +64,12 @@ function header(b){
 function orderCard(o){
   const c = o.courier_id && DB.get('couriers', o.courier_id), b = biz();
   const st = o.prep==='bekliyor' ? '<span class="pill brand">Yeni</span>' : o.prep==='hazirlaniyor' ? '<span class="pill blue">Hazırlanıyor</span>' : '<span class="pill ok">Hazır</span>';
-  const net = o.subtotal-o.fees.biz-(o.refund||0)-(o.discount||0);
+  const net = o.subtotal-o.fees.biz-(o.refund||0)-(o.discount||0)-(o.loyalty_disc||0);
   let h = `<div class="p-ord ${o.prep==='bekliyor'?'new':''} ${o.priority?'prio':''}"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${ago(o.created_at)}${o.customer.note?` · ${J.fmtDist(J.dist(b,o.customer))}`:''}</div>${o.priority?`<span class="pill bad">${J.ic('timer',11)} Hızlı</span>`:''}${st}</div><div class="bd">
     ${o.priority?`<div class="p-note" style="background:var(--bad-soft);margin:0 0 8px">${J.ic('timer',15)} <b>Hızlı teslimat:</b> müşteri ek ücret ödedi, lütfen öne alın.</div>`:''}
     <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}${i.opts&&i.opts.length?`<span class="p-opts">${i.opts.map(J.esc).join(' · ')}</span>`:''}</span></li>`).join('')}</ul>
     ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
-    <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.discount?`<span>Başkan kuponu (katkınız)</span><b>−${J.tl(o.discount)}</b>`:''}${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
+    <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.loyalty_disc?`<span>Sadakat indirimi (katkınız)</span><b>−${J.tl(o.loyalty_disc)}</b>`:''}${o.discount?`<span>Başkan kuponu (katkınız)</span><b>−${J.tl(o.discount)}</b>`:''}${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
   if(o.prep==='bekliyor'){ const st = J.prepStats(b), est = J.prepEstimate(b);
     h += `<div class="p-timer" style="background:#f6f5f2;color:var(--ink)"><span>${J.ic('timer',16)} Tahmini hazırlık süresi</span><span><b>${est}</b> dk</span></div><div class="tiny muted" style="margin-top:6px">${st.avg!=null?`Son siparişlerinizdeki ortalama ${Math.round(st.avg)} dk`:'Başlangıç süresi'}${st.load?` + şu an hazırlanan ${st.load} sipariş`:''}. Süreyi sistem yoğunluğunuza göre belirler; "Hazır" dediğiniz anlar ortalamayı günceller.</div>
     <div class="p-act"><button class="ok" style="flex:2;padding:15px;font-size:16px" data-a="accept" data-id="${o.id}">${J.ic('circle-check',18)} Siparişi onayla</button><button class="sec" data-a="reject" data-id="${o.id}">Reddet</button></div>`; }
@@ -149,11 +149,29 @@ function tabMenu(b){
   return h;
 }
 
+let rp = 7;   // rapor dönemi (gün)
+function reportData(b, days){
+  const since = days === 1 ? new Date().setHours(0,0,0,0) : J.now() - days*864e5;
+  const os = J.orders().filter(o => o.rid===b.id && o.state==='teslim' && (o.created_at||0) >= since);
+  const ciro = os.reduce((t,o) => t + o.subtotal, 0), net = os.reduce((t,o) => t + (o.shares ? o.shares.business : 0), 0);
+  const prod = {}; os.forEach(o => o.items.forEach(i => { const p = prod[i.name] = prod[i.name] || {name:i.name, qty:0, tl:0}; p.qty += i.qty; p.tl += i.qty*i.price; }));
+  const hours = Array(24).fill(0); os.forEach(o => hours[new Date(o.created_at).getHours()]++);
+  return {os, ciro, net, avg: os.length ? ciro/os.length : 0, top: Object.values(prod).sort((a,c) => c.qty-a.qty).slice(0,5), hours};
+}
+function reportCard(b){
+  const r = reportData(b, rp), mx = Math.max(1, ...r.hours);
+  return `<div class="p-sec">Satış raporu</div><div class="p-card"><div class="m-sort" style="margin:0 0 12px">${[[1,'Bugün'],[7,'7 gün'],[30,'30 gün']].map(([d,l]) => `<button class="${rp===d?'on':''}" data-a="rp" data-id="${d}">${l}</button>`).join('')}</div>
+    <div class="p-kpi"><div><b>${r.os.length}</b><span>Teslim edilen</span></div><div><b>${J.tl(r.ciro)}</b><span>Ciro</span></div><div><b>${J.tl(r.net)}</b><span>Hesabınıza</span></div><div><b>${J.tl(r.avg)}</b><span>Ort. sepet</span></div></div>
+    ${r.top.length?`<div class="lbl">En çok satanlar</div>${r.top.map((p,i) => `<div class="row small" style="margin-top:6px"><span>${i+1}. ${J.esc(p.name)}</span><span><b>${p.qty} adet</b> · ${J.tl(p.tl)}</span></div>`).join('')}`:'<div class="small muted">Bu dönemde teslim edilen sipariş yok.</div>'}
+    ${r.os.length?`<div class="lbl">Saatlere göre sipariş</div><div class="p-bars">${r.hours.map((n,h) => `<div title="${h}:00 · ${n} sipariş"><i style="height:${Math.round(n/mx*100)}%"></i><span>${h%3===0?h:''}</span></div>`).join('')}</div>`:''}
+    <button class="sec wide" style="margin-top:12px" data-a="csv" ${r.os.length?'':'disabled'}>${J.ic('download',15)} Excel için indir (CSV)</button></div>`;
+}
 function tabEarn(b){
   const paid = J.orders().filter(o => o.rid===b.id && o.pay==='dagitildi' && o.shares);
   const got = paid.reduce((s,o) => s+o.shares.business, 0), would = Math.round(paid.reduce((s,o) => s+o.subtotal, 0)*(1-J.COMMISSION_RATE));
   let h = `<div class="p-card" style="margin-top:14px;background:linear-gradient(135deg,#1f9d55,#2b8a3e);color:#fff"><div class="small" style="opacity:.85">Komisyonsuz sistemle fazladan kazancınız</div><div style="font-size:32px;font-weight:900">+${J.tl(Math.max(0,got-would))}</div><div class="small" style="opacity:.85">${paid.length} tamamlanan sipariş</div></div>
     <div class="p-card"><div class="row small"><span>Hesabınıza geçen</span><b class="money">${J.tl(got)}</b></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="note">Ürün bedeli platformun hesabına uğramaz; ödeme kuruluşu teslimatta doğrudan sizin hesabınıza aktarır (şu an simülasyon).</div></div>`;
+  h += reportCard(b);
   const rt = J.ratingOf(b);
   h += `<div class="p-sec">Müşteri puanınız${rt.n?`<span class="n">${rt.n}</span>`:''}</div><div class="p-card">${rt.n?`<div class="row"><div><div style="font-size:30px;font-weight:900">${J.fmtRating(rt.avg)} <span style="font-size:15px;color:var(--muted)">/ 5</span></div><div class="tiny muted">${rt.n} değerlendirme${rt.n<J.RATING_MIN_N?` · ${J.RATING_MIN_N} değerlendirmeden sonra müşterilere gösterilir`:''}</div></div>${J.ratingBadge(b)}</div>`:'<div class="small muted">Henüz değerlendirme yok. Teslim edilen siparişlerden sonra müşteriler 1-5 arası puan verir.</div>'}
     ${(b.reviews||[]).slice(0,5).map(r => `<div class="p-rev"><div class="row small"><b>${'★'.repeat(r.stars)}<span style="color:#d6d1c8">${'★'.repeat(5-r.stars)}</span></b><span class="tiny muted">#${J.esc(r.no)} · ${new Date(r.t).toLocaleDateString('tr-TR')}</span></div>${r.note?`<div class="small">${J.esc(r.note)}</div>`:''}</div>`).join('')}</div>`;
@@ -176,8 +194,13 @@ function linkCard(b){
     <div class="p-link"><input id="biz-link" readonly value="${J.esc(url)}"><button class="sm brand" data-a="copy-link">Kopyala</button></div>
     <div class="p-qr">${J.qrSvg(url, 6)}</div><div class="p-act"><button class="sec" data-a="qr-print">${J.ic('download',15)} QR'ı yazdır</button>${navigator.share?`<button class="sec" data-a="share-link">Paylaş</button>`:''}</div></div>`;
 }
+function loyaltyCard(b){
+  const L = b.loyalty || {on:false, every:10, amount:100};
+  return `<div class="p-sec">Sadakat kartı</div><div class="p-card"><div class="row"><label for="ly-on" style="flex:1"><b>Müdavimlerinizi ödüllendirin</b><div class="tiny muted">Müşteri her N. siparişinde otomatik indirim alır; indirim sizin payınızdan düşer. Müşteri ilerlemesini menünüzde görür.</div></label><input type="checkbox" id="ly-on" style="width:22px;height:22px" ${L.on?'checked':''}></div>
+    <div class="p-grid2" style="margin-top:10px"><label class="tiny">Kaçıncı siparişte<input id="ly-every" type="number" min="2" max="30" value="${L.every}"></label><label class="tiny">İndirim (TL)<input id="ly-amount" type="number" min="1" max="1000" value="${L.amount}"></label></div></div>`;
+}
 function tabSettings(b){
-  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}${hoursCard(b)}${linkCard(b)}
+  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}${hoursCard(b)}${loyaltyCard(b)}${linkCard(b)}
     <div class="p-card"><div class="row"><label for="free" style="flex:1"><b>Müşterinin teslimat payını ben üstleneyim</b><div class="tiny muted">Müşteri "Ücretsiz teslimat" görür; ${J.tl(J.FEE.custDel+J.FEE.custPlat)} sizin payınıza eklenir.</div></label><input type="checkbox" id="free" data-a="free" style="width:22px;height:22px" ${b.free_delivery?'checked':''}></div></div>
     <div class="p-card"><div class="row"><label for="racej" style="flex:1"><b>Mahalle Başkanı kampanyasına katıl</b><div class="tiny muted">Haftanın en çok sipariş veren müşterisi ${J.tl(J.COUPON.total)} kupon kazanır. Başkan sizden sipariş verirse, siparişte en fazla ${J.tl(J.COUPON.per)} indirim sizin payınızdan düşer. Katılan işletmeler müşterilere "Kupon geçerli" etiketiyle gösterilir. İstediğiniz zaman ayrılabilirsiniz.</div></label><input type="checkbox" id="racej" data-a="racej" style="width:22px;height:22px" ${b.race_join?'checked':''}></div></div>
     <div class="p-card small"><h3>Ücretler</h3><div class="row"><span>Sipariş başına sabit ücret</span><b>${J.tl(J.FEE.bizDel+J.FEE.bizPlat)}</b></div><div class="row"><span>Yüzde komisyon</span><b>Yok</b></div><div class="row"><span>Aidat</span><b>Yok</b></div></div>
@@ -237,6 +260,13 @@ document.addEventListener('click', async e => {
   if(a==='accept') J.acceptOrder(DB.get('orders', id));
   if(a==='reject') J.rejectOrder(DB.get('orders', id));
   if(a==='ready') J.markReady(DB.get('orders', id));
+  if(a==='rp') rp = +id;
+  if(a==='csv' && b){
+    const r = reportData(b, rp), q = v => '"' + String(v).replace(/"/g,'""') + '"';
+    const rows = [['Tarih','Sipariş no','Ürünler','Ürün tutarı','Sabit ücret','İndirim (katkınız)','İade','Hesabınıza'].map(q).join(';')].concat(r.os.map(o => [new Date(o.created_at).toLocaleString('tr-TR'), o.no, o.items.map(i => i.qty+'x '+i.name+(i.opts&&i.opts.length?' ('+i.opts.join(', ')+')':'')).join(', '), o.subtotal, o.fees.biz, (o.discount||0)+(o.loyalty_disc||0), (o.refund||0)+(o.claim_refund||0), o.shares ? o.shares.business : ''].map(q).join(';')));
+    const blob = new Blob(['\ufeff' + rows.join('\n')], {type:'text/csv;charset=utf-8'}), u = URL.createObjectURL(blob), x = document.createElement('a');
+    x.href = u; x.download = `jetgel-${b.id}-${rp}gun.csv`; document.body.appendChild(x); x.click(); x.remove(); setTimeout(() => URL.revokeObjectURL(u), 1000); return;
+  }
   if(a==='clm-ok') J.decideClaim(DB.get('orders', id), true, 'isletme');
   if(a==='clm-no') J.decideClaim(DB.get('orders', id), false, 'isletme');
   if(a==='avail' && b) DB.patch('businesses', b.id, {menu: b.menu.map(m => m.id===id ? Object.assign({}, m, {available: m.available===false}) : m)});
@@ -295,6 +325,13 @@ setInterval(() => {
 }, 1000);
 document.addEventListener('change', async e => {
   const b0 = biz();
+  if(/^ly-(on|every|amount)$/.test(e.target.id||'') && b0){
+    const L = Object.assign({on:false, every:10, amount:100}, b0.loyalty);
+    if(e.target.id==='ly-on') L.on = e.target.checked;
+    if(e.target.id==='ly-every') L.every = Math.max(2, Math.min(30, parseInt(e.target.value,10) || 10));
+    if(e.target.id==='ly-amount') L.amount = Math.max(1, Math.min(1000, parseInt(e.target.value,10) || 100));
+    DB.patch('businesses', b0.id, {loyalty:L}); J.toast('Sadakat kartı güncellendi.'); return;
+  }
   const hm = /^h-(o|c|off)-(\d)$/.exec(e.target.id||'');
   if(hm && b0){
     const H = JSON.parse(JSON.stringify(b0.hours || J.defaultHours())), d = H.days[+hm[2]];

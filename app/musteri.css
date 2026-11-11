@@ -239,3 +239,8 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-item .mph .act{position:absolute;right:-4px;bottom:-6px;width:auto;height:36px}
 .m-item .mph .m-add,.m-item .mph .m-step{position:static;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .m-item .mph .m-badge{right:-4px;top:-8px}
+.m-loyal{background:#fff8db;border-radius:14px;padding:12px;margin:10px 0 6px}
+.m-loyal .dots{display:flex;gap:5px;margin:8px 0 6px;flex-wrap:wrap}
+.m-loyal .dots i{width:18px;height:18px;border-radius:50%;border:2px solid #e9c46a;background:#fff}
+.m-loyal .dots i.on{background:#f5a524;border-color:#f5a524}
+.m-loyal .dots i.gift{border-style:dashed;border-color:var(--brand)}
