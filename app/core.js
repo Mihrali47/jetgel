@@ -1249,7 +1249,8 @@ J.loginForm = function(o){
 
 /* ===================== ORTAK SAYFA İSKELETİ ===================== */
 J.modeBadge = function(){
-  return (J.native ? '<span class="pill blue" title="Android uygulaması: ahize, kilitli ekranda bildirim, arka plan GPS">' + J.ic('smartphone',12) + ' Uygulama</span> ' : '') + modeBadge2();
+  const fast = J.settings().fast ? '<span class="pill bad" title="Süreler 10 kat hızlı. Gerçek kuryeyle denemeden önce Yönetim > Ayarlar\'dan kapatın.">Hızlı test</span> ' : '';
+  return fast + (J.native ? '<span class="pill blue" title="Android uygulaması: ahize, kilitli ekranda bildirim, arka plan GPS">' + J.ic('smartphone',12) + ' Uygulama</span> ' : '') + modeBadge2();
 };
 function modeBadge2(){
   if(DB.mode === 'demo') return `<span class="pill warn" title="Veriler sadece bu cihazda">Demo modu · bu cihaz</span>`;
