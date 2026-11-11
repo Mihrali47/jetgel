@@ -320,6 +320,37 @@ J.complete = function(c, o, how){
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
 };
+/* ===================== ÇALIŞMA SAATLERİ =====================
+   b.hours = {auto:true, days:[{open:'10:00', close:'23:00', off:false} ×7]} (pazartesi ilk). Kapanış açılıştan küçükse gece yarısını geçer.
+   Otomatik açma/kapama işletmenin kendi cihazında çalışır (J.hoursTick). */
+J.DAYS = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
+J.defaultHours = () => ({auto:false, days: J.DAYS.map(() => ({open:'10:00', close:'23:00', off:false}))});
+const hm = s => { const [h,m] = String(s||'0:0').split(':').map(Number); return (h||0)*60 + (m||0); };
+J.hoursState = function(b, t){
+  const H = b && b.hours; if(!H || !H.days) return null;
+  const d = new Date(t || J.now()), wd = (d.getDay() + 6) % 7, now = d.getHours()*60 + d.getMinutes();
+  const inDay = (i, mins) => { const x = H.days[i]; if(!x || x.off) return false; const o = hm(x.open), c = hm(x.close);
+    return c > o ? mins >= o && mins < c : mins >= o; };
+  const prev = (wd + 6) % 7, px = H.days[prev];
+  const fromYesterday = px && !px.off && hm(px.close) <= hm(px.open) && now < hm(px.close);
+  const open = inDay(wd, now) || !!fromYesterday;
+  let next = null;
+  for(let k = 0; k < 8 && !open; k++){ const i = (wd + k) % 7, x = H.days[i]; if(x && !x.off && (k > 0 || hm(x.open) > now)){ next = (k === 0 ? 'Bugün ' : k === 1 ? 'Yarın ' : J.DAYS[i] + ' ') + x.open; break; } }
+  return {open, next};
+};
+J.hoursTick = function(b, canOpen){
+  if(!b || !b.hours || !b.hours.auto || b.suspended) return;
+  const st = J.hoursState(b); if(!st) return;
+  if(st.open && !b.open && canOpen){ DB.patch('businesses', b.id, {open:true, seen_at:J.now()}); J.log(`${b.name} çalışma saatine göre otomatik açıldı.`); return 'acildi'; }
+  if(!st.open && b.open){ DB.patch('businesses', b.id, {open:false}); J.log(`${b.name} çalışma saatine göre otomatik kapandı.`); return 'kapandi'; }
+};
+// İşletmeye özel sipariş linki ve QR (vendor/qrcode)
+J.bizLink = b => location.origin + location.pathname.replace(/[^/]*$/, '') + 'musteri.html?i=' + encodeURIComponent(b.id);
+J.qrSvg = function(text, cell){
+  if(typeof qrcode !== 'function') return '';
+  const q = qrcode(0, 'M'); q.addData(text); q.make();
+  return q.createSvgTag({cellSize: cell || 5, margin: 2, scalable: true});
+};
 /* ===================== SORUN BİLDİRİMİ VE İADE =====================
    Müşteri teslimden sonra 24 saat içinde eksik/yanlış/bozuk ürünü (isteğe bağlı fotoğrafla) bildirir, siparişte bir kez.
    İşletme onaylarsa iade işletme payından yapılır. Reddederse müşteri yönetime itiraz edebilir; son kararı yönetim verir. */

@@ -49,7 +49,7 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | `supabase/kurulum.sql` | Veritabanı: tek tablo `kayitlar(tbl, id, data jsonb)`, `jg_patch` (alan bazlı güncelleme) ve `jg_claim` (tek seferlik iş) fonksiyonları, realtime |
 | `simulasyon.html` | Bağımsız tek dosyalık simülasyon (sürüm 2); kendi kodunu içerir |
 | `sw.js`, `manifest-*.webmanifest`, `ikonlar/` | PWA |
-| `vendor/` | Leaflet 1.9.4 ve supabase-js 2 yerel kopyaları |
+| `vendor/` | Leaflet 1.9.4, supabase-js 2 ve qrcode-generator (MIT) yerel kopyaları |
 | `sablonlar/` | Excel ürün şablonu |
 | `.nojekyll` | GitHub Pages'in dosyaları işlemesini kapatır; silme |
 | `uygulama/` | Android uygulaması (Capacitor 8). Canlı siteyi `server.url` ile açar. Yerel kod: `uygulama/android/app/src/main/java/com/jetgel/app/` (`JetgelNativePlugin`, `JetgelService`, `Bildirim`, `MainActivity`) |

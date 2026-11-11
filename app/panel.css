@@ -117,3 +117,17 @@ body.p #map{margin:12px 14px 0;border-radius:16px;height:260px}
 .p-rev{border-top:1px solid #f0ede7;padding-top:8px;margin-top:8px}
 .p-rev b{color:#f5a524;letter-spacing:1px}
 .p-card svg.ic.fill{fill:#f5a524;stroke:#f5a524}
+.p-hours{margin-top:10px}
+.p-hours .hr{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #f0ede7;font-size:13.5px}
+.p-hours .hr .dn{width:84px;font-weight:650}
+.p-hours .hr input[type=time]{width:auto;padding:6px 6px;font-size:13.5px;flex:1;min-width:0}
+.p-hours .hr label{display:flex;align-items:center;gap:4px;white-space:nowrap}
+.p-hours .hr label input{width:auto}
+.p-hours .hr.off .dn{color:var(--muted)}
+.p-link{display:flex;gap:8px;margin-top:10px}
+.p-link input{font-size:12.5px}
+.p-qr{display:grid;place-items:center;margin-top:12px}
+.p-qr svg{width:200px;height:200px}
+.p-photo{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
+.p-photo img{width:72px;height:72px;border-radius:12px;object-fit:cover}
+.p-menu .it .th{width:46px;height:46px;border-radius:10px;object-fit:cover;flex:none}

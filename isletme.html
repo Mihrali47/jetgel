@@ -19,6 +19,7 @@
 <script src="app/core.js"></script>
 <script src="app/ikon.js"></script>
 <script src="app/excel.js"></script>
+<script src="vendor/qrcode/qrcode.js"></script>
 </head>
 <body class="p">
 <div class="wrap"><div id="panel"></div></div>
@@ -128,7 +129,8 @@ function importCard(b){
 }
 function editForm(cats){
   return `<div class="p-edit"><input id="ed-name" placeholder="Ürün adı" value="${J.esc(ed.name)}"><div class="p-grid2" style="margin-top:8px"><input id="ed-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(ed.price)}"><input id="ed-cat" placeholder="Kategori" list="cats" value="${J.esc(ed.cat)}"></div>
-    <input id="ed-desc" placeholder="Kısa açıklama" style="margin-top:8px" value="${J.esc(ed.desc)}"><input id="ed-opts" placeholder="Seçenekler: Ekstra kaşar=40 | Soğansız=0" style="margin-top:8px" value="${J.esc(ed.opts)}">
+    <input id="ed-desc" placeholder="Kısa açıklama" style="margin-top:8px" value="${J.esc(ed.desc)}">
+    <div class="p-photo">${ed.photo?`<img src="${ed.photo}" alt=""><button class="sm sec" data-a="ed-photo-del">Fotoğrafı kaldır</button>`:`<label class="btnlink" style="cursor:pointer">${J.ic('camera',15)} Ürün fotoğrafı ekle<input type="file" accept="image/*" id="ed-photo" style="display:none"></label><span class="tiny muted">Fotoğraflı ürünler daha çok satar.</span>`}</div><input id="ed-opts" placeholder="Seçenekler: Ekstra kaşar=40 | Soğansız=0" style="margin-top:8px" value="${J.esc(ed.opts)}">
     <div class="p-act"><button class="brand" data-a="ed-save">Kaydet</button><button class="sec" data-a="ed-cancel">Vazgeç</button></div><button class="ghost wide" style="color:var(--bad)" data-a="ed-del">Ürünü sil</button></div>`;
 }
 function tabMenu(b){
@@ -140,7 +142,7 @@ function tabMenu(b){
     h += `<div class="p-sec">${J.esc(c)}<span class="n">${menu.filter(m => (m.cat||'Diğer')===c).length}</span></div><div class="p-card p-menu">`;
     menu.filter(m => (m.cat||'Diğer')===c).forEach(m => { const on = m.available !== false;
       if(ed && ed.id === m.id){ h += editForm(cats); return; }
-      h += `<div class="it ${on?'':'off'}"><div class="tx"><b>${J.esc(m.name)}</b><span class="small muted">${J.tl(m.price)}${m.desc?' · '+J.esc(m.desc):''}</span>${(m.opts||[]).length?`<span class="p-opts">${m.opts.map(J.optLabel).map(J.esc).join(' · ')}</span>`:''}</div><button class="p-ed" data-a="edit-item" data-id="${m.id}" aria-label="Düzenle">${J.ic('notebook-pen',16)}</button><button class="p-tog ${on?'on':''}" data-a="avail" data-id="${m.id}" aria-label="${on?'Satışta':'Tükendi'}" title="${on?'Satışta':'Tükendi'}"></button></div>`; });
+      h += `<div class="it ${on?'':'off'}">${m.photo?`<img class="th" src="${m.photo}" alt="">`:''}<div class="tx"><b>${J.esc(m.name)}</b><span class="small muted">${J.tl(m.price)}${m.desc?' · '+J.esc(m.desc):''}</span>${(m.opts||[]).length?`<span class="p-opts">${m.opts.map(J.optLabel).map(J.esc).join(' · ')}</span>`:''}</div><button class="p-ed" data-a="edit-item" data-id="${m.id}" aria-label="Düzenle">${J.ic('notebook-pen',16)}</button><button class="p-tog ${on?'on':''}" data-a="avail" data-id="${m.id}" aria-label="${on?'Satışta':'Tükendi'}" title="${on?'Satışta':'Tükendi'}"></button></div>`; });
     h += `</div>`;
   });
   h += `<div class="p-sec">Ürün ekle</div><div class="p-card"><input id="new-name" placeholder="Ürün adı" value="${J.esc(nf.name)}"><div class="p-grid2" style="margin-top:8px"><input id="new-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(nf.price)}"><input id="new-cat" placeholder="Kategori" list="cats" value="${J.esc(nf.cat)}"></div><datalist id="cats">${cats.map(c => `<option value="${J.esc(c)}">`).join('')}</datalist><input id="new-desc" placeholder="Kısa açıklama (isteğe bağlı)" style="margin-top:8px" value="${J.esc(nf.desc)}"><input id="new-opts" placeholder="Seçenekler (isteğe bağlı): Ekstra kaşar=40 | Soğansız=0" style="margin-top:8px" value="${J.esc(nf.opts)}"><button class="brand wide" style="margin-top:10px" data-a="add-item">Ekle</button><div class="note">Seçenekleri <b>|</b> ile ayırın; eşittirden sonra ek ücret yazın (ücretsizse 0, indirimse eksi: Yarım porsiyon=-100).</div></div>`;
@@ -162,8 +164,20 @@ function tabEarn(b){
   return h;
 }
 
+function hoursCard(b){
+  const H = b.hours || J.defaultHours(), st = J.hoursState(Object.assign({}, b, {hours:H}));
+  return `<div class="p-sec">Çalışma saatleri</div><div class="p-card"><div class="row"><label for="h-auto" style="flex:1"><b>Saatlere göre otomatik aç/kapat</b><div class="tiny muted">Açıkken dükkân bu saatlerde kendiliğinden sipariş almaya açılır ve kapanır. Bu cihazın açık olması gerekir.</div></label><input type="checkbox" id="h-auto" data-a="h-auto" style="width:22px;height:22px" ${H.auto?'checked':''}></div>
+    <div class="p-hours">${H.days.map((d,i) => `<div class="hr ${d.off?'off':''}"><span class="dn">${J.DAYS[i]}</span><input type="time" id="h-o-${i}" value="${J.esc(d.open)}" ${d.off?'disabled':''}><span>–</span><input type="time" id="h-c-${i}" value="${J.esc(d.close)}" ${d.off?'disabled':''}><label class="tiny"><input type="checkbox" id="h-off-${i}" ${d.off?'checked':''}> Kapalı</label></div>`).join('')}</div>
+    <div class="tiny muted" style="margin-top:8px">${st && st.open ? 'Şu an çalışma saatindesiniz.' : st && st.next ? 'Sonraki açılış: ' + J.esc(st.next) : ''} Kapanış açılıştan erkense gece yarısını geçer (ör. 18:00–02:00).</div></div>`;
+}
+function linkCard(b){
+  const url = J.bizLink(b);
+  return `<div class="p-sec">Size özel sipariş linki</div><div class="p-card"><div class="small muted">Instagram'a, WhatsApp'a ya da dükkân camına koyun. Linke tıklayan müşteri doğrudan sizin menünüze gelir. Ücret yine aynı sabit ücret.</div>
+    <div class="p-link"><input id="biz-link" readonly value="${J.esc(url)}"><button class="sm brand" data-a="copy-link">Kopyala</button></div>
+    <div class="p-qr">${J.qrSvg(url, 6)}</div><div class="p-act"><button class="sec" data-a="qr-print">${J.ic('download',15)} QR'ı yazdır</button>${navigator.share?`<button class="sec" data-a="share-link">Paylaş</button>`:''}</div></div>`;
+}
 function tabSettings(b){
-  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}
+  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}${hoursCard(b)}${linkCard(b)}
     <div class="p-card"><div class="row"><label for="free" style="flex:1"><b>Müşterinin teslimat payını ben üstleneyim</b><div class="tiny muted">Müşteri "Ücretsiz teslimat" görür; ${J.tl(J.FEE.custDel+J.FEE.custPlat)} sizin payınıza eklenir.</div></label><input type="checkbox" id="free" data-a="free" style="width:22px;height:22px" ${b.free_delivery?'checked':''}></div></div>
     <div class="p-card"><div class="row"><label for="racej" style="flex:1"><b>Mahalle Başkanı kampanyasına katıl</b><div class="tiny muted">Haftanın en çok sipariş veren müşterisi ${J.tl(J.COUPON.total)} kupon kazanır. Başkan sizden sipariş verirse, siparişte en fazla ${J.tl(J.COUPON.per)} indirim sizin payınızdan düşer. Katılan işletmeler müşterilere "Kupon geçerli" etiketiyle gösterilir. İstediğiniz zaman ayrılabilirsiniz.</div></label><input type="checkbox" id="racej" data-a="racej" style="width:22px;height:22px" ${b.race_join?'checked':''}></div></div>
     <div class="p-card small"><h3>Ücretler</h3><div class="row"><span>Sipariş başına sabit ücret</span><b>${J.tl(J.FEE.bizDel+J.FEE.bizPlat)}</b></div><div class="row"><span>Yüzde komisyon</span><b>Yok</b></div><div class="row"><span>Aidat</span><b>Yok</b></div></div>
@@ -234,14 +248,19 @@ document.addEventListener('click', async e => {
     nf = {name:'', price:'', cat:'', desc:'', opts:''};
     J.toast('Ürün eklendi.');
   }
-  if(a==='edit-item' && b){ const m = b.menu.find(x => x.id === id); if(m) ed = {id, name:m.name, price:String(m.price), cat:m.cat||'', desc:m.desc||'', opts:J.optsText(m.opts)}; }
+  if(a==='edit-item' && b){ const m = b.menu.find(x => x.id === id); if(m) ed = {id, name:m.name, price:String(m.price), cat:m.cat||'', desc:m.desc||'', opts:J.optsText(m.opts), photo:m.photo||null}; }
   if(a==='ed-cancel'){ ed = null; }
+  if(a==='ed-photo-del' && ed){ ed.photo = null; }
+  if(a==='h-auto' && b){ const H = b.hours || J.defaultHours(); DB.patch('businesses', b.id, {hours: Object.assign({}, H, {auto: el.checked})}); J.toast(el.checked ? 'Otomatik açma/kapama açık.' : 'Otomatik açma/kapama kapalı.'); }
+  if(a==='copy-link'){ const i = document.getElementById('biz-link'); i.select(); try{ navigator.clipboard.writeText(i.value); }catch(e){ document.execCommand('copy'); } J.toast('Link kopyalandı.'); return; }
+  if(a==='share-link' && b){ navigator.share({title:b.name, text:b.name + ' · Jetgel ile sipariş ver', url:J.bizLink(b)}).catch(()=>{}); return; }
+  if(a==='qr-print' && b){ const w = window.open('', '_blank'); if(w){ w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${J.esc(b.name)} QR</title><style>body{font-family:system-ui,sans-serif;text-align:center;padding:40px}svg{width:320px;height:320px}h1{margin:0 0 6px}p{color:#555}</style></head><body><h1>${J.esc(b.name)}</h1><p>Telefonunun kamerasıyla okut, sipariş ver</p>${J.qrSvg(J.bizLink(b), 8)}<p style="font-size:13px">${J.esc(J.bizLink(b))}</p><script>setTimeout(()=>print(),300)<\/script></body></html>`); w.document.close(); } return; }
   if(a==='ed-del' && b && ed){ DB.patch('businesses', b.id, {menu: b.menu.filter(m => m.id !== ed.id)}); ed = null; J.toast('Ürün silindi.'); }
   if(a==='ed-save' && b && ed){
     const price = parseFloat(String(ed.price).replace(',','.'));
     if(!ed.name.trim() || !(price > 0)){ J.toast('Ürün adı ve fiyat girin.'); return; }
     const opts = J.parseOpts(ed.opts);
-    DB.patch('businesses', b.id, {menu: b.menu.map(m => { if(m.id !== ed.id) return m; const n = Object.assign({}, m, {name:ed.name.trim(), price, cat:ed.cat.trim(), desc:ed.desc.trim()}); if(opts.length) n.opts = opts; else delete n.opts; return n; })});
+    DB.patch('businesses', b.id, {menu: b.menu.map(m => { if(m.id !== ed.id) return m; const n = Object.assign({}, m, {name:ed.name.trim(), price, cat:ed.cat.trim(), desc:ed.desc.trim()}); if(opts.length) n.opts = opts; else delete n.opts; if(ed.photo) n.photo = ed.photo; else delete n.photo; return n; })});
     ed = null; J.toast('Ürün güncellendi.');
   }
   if(a==='imp-cancel'){ imp = null; }
@@ -264,6 +283,10 @@ setInterval(() => {
   if(b){
     // Sinyal: işletmenin cihazı açık ve çalışıyor
     if(t - lastBeat > 20000){ lastBeat = t; DB.patch('businesses', b.id, {seen_at:t}); }
+    // Çalışma saatlerine göre otomatik aç/kapat (bildirim izni yoksa açmaz)
+    const hr = J.hoursTick(b, notifOk());
+    if(hr === 'acildi'){ J._wantAwake = true; J.keepAwake(true); J.nativeService(true, {baslik:`Jetgel İşletme · ${b.name}`, metin:'Açık: yeni siparişler ve aramalar için hazır', konum:false}); }
+    if(hr === 'kapandi'){ J._wantAwake = false; J.keepAwake(false); J.nativeService(false); }
     // Kendi siparişleri için kurye atama
     J.orders().filter(o => o.rid===b.id && o.state==='aktif').forEach(J.dispatchTick);
     J.callTick(me());
@@ -271,6 +294,17 @@ setInterval(() => {
   J.strikeTick(); J.live(); renderCall();
 }, 1000);
 document.addEventListener('change', async e => {
+  const b0 = biz();
+  const hm = /^h-(o|c|off)-(\d)$/.exec(e.target.id||'');
+  if(hm && b0){
+    const H = JSON.parse(JSON.stringify(b0.hours || J.defaultHours())), d = H.days[+hm[2]];
+    if(hm[1]==='o') d.open = e.target.value; if(hm[1]==='c') d.close = e.target.value; if(hm[1]==='off') d.off = e.target.checked;
+    DB.patch('businesses', b0.id, {hours:H}); return;
+  }
+  if(e.target.id === 'ed-photo' && e.target.files && e.target.files[0] && ed){
+    try{ ed.photo = await J.compressImage(e.target.files[0], 480, 0.6); render(); }catch(err){ J.toast(err.message); }
+    return;
+  }
   if(e.target.id !== 'imp-file' || !e.target.files || !e.target.files.length) return;
   const f = e.target.files[0];
   if(f.size > 5*1024*1024){ J.toast('Dosya çok büyük (en fazla 5 MB).'); return; }

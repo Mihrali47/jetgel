@@ -30,6 +30,15 @@
 <div id="call"></div>
 <script>
 const {DB} = J;
+// İşletmeye özel link: musteri.html?i=<işletme> → giriş sonrası doğrudan menü
+(function(){ const i = new URLSearchParams(location.search).get('i'); if(i){ J.store.set('acilacak_isletme', i); history.replaceState(null, '', location.pathname); } })();
+function openPendingBiz(){
+  const id = J.store.get('acilacak_isletme', null); if(!id || !prof) return false;
+  J.store.set('acilacak_isletme', null);
+  const b = DB.get('businesses', id); if(!b){ return false; }
+  if(!(b.open && J.isAlive(b) && !b.suspended)){ const st = J.hoursState(b); J.toast(`${b.name} şu an kapalı${st && st.next ? ' · açılış ' + st.next : ''}.`); return false; }
+  curBiz = id; cart = {}; view = 'menu'; return true;
+}
 let cuid = J.store.get('musteri_id', null);
 let prof = null;                       // giriş yapan müşterinin kaydı (DB 'customers')
 const loadProf = () => { prof = cuid ? (DB.get('customers', cuid) || null) : null; return prof; };
@@ -120,7 +129,7 @@ function restCard(x){
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
     <div class="m-cover" style="${cover(b)}"><div class="bdg">${b.id===starId?`<span class="tag star">${J.ic('award',13)} Mahallenin Yıldızı</span>`:''}${fee}${b.race_join && J.activeCoupon(prof)?'<span class="tag star">Kupon geçerli</span>':''}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
-    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
+    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span>${!open && J.hoursState(b) && J.hoursState(b).next?`<span style="color:var(--brand);font-weight:700">${J.ic('clock',13)} Açılış: ${J.esc(J.hoursState(b).next)}</span>`:''}</div></div></div>`;
 }
 function raceCard(){
   const mh = J.mahalleOf(prof); if(!mh) return '';
@@ -214,7 +223,7 @@ function renderMenu(){
     menu.filter(m => (m.cat||'Menü')===c).forEach(m => {
       const av = m.available !== false, hasOpt = (m.opts||[]).length > 0, n = hasOpt ? inCart(m.id) : (cart[m.id] || 0);
       const ctl = !av ? '' : hasOpt ? `<button class="m-add" data-a="opt-open" data-id="${m.id}" aria-label="Seçenekleri gör">+</button>${n?`<span class="m-badge">${n}</span>`:''}` : n ? `<div class="m-step"><button data-a="dec" data-id="${m.id}" aria-label="Azalt">−</button><b>${n}</b><button data-a="inc" data-id="${m.id}" aria-label="Arttır">+</button></div>` : `<button class="m-add" data-a="inc" data-id="${m.id}" aria-label="Sepete ekle">+</button>`;
-      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}${hasOpt&&av?' <span class="m-optnote">· seçenekli</span>':''}</div></div><div class="act">${ctl}</div></div>`;
+      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}${hasOpt&&av?' <span class="m-optnote">· seçenekli</span>':''}</div></div>${m.photo?`<div class="mph"><img src="${m.photo}" alt="${J.esc(m.name)}" loading="lazy"><div class="act">${ctl}</div></div>`:`<div class="act">${ctl}</div>`}</div>`;
     });
   });
   if(!menu.length) h += `<div class="m-empty"><div>${J.ic('list',36)}</div>Bu işletme henüz ürün eklemedi.</div>`;
@@ -446,7 +455,7 @@ document.addEventListener('click', e => {
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
     const r = J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
-    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); setTimeout(() => { loadProf(); applyDraftAddr(); autoLocate(); }, 300); }
+    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); loadProf(); openPendingBiz(); setTimeout(() => { loadProf(); applyDraftAddr(); autoLocate(); }, 300); }
   }
   if(a==='register'){
     const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
@@ -563,7 +572,7 @@ const typing = () => { const a = document.activeElement; return a && (a.id==='o-
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 DB.init().then(() => {
-  if(loadProf()){ view = 'liste'; applyDraftAddr(); setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
+  if(loadProf()){ view = 'liste'; applyDraftAddr(); openPendingBiz(); setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
   render();
 });
 J.registerSW();
