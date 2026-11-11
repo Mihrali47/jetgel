@@ -64,7 +64,10 @@ const soft = b => `background:${J.bizColor(b)}22`;
 const cartCount = () => Object.values(cart).reduce((s,n) => s+n, 0);
 function cartSum(b){ return J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0); }
 const inCart = mid => Object.keys(cart).filter(k => k === mid || k.startsWith(mid+'|')).reduce((t,k) => t + cart[k], 0);
-let sheet = null;
+let sheet = null, sort = 'onerilen', addrPick = false;
+const SORTS = [['onerilen','Önerilen'],['yakin','En yakın'],['hizli','En hızlı'],['puan','Puan']];
+const favs = () => (prof && prof.favs) || [];
+const addrs = () => (prof && prof.addresses) || [];
 let rate = {id:null, biz:0, cour:0, note:''};   // değerlendirme taslağı
 const stars = (act, val) => `<div class="m-stars">${[1,2,3,4,5].map(v => `<button class="${v<=val?'on':''}" data-a="${act}" data-v="${v}" aria-label="${v} yıldız">${J.ic('star',30, v<=val?'fill':'')}</button>`).join('')}</div>`;   // seçenek penceresi: {mid, sel:[], qty}
 function fees(b){ return b.free_delivery ? {del:0, plat:0} : {del:J.FEE.custDel, plat:J.FEE.custPlat}; }
@@ -99,20 +102,21 @@ function renderProfile(){
     <button class="sec wide" style="margin-top:10px" data-a="gps">${J.ic('locate-fixed',16)} Konumumu bul</button>
     <div class="tiny muted" style="margin-top:6px">Seçili nokta: ${(draft.src||draft.loc_src)==='gps'?'telefonunun konumu':(draft.src||draft.loc_src)==='harita'?'haritada seçtiğin nokta':'kayıtlı nokta'}</div>
     <label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">
+    <label class="f">Adres adı</label><div class="m-sort" style="margin:0">${['Ev','İş','Diğer'].map(l => `<button class="${(draft.addr_label||'Ev')===l?'on':''}" data-a="lbl" data-v="${l}">${l}</button>`).join('')}</div>
     <label class="f" for="p-note">Adres tarifi</label><input id="p-note" value="${J.esc(draft.note)}" placeholder="Örn. Moda Cd. No 12, kat 3, zil: Yılmaz">
     <button class="brand wide" style="margin-top:14px" data-a="save-prof">Kaydet</button></div></div>`;
 }
 
 /* ---------- Keşfet ---------- */
 function header(){
-  return `<div class="m-head"><div class="r1"><button class="m-addr" data-a="edit-prof"><span class="ic">${J.ic('map-pin',18)}</span><span class="t"><span class="k">Teslimat adresi</span><span class="v">${J.esc(prof.note || 'Konumun')}</span></span></button><span class="mode">${J.modeBadge()}</span></div>
+  return `<div class="m-head"><div class="r1"><button class="m-addr" data-a="addr-pick"><span class="ic">${J.ic('map-pin',18)}</span><span class="t"><span class="k">${J.esc(prof.addr_label || 'Teslimat adresi')}</span><span class="v">${J.esc(prof.note || 'Konumun')}</span></span></button><span class="mode">${J.modeBadge()}</span></div>
     <div class="m-search"><input id="q" type="search" placeholder="Restoran, market ya da ürün ara" value="${J.esc(q)}" autocomplete="off"></div></div>`;
 }
 function restCard(x){
   const {b, d, open} = x;
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
-    <div class="m-cover" style="${cover(b)}"><div class="bdg">${fee}<span class="tag dark">Komisyonsuz</span></div><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
+    <div class="m-cover" style="${cover(b)}"><div class="bdg">${fee}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
     <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
 }
 function renderList(){
@@ -138,10 +142,18 @@ function renderList(){
     list.forEach(x => (x.b.menu||[]).forEach(m => { if(J.norm(m.name).includes(qn) && m.available!==false) prods.push({x, m}); }));
     list = list.filter(x => J.norm(x.b.name+' '+(x.b.kind||'')).includes(qn) || (x.b.menu||[]).some(m => J.norm(m.name).includes(qn)));
   }
-  list.sort((a,b) => (b.open-a.open) || a.d-b.d);
+  const eta = b => J.etaRange(b, prof)[0], rt = b => { const r = J.ratingOf(b); return r.n >= J.RATING_MIN_N ? r.avg : 0; };
+  const cmp = {yakin:(a,b) => a.d-b.d, hizli:(a,b) => eta(a.b)-eta(b.b) || a.d-b.d, puan:(a,b) => rt(b.b)-rt(a.b) || a.d-b.d,
+    onerilen:(a,b) => (favs().includes(b.b.id)-favs().includes(a.b.id)) || (rt(b.b)>=4.5)-(rt(a.b)>=4.5) || a.d-b.d}[sort] || ((a,b) => a.d-b.d);
+  list.sort((a,b) => (b.open-a.open) || cmp(a,b));
   if(qn && prods.length) h += `<div class="m-h"><b>Ürünler</b><span>${prods.length} sonuç</span></div><div class="m-prodres">${prods.slice(0,8).map(({x,m}) => `<div class="m-line" ${x.open?`data-a="open-biz" data-id="${x.b.id}"`:''} style="cursor:pointer"><div class="tx"><b>${J.esc(m.name)}</b><div class="tiny muted">${J.esc(x.b.name)}${x.open?'':' · kapalı'}</div></div><b class="money">${J.tl(m.price)}</b></div>`).join('')}</div>`;
+  if(!qn){
+    const fl = J.businesses().filter(b => favs().includes(b.id) && !b.suspended);
+    if(fl.length && group==='Hepsi') h += `<div class="m-h"><b>Favorilerin</b><span>${fl.length}</span></div><div class="m-row">${fl.map(b => `<div class="m-favc ${bizOpen(b)?'':'off'}" ${bizOpen(b)?`data-a="open-biz" data-id="${b.id}"`:''}><span class="ph" style="${soft(b)}">${J.bizIcon(b,22)}</span><b>${J.esc(b.name)}</b><span class="tiny muted">${bizOpen(b)?etaTxt(b):'Kapalı'}</span></div>`).join('')}</div>`;
+  }
   const openN = list.filter(x => x.open).length;
   h += `<div class="m-h"><b>${qn?'Restoranlar ve marketler':group==='Hepsi'?'Yakınındakiler':group}</b><span>${openN} açık</span></div>`;
+  h += `<div class="m-sort">${SORTS.map(([k,l]) => `<button class="${sort===k?'on':''}" data-a="sort" data-id="${k}">${l}</button>`).join('')}</div>`;
   if(!list.length) h += `<div class="m-empty"><div>${J.ic('search',36)}</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
   list.forEach(x => h += restCard(x));
   if(J.notifPermission()==='default') h += `<div class="m-box small"><b>${J.ic('bell',15)} Kurye kapına gelince haber verelim mi?</b><div class="muted">Zorunlu değil.</div><div class="btns"><button class="sm brand" data-a="notif">Bildirimleri aç</button></div></div>`;
@@ -280,8 +292,9 @@ function renderAccount(){
   return topBar('Hesabım') + `<div class="m-body">
     <div class="m-box m-person"><div class="av">${J.ic('user',22)}</div><div class="tx"><b>${J.esc(prof.name)}</b><span class="small muted">${J.esc(prof.login ? prof.login.user : '')}</span></div></div>
     <div class="m-list">
-      <button data-a="edit-prof"><i>${J.ic('map-pin',19)}</i><span class="x">Teslimat adresi<div class="tiny muted">${J.esc(prof.note||'Konumun')}</div></span>›</button>
+      <button data-a="addr-acc"><i>${J.ic('map-pin',19)}</i><span class="x">Adreslerim<div class="tiny muted">${J.esc(prof.note||'Konumun')}</div></span>›</button>
       <button data-a="tab" data-id="siparisler"><i>${J.ic('receipt',19)}</i><span class="x">Siparişlerim</span>›</button>
+      <button data-a="tab" data-id="liste"><i>${J.ic('heart',19)}</i><span class="x">Favorilerim</span><span class="small muted">${favs().length}</span></button>
       <button data-a="notif" ${n==='granted'||n==='unsupported'?'disabled':''}><i>${J.ic('bell',19)}</i><span class="x">Bildirimler</span><span class="small muted">${n==='granted'?'Açık':n==='denied'?'Engelli':n==='unsupported'?'Desteklenmiyor':'Kapalı'}</span></button>
     </div>
     <div class="m-box small"><h3>Jetgel nasıl çalışır?</h3>
@@ -321,6 +334,12 @@ function renderSheet(){
       <div class="opts">${(m.opts||[]).map((o,i) => `<button class="${sheet.sel.includes(i)?'on':''}" data-a="opt-tog" data-i="${i}"><span class="ck">${sheet.sel.includes(i)?J.ic('check',14):''}</span><span class="nm">${J.esc(o.name)}</span><span class="pr">${o.price>0?'+'+J.tl(o.price):o.price<0?'−'+J.tl(-o.price):''}</span></button>`).join('')}</div>
       <div class="ft"><div class="m-qty"><button data-a="opt-dec">−</button><b>${sheet.qty}</b><button data-a="opt-inc">+</button></div><button class="brand" data-a="opt-add" style="flex:1;display:flex;justify-content:space-between"><span>Sepete ekle</span><span class="money">${J.tl(unit*sheet.qty)}</span></button></div></div>`;
   }
+  if(addrPick && prof && view === 'liste'){
+    const list = addrs().length ? addrs() : [{id:'_cur', label:prof.addr_label||'Ev', note:prof.note, lat:prof.lat, lng:prof.lng}];
+    h = `<div class="m-sheet-bg" data-a="addr-close"></div><div class="m-sheet" role="dialog" aria-label="Teslimat adresi"><div class="hd"><div><b>Teslimat adresi</b><div class="small muted">Siparişin nereye gelsin?</div></div><button class="x" data-a="addr-close" aria-label="Kapat">${J.ic('x',20)}</button></div>
+      <div class="addrs">${list.map(ad => { const cur = (prof.addr_id ? prof.addr_id === ad.id : ad.id === '_cur'); return `<div class="m-addrrow ${cur?'on':''}"><button class="pick" data-a="${ad.id==='_cur'?'addr-close':'addr-use'}" data-id="${ad.id}"><span class="ai">${J.ic(ad.label==='İş'?'store':ad.label==='Ev'?'house':'map-pin',18)}</span><span class="tx"><b>${J.esc(ad.label)}</b><span class="tiny muted">${J.esc(ad.note||'Adres tarifi yok')}</span></span>${cur?J.ic('check',18):''}</button>${ad.id!=='_cur'?`<button class="ed" data-a="addr-edit" data-id="${ad.id}" aria-label="Düzenle">${J.ic('notebook-pen',16)}</button>`:''}${ad.id!=='_cur'&&!cur?`<button class="ed" data-a="addr-del" data-id="${ad.id}" aria-label="Sil">${J.ic('x',16)}</button>`:''}</div>`; }).join('')}</div>
+      <div class="ft"><button class="brand wide" data-a="addr-new">${J.ic('plus',16)} Yeni adres ekle</button></div></div>`;
+  }
   const el = document.getElementById('msheet'); if(el.innerHTML !== h) el.innerHTML = h;
 }
 function render(){
@@ -352,7 +371,12 @@ document.addEventListener('click', e => {
   if(a==='save-prof'){
     draft.name = document.getElementById('p-name').value.trim(); draft.note = document.getElementById('p-note').value.trim();
     if(!draft.name){ J.toast('Lütfen adını yaz.'); return; }
-    DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng, loc_src: draft.src==='gps'||draft.src==='harita' ? draft.src : (prof && prof.loc_src) || null});
+    const label = draft.addr_label || 'Ev', aid = draft.addr_id || J.uid('a');
+    // İlk kez adres defteri kullanılıyorsa mevcut adresi de "Ev" olarak sakla
+    let base = addrs();
+    if(!base.length && prof && !draft.addr_id && prof.lat != null && (prof.note || prof.loc_src)) base = [{id:J.uid('a'), label:prof.addr_label||'Ev', note:prof.note||'', lat:prof.lat, lng:prof.lng}];
+    const book = base.filter(x => x.id !== aid).concat([{id:aid, label, note:draft.note, lat:draft.lat, lng:draft.lng}]).slice(-8);
+    DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng, addr_label:label, addr_id:aid, addresses:book, loc_src: draft.src==='gps'||draft.src==='harita' ? draft.src : (prof && prof.loc_src) || null});
     if(draft.src==='gps') J.autoRelocate(draft);
     draft = null; go('liste');
   }
@@ -405,6 +429,16 @@ document.addEventListener('click', e => {
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
   }
   if(a==='prio'){ prio = !prio; }
+  if(a==='sort') sort = id;
+  if(a==='fav' && prof){ const f = favs(); DB.patch('customers', prof.id, {favs: f.includes(id) ? f.filter(x => x !== id) : f.concat([id])}); J.toast(f.includes(id) ? 'Favorilerden çıkarıldı.' : 'Favorilere eklendi.'); }
+  if(a==='addr-pick'){ addrPick = true; }
+  if(a==='addr-acc'){ addrPick = true; go('liste'); }
+  if(a==='addr-close'){ addrPick = false; }
+  if(a==='addr-use' && prof){ const ad = addrs().find(x => x.id === id); if(ad){ DB.patch('customers', prof.id, {lat:ad.lat, lng:ad.lng, note:ad.note, addr_label:ad.label, addr_id:ad.id, loc_src:'harita'}); J.toast(ad.label + ' adresi seçildi.'); } addrPick = false; }
+  if(a==='addr-new'){ addrPick = false; draft = Object.assign({}, prof, {addr_id:null, addr_label:'Ev', note:''}); go('profil'); render(); return; }
+  if(a==='addr-edit'){ addrPick = false; const ad = addrs().find(x => x.id === id); draft = Object.assign({}, prof, ad ? {lat:ad.lat, lng:ad.lng, note:ad.note, addr_label:ad.label, addr_id:ad.id} : {}); go('profil'); render(); return; }
+  if(a==='addr-del' && prof){ DB.patch('customers', prof.id, {addresses: addrs().filter(x => x.id !== id)}); }
+  if(a==='lbl' && draft){ draft.addr_label = el.dataset.v; }
   if(a==='rate-b') rate.biz = +el.dataset.v;
   if(a==='rate-c') rate.cour = +el.dataset.v;
   if(a==='rate-send'){ const o = DB.get('orders', trackId); J.rateOrder(o, rate).then(ok => { if(ok) J.toast('Teşekkürler, değerlendirmen kaydedildi.'); render(); }); return; }
