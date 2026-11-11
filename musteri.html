@@ -295,7 +295,7 @@ function renderTrack(){
   if(o.state==='aktif'){
     let mins = null;
     if(o.del==='kapida'){ v = 'Kuryen kapında'; sub = 'Teslimat kodunu kuryeye söyle'; }
-    else if(o.del==='yolda' && c){ mins = ride(c); sub = 'Kuryen siparişini getiriyor'; }
+    else if(o.del==='yolda' && c){ mins = ride(c); const ag = Math.round((J.now() - (c.pos_t || c.seen_at || 0))/1000); sub = 'Kuryen siparişini getiriyor · ' + (ag <= 15 ? '<span class="m-live">canlı konum</span>' : ag < 120 ? `konum ${ag} sn önce` : `konum ${Math.round(ag/60)} dk önce`); }
     else if(J.isHeld(o)){ v = 'Planlı sipariş'; sub = J.fmtSched(o.sched_at) + ' teslim edilecek'; }
     else if(o.prep==='bekliyor'){ v = 'Onay bekleniyor'; sub = 'İşletme siparişini birazdan onaylayacak'; }
     else { const left = o.prep==='hazirlaniyor' ? Math.max(0, Math.ceil((o.prep_until - J.now())/J.minMs())) : 0; mins = left + (b ? ride(b) : 10); sub = o.prep==='hazir' ? 'Siparişin hazır, kurye alacak' : o.del==='araniyor' ? 'Hazırlanıyor · yakındaki kuryeler aranıyor' : 'Siparişin hazırlanıyor'; }

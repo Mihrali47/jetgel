@@ -302,7 +302,7 @@ J.courierHasOffer = cid => J.orders().some(o => o.state==='aktif' && o.offer && 
 J.candidates = function(o){
   const b = DB.get('businesses', o.rid); if(!b) return [];
   return J.couriers()
-    .filter(c => c.online && c.notif_ok && J.isAlive(c) && !c.busy && !(o.tried||[]).includes(c.id) && !J.courierHasOffer(c.id) && J.dist(c,b) <= J.RADIUS_M)
+    .filter(c => c.approved !== false && c.online && c.notif_ok && J.isAlive(c) && !c.busy && !(o.tried||[]).includes(c.id) && !J.courierHasOffer(c.id) && J.dist(c,b) <= J.RADIUS_M)
     .sort((a,b2) => J.dist(a,b) - J.dist(b2,b));
 };
 J.dispatchTick = function(o){
@@ -455,6 +455,7 @@ J.orderAlerts = function(){
     if(o.prep !== 'bekliyor' && !o.courier_id && o.accepted_at && t - o.accepted_at > m('kurye')) out.push({o, kind:'kurye', txt:`${age(o.accepted_at)} dk'dır kurye bulunamadı`});
     if(o.prep === 'hazirlaniyor' && o.prep_until && t > o.prep_until + m('hazirlik')) out.push({o, kind:'hazirlik', txt:`Hazırlık süresi ${age(o.prep_until)} dk aşıldı`});
     if(o.del === 'yolda' && o.picked_at && t - o.picked_at > m('yol') + J.D(Math.round(J.dist(DB.get('businesses', o.rid)||o.customer, o.customer)*1.3/J.M_PER_MIN)*60000)) out.push({o, kind:'yol', txt:`Kurye ${age(o.picked_at)} dk'dır yolda`});
+    if(o.incident && !o.incident.resolved) out.push({o, kind:'olay', txt:`Kurye bildirdi: ${J.INCIDENTS[o.incident.kind]}`});
     if(o.del === 'kapida' && o.arrived_at && t - o.arrived_at > m('kapi')) out.push({o, kind:'kapi', txt:`Kurye ${age(o.arrived_at)} dk'dır kapıda bekliyor`});
   });
   return out;
@@ -477,6 +478,26 @@ J.adminCancel = function(o, reason){
   if(o.discount && o.coupon_id) J.couponReturn(o);
   J.log(`#${o.no} yönetim tarafından iptal edildi (${reason||'-'}). ${refunded ? 'Ödemenin tamamı iade edildi.' : 'Blokaj kaldırıldı.'}`, 'bad', o.id);
   return true;
+};
+// Kuryenin sahada bildirdiği sorunlar. Paket alınmadıysa sipariş başka kuryeye geçer; alındıysa yönetim devralır.
+J.INCIDENTS = {kaza:'Kaza geçirdim', ariza:'Aracım arızalandı', paket:'Paket hasarlı / uygunsuz', adres:'Adres bulunamıyor', guvenlik:'Güvenlik sorunu', diger:'Başka bir sorun'};
+J.reportIncident = function(c, o, kind){
+  if(!o || o.state !== 'aktif' || !J.INCIDENTS[kind]) return null;
+  const picked = ['yolda','kapida'].includes(o.del);
+  DB.patch('orders', o.id, {incident:{kind, t:J.now(), cid:c.id, cname:c.name, lat:c.lat, lng:c.lng, picked}});
+  J.log(`#${o.no} kurye ${c.name} sorun bildirdi: ${J.INCIDENTS[kind]}.`, 'bad', o.id);
+  // Paket henüz alınmadıysa ve sorun kuryeyi durduruyorsa sipariş yeni kuryeye aktarılır
+  if(!picked && ['kaza','ariza','guvenlik'].includes(kind)){ J.adminReassign(Object.assign({}, o, {courier_id:c.id})); return 'aktarildi'; }
+  return 'bildirildi';
+};
+J.resolveIncident = o => { if(o && o.incident) DB.patch('orders', o.id, {incident:Object.assign({}, o.incident, {resolved:J.now()})}); };
+// Teklifteki toplam süre: işletmeye varış + kalan hazırlık beklemesi + müşteriye sürüş (dakika)
+J.tripEstimate = function(from, o){
+  const b = DB.get('businesses', o.rid); if(!b) return null;
+  const toB = J.dist(from, b)*1.3/J.M_PER_MIN, ride = J.dist(b, o.customer)*1.3/J.M_PER_MIN;
+  const prepLeft = o.prep === 'hazirlaniyor' && o.prep_until ? Math.max(0, (o.prep_until - J.now())/J.minMs()) : 0;
+  const wait = Math.max(0, prepLeft - toB);
+  return {toB:Math.round(toB), wait:Math.round(wait), ride:Math.round(ride), total:Math.max(3, Math.round(toB + wait + ride + 2)), km:(J.dist(from, b) + J.dist(b, o.customer))/1000};
 };
 J.custPaid = o => o.subtotal + (o.fees ? o.fees.cust : 0) + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0);
 /* ===================== SORUN BİLDİRİMİ VE İADE =====================
@@ -853,7 +874,18 @@ J.Map = function(el, opts){
     const sig = html+'|'+cls+'|'+label;
     let m = api.markers[key];
     if(!m){ m = L.marker([p.lat,p.lng], {icon:icon(html,cls,label), zIndexOffset: cls && cls.includes('cour') ? 1000 : 0}).addTo(map); m._sig = sig; api.markers[key] = m; }
-    else { m.setLatLng([p.lat,p.lng]); if(m._sig !== sig){ m.setIcon(icon(html,cls,label)); m._sig = sig; } }
+    else {
+      if(m._sig !== sig){ m.setIcon(icon(html,cls,label)); m._sig = sig; }
+      const from = m.getLatLng(), to = L.latLng(p.lat, p.lng), d = from.distanceTo(to);
+      // Kurye işaretçisi yeni konuma zıplamaz, kayarak gider (canlı takip hissi)
+      if(cls && cls.includes('cour') && d > 0.5 && d < 800 && !document.hidden){
+        if(m._anim) cancelAnimationFrame(m._anim);
+        const t0 = performance.now(), dur = Math.min(1800, 300 + d*25);
+        const step = now => { const k = Math.min(1, (now - t0)/dur), e = k*(2-k);
+          m.setLatLng([from.lat + (to.lat-from.lat)*e, from.lng + (to.lng-from.lng)*e]); m._anim = k < 1 ? requestAnimationFrame(step) : null; };
+        m._anim = requestAnimationFrame(step);
+      } else if(d > 0) m.setLatLng(to);
+    }
   };
   api.remove = key => { if(api.markers[key]){ map.removeLayer(api.markers[key]); delete api.markers[key]; } };
   api.keep = keys => Object.keys(api.markers).forEach(k => { if(!keys.includes(k)) api.remove(k); });

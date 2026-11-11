@@ -61,7 +61,7 @@ function renderGenel(){
   const saved = paid.reduce((s,o) => s + Math.max(0, o.shares.business - o.subtotal*(1-J.COMMISSION_RATE)), 0);
   const onlineC = J.couriers().filter(c => c.online && J.isAlive(c)).length, openB = J.businesses().filter(b => b.open && J.isAlive(b)).length;
   let h = `<div class="p-card" style="margin-bottom:12px"><div class="row"><span>Toplam tamamlanan: <b>${paid.length}</b> · Platform geliri: <b>${J.tl(paid.length*J.FEE.platform)}</b></span><span class="small" style="color:var(--ok)">İşletmelerin komisyonsuz sistemle fazladan kazancı: <b>${J.tl(saved)}</b></span></div></div>`;
-  const al = J.orderAlerts(), AK = {onay:'clock', kurye:'bike', hazirlik:'utensils', yol:'navigation', kapi:'door-open'};
+  const al = J.orderAlerts(), AK = {olay:'triangle-alert', onay:'clock', kurye:'bike', hazirlik:'utensils', yol:'navigation', kapi:'door-open'};
   const grp = []; al.forEach(x => { const g = grp.find(y => y.o.id === x.o.id); if(g) g.list.push(x); else grp.push({o:x.o, list:[x]}); });
   h += `<div class="card"><h3>Dikkat gerektirenler ${grp.length ? `<span class="cnt">${grp.length}</span>` : ''}</h3>${grp.length ? grp.map(({o,list}) => `<div class="p-card adm-al"><div class="row"><b>${J.ic(AK[list[0].kind]||'triangle-alert',16)} #${J.esc(o.no)} · ${J.esc(o.rname)}</b><span>${list.map(x => `<span class="pill bad">${J.esc(x.txt)}</span>`).join(' ')}</span></div><div class="tiny muted">Müşteri: ${J.esc(o.customer.name)}${o.cname ? ' · Kurye: ' + J.esc(o.cname) : ''}</div>${actBtns(o)}</div>`).join('') : '<div class="small muted">Şu an geciken ya da takılan sipariş yok.</div>'}</div>`;
   h += `<div class="card"><h3>Siparişler ve ödeme</h3>${os.length ? `<div style="overflow-x:auto"><table><tr><th>#</th><th>İşletme</th><th>Müşteri</th><th>Durum</th><th>Ödeme</th><th>Kurye</th><th>Saat</th><th></th></tr>${os.slice(0,30).map(o => `<tr><td>${J.esc(o.no)}</td><td>${J.esc(o.rname)}</td><td>${J.esc(o.customer.name)}</td><td>${stTxt(o)}</td><td>${J.payPill(o)}${o.shares?`<div class="tiny muted">İşletme ${J.tl(o.shares.business)} · Kurye ${J.tl(o.shares.courier)} · Platform ${J.tl(o.shares.platform)}${o.shares.refund?` · İade ${J.tl(o.shares.refund)}`:''}</div>`:''}</td><td>${J.esc(o.cname||'—')}</td><td class="tiny">${new Date(o.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td><td>${o.state==='aktif' ? `<button class="sec sm" data-a="cx-open" data-id="${o.id}">Müdahale</button>` : o.cancel_reason ? `<span class="tiny muted">${J.esc(o.cancel_reason)}</span>` : ''}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Henüz sipariş yok.</div>'}</div>`;
@@ -69,9 +69,10 @@ function renderGenel(){
 }
 const CX_REASONS = ['İşletme yanıt vermiyor', 'Kurye bulunamadı', 'Müşteri talebi', 'Ürün tükendi', 'Teknik sorun'];
 function actBtns(o){
+  const incBtn = o.incident && !o.incident.resolved ? `<button class="ok" data-a="inc-ok" data-id="${o.id}">Kurye sorunu çözüldü</button>` : '';
   if(cx === o.id) return `<div class="p-act" style="flex-wrap:wrap"><select id="cx-rsn">${CX_REASONS.map(r => `<option>${r}</option>`).join('')}</select><button class="no" data-a="cx-yes" data-id="${o.id}">İptal et ve ${o.pay==='bekletiliyor' ? 'parayı iade et' : 'blokajı kaldır'}</button><button class="sec" data-a="cx-close">Vazgeç</button></div>`;
   const canRe = o.prep !== 'bekliyor' && !['yolda','kapida'].includes(o.del) && (o.courier_id || o.offer);
-  return `<div class="p-act">${canRe ? `<button class="sec" data-a="re-assign" data-id="${o.id}">${J.ic('refresh-cw',14)} Kuryeyi değiştir</button>` : ''}<button class="no" data-a="cx-open" data-id="${o.id}">${J.ic('ban',14)} Siparişi iptal et</button></div>`;
+  return `<div class="p-act" style="flex-wrap:wrap">${incBtn}${canRe ? `<button class="sec" data-a="re-assign" data-id="${o.id}">${J.ic('refresh-cw',14)} Kuryeyi değiştir</button>` : ''}<button class="no" data-a="cx-open" data-id="${o.id}">${J.ic('ban',14)} Siparişi iptal et</button></div>`;
 }
 function finRows(){
   const from = J.now() - fin*86400000;
@@ -162,12 +163,19 @@ function header(){
   return `<div class="p-head"><div class="adm-in"><div class="r1"><div class="av">${J.ic('layout-dashboard',24)}</div><div class="tx"><div class="nm">Jetgel Yönetim</div><div class="sb">Canlı durum ${J.modeBadge()}</div></div><a class="p-sw" href="./" style="text-decoration:none">${J.ic('house',16)} Site</a></div>
     <div class="p-stats adm-stats"><div><b>${act}</b><span>Aktif sipariş</span></div><div><b>${today.length}</b><span>Bugün teslim</span></div><div><b>${openB}</b><span>Açık işletme</span></div><div><b>${onC}</b><span>Çevrimiçi kurye</span></div><div><b>${J.tl(today.length*J.FEE.platform)}</b><span>Bugün platform</span></div></div></div></div>`;
 }
-const pendingApps = () => DB.rows('applications').filter(a => a.state==='beklemede');
+const pendingApps = () => DB.rows('applications').filter(a => a.state==='beklemede').concat(J.couriers().filter(c => c.approved === false && !c.rejected));
 const pendingClaims = () => J.orders().filter(o => o.claim && o.claim.state==='itiraz');
+function courierApps(){
+  const cs = J.couriers().filter(c => c.approved === false).sort((a,b) => (b.applied_t||0)-(a.applied_t||0));
+  if(!cs.length) return '';
+  return `<div class="p-sec">Kurye başvuruları</div>` + cs.map(c => `<div class="p-card"><div class="row"><div><b style="font-size:16px">${J.ic('bike',16)} ${J.esc(c.name)}</b><div class="small muted">Kullanıcı adı: ${J.esc(c.login ? c.login.user : '')} · ${c.applied_t ? new Date(c.applied_t).toLocaleString('tr-TR') : ''}</div></div>${c.rejected ? '<span class="pill bad">Reddedildi</span>' : '<span class="pill warn">Bekliyor</span>'}</div>
+    ${c.rejected ? '' : `<div class="tiny muted" style="margin-top:6px">Onaydan önce kimlik, ehliyet ve araç belgelerini kontrol edin.</div><input id="rsn-${c.id}" placeholder="Red sebebi (kurye görür)" style="margin-top:8px"><div class="p-act"><button class="ok" data-a="cour-ok" data-id="${c.id}">Onayla</button><button class="sec" data-a="cour-no" data-id="${c.id}">Reddet</button></div>`}</div>`).join('') + `<div class="p-sec">İşletme başvuruları</div>`;
+}
 function renderApps(){
   const all = DB.rows('applications').sort((a,b) => (b.t||0)-(a.t||0));
+  if(!all.length) return courierApps() + `<div class="p-empty">${J.ic('store',34)}<div>Henüz işletme başvurusu yok. Başvurular işletme uygulamasındaki "Başvuru yap" formundan gelir.</div></div>`;
   if(!all.length) return `<div class="p-empty">${J.ic('store',34)}<div>Henüz işletme başvurusu yok. Başvurular işletme uygulamasındaki "Başvuru yap" formundan gelir.</div></div>`;
-  return all.map(a => `<div class="p-card"><div class="row"><div><b style="font-size:16px">${J.esc(a.name)}</b><div class="small muted">${J.esc(a.kind||'Diğer')} · ${J.esc(a.owner)} · ${J.esc(a.phone)}</div><div class="small">${J.esc(a.addr)}</div><div class="tiny muted">${new Date(a.t).toLocaleString('tr-TR')} · giriş: <b>${J.esc(a.login.user)}</b>${a.lat?` · <a href="https://www.google.com/maps?q=${a.lat},${a.lng}" target="_blank" rel="noopener">konumu gör</a>`:''}</div></div><span class="pill ${a.state==='beklemede'?'warn':a.state==='onaylandi'?'ok':'bad'}">${{beklemede:'Bekliyor',onaylandi:'Onaylandı',reddedildi:'Reddedildi'}[a.state]}</span></div>
+  return courierApps() + all.map(a => `<div class="p-card"><div class="row"><div><b style="font-size:16px">${J.esc(a.name)}</b><div class="small muted">${J.esc(a.kind||'Diğer')} · ${J.esc(a.owner)} · ${J.esc(a.phone)}</div><div class="small">${J.esc(a.addr)}</div><div class="tiny muted">${new Date(a.t).toLocaleString('tr-TR')} · giriş: <b>${J.esc(a.login.user)}</b>${a.lat?` · <a href="https://www.google.com/maps?q=${a.lat},${a.lng}" target="_blank" rel="noopener">konumu gör</a>`:''}</div></div><span class="pill ${a.state==='beklemede'?'warn':a.state==='onaylandi'?'ok':'bad'}">${{beklemede:'Bekliyor',onaylandi:'Onaylandı',reddedildi:'Reddedildi'}[a.state]}</span></div>
     ${a.state==='beklemede'?`<input id="rsn-${a.id}" placeholder="Red sebebi (reddederseniz işletme görür)" style="margin-top:10px"><div class="p-act"><button class="ok" data-a="app-ok" data-id="${a.id}">Onayla ve işletmeyi aç</button><button class="sec" data-a="app-no" data-id="${a.id}">Reddet</button></div>`:a.reason?`<div class="tiny muted" style="margin-top:6px">Sebep: ${J.esc(a.reason)}</div>`:''}</div>`).join('');
 }
 function renderClaims(){
@@ -208,6 +216,9 @@ function readForm(){ if(!edit) return; const g = id => document.getElementById(i
 
 document.addEventListener('click', async e => {
   { const el0 = e.target.closest('[data-a]'); if(el0){ const a0 = el0.dataset.a, id0 = el0.dataset.id;
+    if(a0==='cour-ok'){ const c = DB.get('couriers', id0); DB.patch('couriers', id0, {approved:true, approved_t:J.now()}); J.log(`Kurye onaylandı: ${c ? c.name : ''}.`, 'ok'); render(); return; }
+    if(a0==='cour-no'){ const inp = document.getElementById('rsn-'+id0); DB.patch('couriers', id0, {rejected:true, reject_reason:(inp && inp.value.trim()) || ''}); J.log('Bir kurye başvurusu reddedildi.', 'warn'); render(); return; }
+    if(a0==='inc-ok'){ J.resolveIncident(DB.get('orders', id0)); render(); return; }
     if(a0==='clm-ok' || a0==='clm-no'){ J.decideClaim(DB.get('orders', id0), a0==='clm-ok', 'yonetim'); render(); return; }
     if(a0==='app-ok'){ const ap = DB.get('applications', id0); if(ap && ap.state==='beklemede'){
         if(J.findLogin('businesses', ap.login.user) || J.findLogin('couriers', ap.login.user) || J.findLogin('customers', ap.login.user)){ J.toast('Bu kullanıcı adı artık başkasında; başvuruyu reddedip yeniden başvurmasını isteyin.'); return; }

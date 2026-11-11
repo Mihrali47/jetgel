@@ -53,7 +53,7 @@ function startGps(){
   gpsErr = 'Konum bekleniyor…';
   gpsWatch = navigator.geolocation.watchPosition(p => {
     pos = {lat:p.coords.latitude, lng:p.coords.longitude}; gpsAcc = Math.round(p.coords.accuracy); gpsErr = '';
-    J.store.set('kurye_pos', pos); J.autoRelocate(pos);
+    J.store.set('kurye_pos', pos); J.autoRelocate(pos); sendPos();
   }, err => { gpsErr = 'Konum alınamadı: ' + (err.code===1 ? 'izin verilmedi. Adres çubuğundaki kilit simgesinden konuma izin verin.' : err.message); render(); },
   {enableHighAccuracy:true, maximumAge:3000, timeout:20000});
 }
@@ -64,7 +64,18 @@ function nativeServis(){
   J.nativeService(on, {baslik:'Jetgel Kurye · çevrimiçi', metin: locMode==='gps' ? 'Konum paylaşılıyor · teklifler ve aramalar için hazır' : 'Teklifler ve aramalar için hazır', konum: locMode==='gps'});
 }
 if(J.native){
-  try{ J.native.addListener('location', l => { if(locMode !== 'gps' || !l) return; pos = {lat:l.lat, lng:l.lng}; gpsAcc = l.acc ? Math.round(l.acc) : gpsAcc; gpsErr = ''; J.store.set('kurye_pos', pos); J.autoRelocate(pos); }); }catch(e){}
+  try{ J.native.addListener('location', l => { if(locMode !== 'gps' || !l) return; pos = {lat:l.lat, lng:l.lng}; gpsAcc = l.acc ? Math.round(l.acc) : gpsAcc; gpsErr = ''; J.store.set('kurye_pos', pos); J.autoRelocate(pos); sendPos(); }); }catch(e){}
+}
+// Konumu paylaş: hareket varsa saniyede bir, duruyorsa 20 sn'de bir sinyal
+function sendPos(){
+  const c = cour(); if(!c || !pos) return;
+  const o = myJob(), t = J.now();
+  if(!(c.online || o)) return;
+  const moved = !lastSent || J.dist(pos, lastSent) > 3;
+  if(t - lastBeat < (moved ? 1000 : 20000)) return;
+  lastBeat = t; lastSent = Object.assign({}, pos);
+  DB.patch('couriers', c.id, {lat:pos.lat, lng:pos.lng, seen_at:t, pos_t:t});
+  J.store.set('kurye_pos', pos);
 }
 function stopGps(){ if(gpsWatch != null){ navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; } }
 function target(o){
@@ -93,14 +104,14 @@ async function ensureRoute(o){
 let loginErr = '', regErr = '', showReg = false;
 function renderProfile(){
   const top = `<div class="p-login"><div class="logo">Jet<span>gel</span> Kurye</div><div class="small muted">Teslimat başına sabit ${J.tl(J.FEE.courier)}, ceza puanı yok.</div></div><div class="p-body">`;
-  if(showReg) return top + `<div class="card"><h3>Yeni kurye kaydı</h3><div class="small muted">Prototip için ad, kullanıcı adı ve şifre yeterli. Gerçek sistemde kimlik ve belge onayı istenecek.</div>
+  if(showReg) return top + `<div class="card"><h3>Kurye başvurusu</h3><div class="small muted">Başvurun yönetim tarafından incelenir; kimlik, ehliyet ve araç belgelerin kontrol edildikten sonra hesabın açılır.</div>
     <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ali">
     <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
     <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
-    <button class="brand wide" style="margin-top:12px" data-a="create">Kaydol</button><div class="tiny muted" style="text-align:center;margin-top:8px">Devam ederek <a href="yasal.html#sartlar" target="_blank">kullanım koşullarını</a> ve <a href="yasal.html#kvkk" target="_blank">aydınlatma metnini</a> kabul etmiş olursun.</div><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
-  return top + J.loginForm({title:'Kurye girişi', sub:'', ph:'1test', hint:'1test … 9test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Kaydol</button></div>`;
+    <button class="brand wide" style="margin-top:12px" data-a="create">Başvur</button><div class="tiny muted" style="text-align:center;margin-top:8px">Devam ederek <a href="yasal.html#sartlar" target="_blank">kullanım koşullarını</a> ve <a href="yasal.html#kvkk" target="_blank">aydınlatma metnini</a> kabul etmiş olursun.</div><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
+  return top + J.loginForm({title:'Kurye girişi', sub:'', ph:'1test', hint:'1test … 9test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Kurye olmak mı istiyorsun? Başvur</button></div>`;
 }
 function renderGate(){
   const p = J.notifPermission();
@@ -122,6 +133,14 @@ function header(c){
     <button class="p-sw ${c.online?'on':''}" data-a="online" ${(!notifOk()||o)?'disabled':''}><span class="k"></span>${c.online?'Açık':'Kapalı'}</button></div>
     <div class="p-stats"><div><b>${J.tl(tdSum)}</b><span>Bugün kazanç</span></div><div><b>${td.length}</b><span>Bugün teslimat</span></div><div><b>${J.tl(c.earnings||0)}</b><span>Toplam</span></div></div></div>`;
 }
+let inc = false;   // sorun bildirme penceresi açık mı
+function incidentBox(o){
+  if(o.incident && !o.incident.resolved) return `<div class="card warn small">${J.ic('triangle-alert',15)} <b>${J.esc(J.INCIDENTS[o.incident.kind])}</b> bildirdin. Destek ekibi durumu takip ediyor${o.incident.kind==='kaza' ? '; acil yardım gerekiyorsa önce <a href="tel:112">112</a>\'yi ara' : ''}.</div>`;
+  if(!inc) return `<button class="p-sos" data-a="inc-open">${J.ic('triangle-alert',15)} Sorun bildir</button>`;
+  return `<div class="p-rj"><b>Ne oldu?</b><div class="tiny muted">Destek ekibine anında iletilir. Paketi henüz almadıysan kaza, arıza ve güvenlik durumlarında sipariş başka kuryeye aktarılır.</div>
+    <div class="p-chips">${Object.entries(J.INCIDENTS).map(([k,t]) => `<button data-a="inc" data-id="${k}">${J.esc(t)}</button>`).join('')}</div>
+    <div class="tiny" style="margin-top:8px">Yaralanma varsa önce <a href="tel:112"><b>112</b></a>'yi ara.</div><button class="sec wide" style="margin-top:8px" data-a="inc-close">Vazgeç</button></div>`;
+}
 function tabTask(c){
   const offer = myOffer(), o = myJob();
   let h = '';
@@ -129,6 +148,7 @@ function tabTask(c){
     const b = DB.get('businesses', offer.rid);
     h += `<div class="p-offer"><div class="top2"><span>${J.ic('bell',17)} Yeni teslimat teklifi</span><span class="cd" data-live="down" data-end="${offer.offer.exp}">…</span></div><div class="amt">${J.tl(J.FEE.courier + (offer.tip||0) + (offer.prio_fee||0))}</div><div class="small" style="opacity:.9">${[`Sabit ${J.tl(J.FEE.courier)}`].concat(offer.priority?[`hızlı teslimat +${J.tl(offer.prio_fee)}`]:[]).concat(offer.tip?[`bahşiş +${J.tl(offer.tip)}`]:[]).join(' · ')}${offer.priority?'<div style="margin-top:6px;font-weight:800">Hızlı teslimat: lütfen öncelik ver</div>':''}</div>
       <div class="leg">${J.ic('store',17)}<span>Alış: <b>${J.esc(offer.rname)}</b></span><b>${J.fmtDist(J.dist(pos,b))}</b></div><div class="leg">${J.ic('house',17)}<span>Teslim: <b>${J.esc(offer.customer.name)}</b></span><b>${J.fmtDist(J.dist(b,offer.customer))}</b></div>
+      ${(() => { const e = J.tripEstimate(pos, offer); return e ? `<div class="trip">${J.ic('clock',15)} <span>Toplam yaklaşık <b>${e.total} dk</b> · ${e.km.toFixed(1).replace('.',',')} km</span><span class="tiny">${e.toB} dk varış${e.wait ? ` + ${e.wait} dk bekleme` : ''} + ${e.ride} dk teslim</span></div>` : ''; })()}
       <div class="acts"><button class="ok" data-a="accept">Kabul et</button><button class="sec" data-a="decline">Reddet</button></div><small>Reddetmenin cezası yok. 30 sn içinde kabul etmezsen teklif sıradaki kuryeye geçer.</small></div>`;
     J.notify('teklif-'+offer.id, 'Yeni teslimat teklifi', `${offer.rname} → ${J.tl(J.FEE.courier + (offer.tip||0) + (offer.prio_fee||0))}${offer.priority?' · hızlı':''}`);
   }
@@ -142,10 +162,11 @@ function tabTask(c){
       <div class="p-steps">${['İşletmeye git','Paketi al','Müşteriye git','Kodla teslim'].map((t,i) => `<div class="${done[i]?'done':i===now?'now':''}">${t}</div>`).join('')}</div>
       <div class="p-dest"><div class="av">${toBiz?J.bizIcon(b,22):J.ic('house',22)}</div><div class="tx"><b>${toBiz?J.esc(o.rname):J.esc(o.customer.name)}</b><span>${toBiz?'Paketi alacağın yer':J.esc(o.customer.note||'Teslimat adresi')} · ${J.fmtDist(J.dist(pos, tg||b))}</span></div><button class="p-ic" data-a="call" data-to="${toBiz?'isletme':'musteri'}" aria-label="Ara">${J.ic('phone',17)}</button></div>
       ${tg?`<div class="btns"><a class="btnlink" href="${J.gmaps(tg)}" target="_blank" rel="noopener">${J.ic('navigation',15)} Google Haritalar'da aç</a><button class="sm sec" data-a="call" data-to="${toBiz?'musteri':'isletme'}">${J.ic('phone',15)} ${toBiz?'Müşteri':'İşletme'}</button></div>`:''}`;
+    h += incidentBox(o);
     if(o.del==='isletmeye') h += `<div class="note">İşletmeye gidiyorsun. ${J.ARRIVE_M} m yaklaşınca varış kendiliğinden kaydedilir.</div>`;
     if(o.del==='isletmede') h += o.prep==='hazir'
       ? `<button class="ok p-big" data-a="pickup">${J.ic('package',18)} Paketi aldım (fiş kontrol edildi)</button>`
-      : `<div class="p-timer"><span>⏳ Sipariş hazırlanıyor</span><span>${o.prep_until?`<b data-live="mdown" data-end="${o.prep_until}">…</b> dk`:''}</span></div><div class="tiny muted" style="margin-top:6px">İşletme "hazır" deyince buton açılır.</div>`;
+      : `<div class="p-timer"><span>${J.ic('hourglass',16)} Sipariş hazırlanıyor</span><span>${o.prep_until?`<b data-live="mdown" data-end="${o.prep_until}">…</b> dk`:''}</span></div><div class="tiny muted" style="margin-top:6px">İşletme "hazır" deyince buton açılır.</div>`;
     if(o.del==='yolda') h += `<div class="note">Müşteriye gidiyorsun. Adrese ${J.ARRIVE_M} m yaklaşınca kapıda olduğun kaydedilir.</div>`;
     if(o.del==='kapida'){
       const called = J.calls().some(k => k.order_id===o.id && k.from.type==='kurye' && k.from.id===cid && k.start >= (o.arrived_at||0));
@@ -185,6 +206,7 @@ function renderMain(){
   const c = cour();
   if(!c){ cid = null; J.store.set('kurye_id', null); return renderProfile(); }
   let h = `<div class="p-body">`;
+  if(c.approved === false){ return h + `<div class="p-empty" style="margin-top:30px">${c.rejected ? `${J.ic('ban',34)}<b>Başvurun onaylanmadı</b><div class="small">${J.esc(c.reject_reason || 'Ayrıntı için bizimle iletişime geç.')}</div>` : `${J.ic('hourglass',34)}<b>Başvurun inceleniyor</b><div class="small">Hesabın yönetim tarafından onaylanınca teslimat almaya başlayabilirsin. Bu ekran onay gelince kendiliğinden açılır.</div>`}<button class="sec" style="margin-top:14px" data-a="switch">Çıkış yap</button></div></div>`; }
   if(!notifOk()) h += renderGate();
   if(myOffer() && tab !== 'gorev') tab = 'gorev';
   h += ({gorev:tabTask, kazanc:tabEarn, hesap:tabAccount}[tab] || tabTask)(c);
@@ -252,10 +274,14 @@ document.addEventListener('click', async e => {
     if(pass.length < 6){ regErr = 'Şifre en az 6 karakter olmalı.'; render(); return; }
     if(J.userTaken(user)){ regErr = 'Bu kullanıcı adı alınmış.'; render(); return; }
     cid = J.uid('c'); J.store.set('kurye_id', cid); showReg = false;
-    DB.put('couriers', cid, {name, online:false, notif_ok:false, lat:pos.lat, lng:pos.lng, busy:null, earnings:0, jobs:[], seen_at:J.now(), login: await J.makeLogin(user, pass)});
-    J.log(`Yeni kurye kaydoldu: ${name}.`);
+    DB.put('couriers', cid, {name, approved:false, applied_t:J.now(), online:false, notif_ok:false, lat:pos.lat, lng:pos.lng, busy:null, earnings:0, jobs:[], seen_at:J.now(), login: await J.makeLogin(user, pass)});
+    J.log(`Yeni kurye başvurusu: ${name}. Yönetim onayı bekleniyor.`, 'warn');
   }
   if(a==='notif'){ const p = await J.askNotif(); if(p==='granted' && c) DB.patch('couriers', c.id, {notif_ok:true}); }
+  if(a==='inc-open') inc = true;
+  if(a==='inc-close') inc = false;
+  if(a==='inc' && c){ const r = J.reportIncident(c, myJob(), el.dataset.id); inc = false; if(r==='aktarildi'){ DB.patch('couriers', c.id, {online:false}); J.toast('Bildirildi. Sipariş başka kuryeye aktarıldı; seni çevrimdışı yaptık. Geçmiş olsun.'); } else if(r) J.toast('Destek ekibine bildirildi.'); }
+  if(a==='online' && c && c.approved === false){ J.toast('Hesabın yönetim onayı bekliyor.'); return; }
   if(a==='online' && c){
     const online = !c.online;
     DB.patch('couriers', c.id, {online, notif_ok:true, seen_at:J.now(), lat:pos.lat, lng:pos.lng});
@@ -309,13 +335,8 @@ setInterval(() => {
       if(reached && o.del==='isletmeye'){ J.arriveBusiness(o); J.beep('ok'); }
       if(reached && o.del==='yolda'){ J.arriveCustomer(o); J.beep('ok'); }
     }
-    // Konum ve sinyal gönder
-    const moved = !lastSent || J.dist(pos, lastSent) > 8;
-    if((c.online || o) && (t - lastBeat > (moved ? 2000 : 20000))){
-      lastBeat = t; lastSent = Object.assign({}, pos);
-      DB.patch('couriers', c.id, {lat:pos.lat, lng:pos.lng, seen_at:t});
-      J.store.set('kurye_pos', pos);
-    }
+    // Konum ve sinyal gönder (GPS her yeni konum verdiğinde de anında gönderilir)
+    sendPos();
     J.callTick(me());
     // Navigasyon kutusunu ve haritayı her saniye güncelle
     if(o && tab==='gorev'){ document.getElementById('navbox').innerHTML = navHtml(o); drawMap(); }

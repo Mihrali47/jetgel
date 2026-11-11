@@ -172,3 +172,7 @@ button.sm{padding:5px 9px;font-size:12px}
   body.p.board .wrap{max-width:1280px}
   body.p.board .p-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:0 16px;align-items:start}
 }
+/* kurye: teklif süresi ve sorun bildirme */
+.p-offer .trip{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;background:rgba(255,255,255,.14);border-radius:12px;padding:9px 12px;margin-top:10px;font-size:13.5px}
+.p-offer .trip .tiny{flex-basis:100%;opacity:.8;padding-left:23px}
+.p-sos{display:flex;align-items:center;gap:6px;margin:10px 0 0 auto;background:none;color:var(--bad);font-size:12.5px;font-weight:700;padding:6px 4px}

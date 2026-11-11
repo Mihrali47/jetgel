@@ -111,6 +111,10 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Minimum tutar | İşletme isterse minimum sepet tutarı koyar (teslimat ve hizmet bedeli hariç). |
 | Çift sipariş koruması | Onay düğmesine art arda basılırsa tek sipariş oluşur; aynı sepet 1 dk içinde tekrar gönderilirse mevcut siparişe yönlendirilir. |
 | Bağlantı uyarısı | İnternet giderse tüm ekranlarda üstte uyarı çıkar, gelince veriler tazelenir. |
+| Kurye teklifi | Teklifte toplam tahmini süre ve mesafe görünür: işletmeye varış + kalan hazırlık beklemesi + müşteriye sürüş. |
+| Kurye sorun bildirimi | Görev ekranında "Sorun bildir": kaza, arıza, paket hasarlı, adres bulunamıyor, güvenlik, diğer. Yönetime uyarı düşer. Paket alınmadıysa kaza/arıza/güvenlikte sipariş başka kuryeye geçer ve kurye çevrimdışı olur. |
+| Kurye başvurusu | Yeni kurye hesabı yönetim onayıyla açılır; onaya kadar teklif alamaz. Onay/red Yönetim > Başvurular'dan. |
+| Canlı konum | Kurye hareket ederken konumu saniyede bir paylaşılır (GPS yeni konum verdiği anda). Müşteri ve işletme haritasında kurye işaretçisi zıplamadan kayarak ilerler; müşteri "canlı konum" ya da son konumun yaşını görür. Tarayıcıda ekran kapanınca konum durur; kesintisiz takip için Android uygulaması kullanılmalı. |
 | Finans | Yönetimde günlük/7/30 günlük tablo: müşteriden tahsil, işletme, kurye (bahşiş ve hızlı teslimat dahil), platform, indirim, iade. CSV olarak indirilebilir. |
 
 ## Dosyalar
