@@ -85,7 +85,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Teslimat onayı | Serbest "teslim edildi" butonu yoktur. Müşterinin 4 haneli kodu veya QR'ı gerekir. Kod yalnızca kurye adrese 100 m'den yakınken kabul edilir. İsteğe bağlı teslimat fotoğrafı. Paket alımı fiş QR'ı ile doğrulanır. |
 | Müşteriye ulaşılamazsa | Kurye uygulamadan arar ve 10 dk bekler; sonra sipariş kapanır. İade yapılmaz; kurye ve işletme ücretini alır. |
 | Arama | İnternet üzerinden, numaralar gizli, yalnızca aktif sipariş varken. Her arama kayıt altındadır. |
-| İkaz | İşletme müşteri aramasını açmaz ve 5 dk içinde geri aramazsa ikaz alır; müşteriye siparişin %15'i işletme payından iade edilir. 3 ikazda askıya alma. İkazlar 90 günde silinir, itiraz hakkı vardır. |
+| İkaz | İşletme müşteri aramasını açmaz ve 5 dk içinde geri aramazsa ikaz alır; müşteriye siparişin %15'i işletme payından iade edilir. 3 ikazda askıya alma. İkazlar 90 günde silinir, itiraz hakkı vardır. Bir siparişte en fazla bir ikaz ve bir iade uygulanır (tekrarlanan aramalar cezayı katlamaz). |
 | Bildirim | Kurye ve işletme için zorunlu, müşteri için önerilir. |
 
 ## Dosyalar

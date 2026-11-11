@@ -276,8 +276,9 @@ J.strikeTick = async function(){
     if(back){ DB.patch('calls', k.id, {cb_done:true}); J.log(`${J.partyName(k.to)} müşteriyi geri aradı, ikaz yok.`, 'ok', k.order_id); continue; }
     if(t < (k.cb_deadline||Infinity)) continue;
     const o = DB.get('orders', k.order_id), b = DB.get('businesses', k.to.id);
-    if(!o || !b){ DB.patch('calls', k.id, {cb_done:true}); continue; }
+    if(!o || !b || o.strike_applied){ DB.patch('calls', k.id, {cb_done:true}); continue; }
     if(!(await DB.claim('calls', k.id, 'cezalandi'))) continue;
+    if(!(await DB.claim('orders', o.id, 'strike_applied'))) continue;   // siparişte en fazla bir ikaz
     const refund = Math.round(o.subtotal * J.PENALTY_RATE);
     DB.patch('orders', o.id, {refund:(o.refund||0)+refund});
     const strikes = (b.strikes||[]).concat([{id:J.uid('i'), t, order_id:o.id, no:o.no, refund, appeal:null, removed:false}]);
@@ -593,6 +594,10 @@ J.endCall = call => {
 function afterMiss(call){
   J.log(`${J.partyName(call.to)} aramayı ${call.state==='cevapsiz'?'açmadı':'reddetti'}.`, 'bad', call.order_id);
   if(call.to.type==='isletme' && call.from.type==='musteri'){
+    // Bir siparişte tek ceza: zaten bekleyen bir geri arama süresi varsa ya da sipariş daha önce cezalandıysa yeni süre başlamaz
+    const o = DB.get('orders', call.order_id);
+    const pending = J.pendingCallbacks(call.to.id).some(k => k.id !== call.id && k.order_id === call.order_id && k.cb_deadline);
+    if(pending || (o && o.strike_applied)){ DB.patch('calls', call.id, {cb_done:true}); return; }
     DB.patch('calls', call.id, {cb_deadline: J.now() + J.D(J.CALLBACK_MS)});
     J.log(`${J.partyName(call.to)}: süre içinde müşteriyi geri aramazsa ikaz alacak.`, 'warn', call.order_id);
   }

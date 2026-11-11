@@ -222,7 +222,7 @@ function renderTrack(){
     if(c) h += `<div class="m-person"><div class="av">${J.ic('bike',22)}</div><div class="tx"><b>${J.esc(c.name)}</b><span class="small muted">Kuryen${o.del==='yolda'?' · '+J.fmtDist(J.dist(c,o.customer))+' uzakta':''}</span></div><button class="m-call" data-a="call" data-to="kurye:${c.id}" aria-label="Kuryeyi ara">${J.ic('phone',18)}</button></div><div style="height:12px"></div>`;
     else if(o.del==='araniyor') h += `<div class="m-person"><div class="av">${J.ic('search',20)}</div><div class="tx"><b>Kurye aranıyor</b><span class="small muted">Yakındaki kuryelere teklif gidiyor</span></div></div><div style="height:12px"></div>`;
     h += `<div class="m-person"><div class="av" style="${b?soft(b):''}">${J.bizIcon(b,20)}</div><div class="tx"><b>${J.esc(o.rname)}</b><span class="small muted">İşletme</span></div><button class="m-call" data-a="call" data-to="isletme:${o.rid}" aria-label="İşletmeyi ara">${J.ic('phone',18)}</button></div>
-      <div class="note">Arama internet üzerinden yapılır, numaralar gizli kalır. İşletme açmaz ve ${J.settings().fast?'30 sn (hızlı test modu)':'5 dk'} içinde geri dönmezse siparişinin %${J.PENALTY_RATE*100}'i sana iade edilir.</div></div>`;
+      <div class="note">Arama internet üzerinden yapılır, numaralar gizli kalır. İşletmeler müşteri aramalarına dönmekle yükümlüdür.</div></div>`;
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
   if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
