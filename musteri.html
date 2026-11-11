@@ -112,14 +112,40 @@ function header(){
   return `<div class="m-head"><div class="r1"><button class="m-addr" data-a="addr-pick"><span class="ic">${J.ic('map-pin',18)}</span><span class="t"><span class="k">${J.esc(prof.addr_label || 'Teslimat adresi')}</span><span class="v">${J.esc(prof.note || 'Konumun')}</span></span></button><span class="mode">${J.modeBadge()}</span></div>
     <div class="m-search"><input id="q" type="search" placeholder="Restoran, market ya da ürün ara" value="${J.esc(q)}" autocomplete="off"></div></div>`;
 }
+let starId = null;
 function restCard(x){
   const {b, d, open} = x;
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
-    <div class="m-cover" style="${cover(b)}"><div class="bdg">${fee}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
+    <div class="m-cover" style="${cover(b)}"><div class="bdg">${b.id===starId?`<span class="tag star">${J.ic('award',13)} Mahallenin Yıldızı</span>`:''}${fee}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
     <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
 }
+function raceCard(){
+  const mh = J.mahalleOf(prof); if(!mh) return '';
+  const board = J.raceBoard(mh), me = board.findIndex(p => p.id === prof.id);
+  const ws = J.weekStart(), last = J.raceBoard(mh, ws - 7*864e5, ws)[0];
+  const end = new Date(ws + 7*864e5 - 60000);
+  const label = /^Bölge /.test(mh) ? 'Yakın çevren' : mh;
+  return `<div class="m-race"><div class="rtop"><span class="ic">${J.ic('award',22)}</span><div><b>Mahalle yarışı · ${J.esc(label)}</b><small>Haftanın Mahalle Başkanı pazar gecesi belli olur</small></div></div>
+    <ol>${board.slice(0,3).map((p,i) => `<li class="${p.id===prof.id?'me':''}"><span class="r">${i+1}</span><span class="n">${p.id===prof.id?'Sen':J.esc(J.maskName(p.name))}</span><b>${p.n} sipariş</b></li>`).join('') || '<li class="empty">Bu hafta henüz sıralama yok. İlk sen başla!</li>'}</ol>
+    ${me >= 3 ? `<div class="mine">Sen ${me+1}. sıradasın · ${board[me].n} sipariş</div>` : me < 0 && board.length ? `<div class="mine">Henüz sıralamada değilsin</div>` : ''}
+    <div class="ft">${last?`Geçen haftanın başkanı: <b>${last.id===prof.id?'Sen':J.esc(J.maskName(last.name))}</b> · `:''}${J.tl(J.RACE_MIN)} ve üzeri teslim edilen siparişler sayılır · bitiş ${end.toLocaleDateString('tr-TR',{day:'numeric',month:'long'})}</div></div>`;
+}
+// Mahalle adı: konum değişince bir kez sorgulanır; ulaşılamazsa yakın çevre bölgesi kullanılır
+let mhBusy = false;
+async function ensureMahalle(){
+  if(mhBusy || !prof || prof.lat == null) return;
+  const mp = prof.mahalle_pos;
+  if(prof.mahalle && mp && J.dist(mp, prof) < 300) return;
+  mhBusy = true;
+  const pos = {lat:prof.lat, lng:prof.lng};
+  let name = await J.lookupMahalle(pos);
+  if(!name) name = `Bölge ${Math.round(pos.lat*40)}-${Math.round(pos.lng*40)}`;
+  DB.patch('customers', prof.id, {mahalle:name, mahalle_pos:pos});
+  mhBusy = false;
+}
 function renderList(){
+  ensureMahalle();
   showMap(false);
   let h = header() + `<div class="m-body">`;
   const act = activeOrders();
@@ -128,6 +154,7 @@ function renderList(){
   if(!qn){
     h += `<div class="m-chips">${GROUPS.map(([g,ic,l]) => `<button class="m-chip ${group===g?'on':''}" data-a="grp" data-id="${g}"><i>${J.ic(ic,24)}</i>${l}</button>`).join('')}</div>`;
     if(group==='Hepsi') h += `<div class="m-promo"><b>Komisyon yok, sürpriz ücret yok.</b><span>Teslimat ücretinin tamamı kuryeye gider. Ödeyeceğin her kuruşu sepette görürsün.</span></div>`;
+    if(group==='Hepsi') h += raceCard();
     const again = [], seen = new Set();
     myOrders().filter(o => o.state==='teslim').forEach(o => { if(!seen.has(o.rid) && again.length < 6){ seen.add(o.rid); again.push(o); } });
     if(again.length && group==='Hepsi') h += `<div class="m-h"><b>Tekrar sipariş ver</b><span>tek dokunuşla sepete</span></div><div class="m-row">${again.map(o => {
@@ -142,9 +169,10 @@ function renderList(){
     list.forEach(x => (x.b.menu||[]).forEach(m => { if(J.norm(m.name).includes(qn) && m.available!==false) prods.push({x, m}); }));
     list = list.filter(x => J.norm(x.b.name+' '+(x.b.kind||'')).includes(qn) || (x.b.menu||[]).some(m => J.norm(m.name).includes(qn)));
   }
+  starId = J.starBusiness(list.map(x => x.b));
   const eta = b => J.etaRange(b, prof)[0], rt = b => { const r = J.ratingOf(b); return r.n >= J.RATING_MIN_N ? r.avg : 0; };
   const cmp = {yakin:(a,b) => a.d-b.d, hizli:(a,b) => eta(a.b)-eta(b.b) || a.d-b.d, puan:(a,b) => rt(b.b)-rt(a.b) || a.d-b.d,
-    onerilen:(a,b) => (favs().includes(b.b.id)-favs().includes(a.b.id)) || (rt(b.b)>=4.5)-(rt(a.b)>=4.5) || a.d-b.d}[sort] || ((a,b) => a.d-b.d);
+    onerilen:(a,b) => ((b.b.id===starId)-(a.b.id===starId)) || (favs().includes(b.b.id)-favs().includes(a.b.id)) || (rt(b.b)>=4.5)-(rt(a.b)>=4.5) || a.d-b.d}[sort] || ((a,b) => a.d-b.d);
   list.sort((a,b) => (b.open-a.open) || cmp(a,b));
   if(qn && prods.length) h += `<div class="m-h"><b>Ürünler</b><span>${prods.length} sonuç</span></div><div class="m-prodres">${prods.slice(0,8).map(({x,m}) => `<div class="m-line" ${x.open?`data-a="open-biz" data-id="${x.b.id}"`:''} style="cursor:pointer"><div class="tx"><b>${J.esc(m.name)}</b><div class="tiny muted">${J.esc(x.b.name)}${x.open?'':' · kapalı'}</div></div><b class="money">${J.tl(m.price)}</b></div>`).join('')}</div>`;
   if(!qn){

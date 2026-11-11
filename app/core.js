@@ -209,7 +209,7 @@ J.placeOrder = function(b, cart, cust, extra){
   const o = {
     id, no: String(Date.now()).slice(-5), rid:b.id, rname:b.name, items, subtotal, fees,
     state:'aktif', prep:'bekliyor', del:'yok', pay:'blokaj', refund:0,
-    customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||''},
+    customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||'', mahalle:cust.mahalle||''},
     note: String((extra && extra.note) || '').slice(0, 200),
     tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
     priority: !!(extra && extra.priority), prio_fee: (extra && extra.priority) ? J.FEE.priority : 0,
@@ -308,6 +308,47 @@ J.complete = function(c, o, how){
   finishCourier(c, o);
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
+};
+/* ===================== MAHALLE: YILDIZ VE YARIŞ =====================
+   Mahallenin Yıldızı: son 7 günde en çok teslim eden, puanı 4,3 ve üzeri (en az 3 değerlendirme) işletme.
+   Mahalle yarışı: haftalık (pazartesi 00:00'dan itibaren) teslim edilmiş, en az 150 TL'lik siparişler;
+   aynı müşteri-işletme çifti için günde en fazla 1 sipariş sayılır (sayı şişirmeye karşı). */
+J.RACE_MIN = 150;
+J.STAR_MIN_RATING = 4.3;
+J.weekStart = function(t){ const d = new Date(t || J.now()); d.setHours(0,0,0,0); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.getTime(); };
+J.starBusiness = function(list){
+  const since = J.now() - 7*864e5;
+  let best = null, bestScore = 0;
+  (list || J.businesses()).forEach(b => {
+    const r = J.ratingOf(b); if(r.n < J.RATING_MIN_N || r.avg < J.STAR_MIN_RATING || b.suspended) return;
+    const n = J.orders().filter(o => o.rid === b.id && o.state === 'teslim' && (o.created_at||0) >= since).length;
+    const score = n * r.avg; if(score > bestScore){ bestScore = score; best = b.id; }
+  });
+  return best;
+};
+J.mahalleOf = c => (c && c.mahalle) || '';
+J.raceBoard = function(mahalle, from, to){
+  from = from || J.weekStart(); to = to || Infinity;
+  const per = {}, seen = new Set();
+  J.orders().forEach(o => {
+    if(o.state !== 'teslim' || !o.customer || (o.created_at||0) < from || (o.created_at||0) >= to) return;
+    if((o.customer.mahalle || '') !== mahalle || o.subtotal < J.RACE_MIN) return;
+    const day = new Date(o.created_at).toDateString(), k = o.customer.id + '|' + o.rid + '|' + day;
+    if(seen.has(k)) return; seen.add(k);
+    const p = per[o.customer.id] = per[o.customer.id] || {id:o.customer.id, name:o.customer.name||'', n:0, last:0};
+    p.n++; p.last = Math.max(p.last, o.created_at);
+  });
+  return Object.values(per).sort((a,b) => b.n - a.n || a.last - b.last);   // eşitlikte önce ulaşan önde
+};
+J.maskName = n => { const f = String(n||'').trim().split(/\s+/)[0] || 'Komşu'; return f.charAt(0).toLocaleUpperCase('tr') + '***'; };
+// Konumdan mahalle adı (OpenStreetMap Nominatim). Ulaşılamazsa boş döner; uygulama çalışmaya devam eder.
+J.lookupMahalle = async function(pos){
+  try{
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&accept-language=tr&lat=${pos.lat}&lon=${pos.lng}`, {headers:{'Accept':'application/json'}});
+    if(!r.ok) return '';
+    const j = await r.json(), a = j.address || {};
+    return String(a.quarter || a.neighbourhood || a.suburb || a.village || a.town || '').replace(/\s*Mahallesi$/i, '').slice(0, 40);
+  }catch(e){ return ''; }
 };
 /* Puanlama: teslim edilen siparişte müşteri işletmeyi ve kuryeyi 1-5 puanlar (bir kez).
    Kartlarda sadece gerçek puan gösterilir; 3'ten az değerlendirme varsa "Yeni" yazar. */
