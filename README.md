@@ -92,7 +92,8 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 
 | Yol | Ne |
 |---|---|
-| `index.html` | Giriş sayfası |
+| `index.html` | Müşteriye dönük ana sayfa (adres arama, kategoriler, işletme ve kurye başvurusu) |
+| `demo.html` | Test ve demo sayfası: tüm roller, test hesapları, APK ve kurulum notları |
 | `musteri.html`, `isletme.html`, `kurye.html`, `yonetim.html` | Rol uygulamaları |
 | `simulasyon.html` | Tek ekranda simülasyon (eski `index.html`) |
 | `app/core.js` | Ortak çekirdek: veri katmanı, iş kuralları, kurye atama, navigasyon, sesli arama, uyarılar, harita |

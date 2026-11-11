@@ -82,6 +82,7 @@ function renderLogin(){
 function renderProfile(){
   const c0 = J.settings().center || J.DEFAULT_POS;
   if(!draft) draft = Object.assign({lat:c0.lat, lng:c0.lng, src:'varsayilan'}, prof || {});
+  if(!draft.note && J.store.get('adres_taslak', '')) draft.note = J.store.get('adres_taslak', '');
   showMap(true);
   map.set('ev', draft, J.ic('house',16), 'home'); map.keep(['ev']); map.clearLine('r');
   const fk = 'p'+draft.lat+','+draft.lng; if(map._fitted !== fk){ pendingFit = [[draft], 16]; map._fitted = fk; }
@@ -321,7 +322,7 @@ document.addEventListener('click', e => {
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
     const r = J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
-    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); setTimeout(() => { loadProf(); autoLocate(); }, 300); }
+    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); setTimeout(() => { loadProf(); applyDraftAddr(); autoLocate(); }, 300); }
   }
   if(a==='register'){
     const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
@@ -362,6 +363,16 @@ document.addEventListener('click', e => {
 });
 
 // Konum hiç seçilmediyse (varsayılan) telefonun konumunu kendiliğinden al
+// Ana sayfada yazılan adres / bulunan konum (bir kez uygulanır)
+function applyDraftAddr(){
+  if(!prof) return;
+  const k = J.store.get('konum_taslak', null), a = J.store.get('adres_taslak', '');
+  const patch = {};
+  if(k && k.lat != null){ patch.lat = k.lat; patch.lng = k.lng; patch.loc_src = 'gps'; J.autoRelocate(k); }
+  if(a && (!prof.note || prof.note === 'Test adresi')) patch.note = a;
+  if(Object.keys(patch).length) DB.patch('customers', prof.id, patch);
+  J.store.set('konum_taslak', null); J.store.set('adres_taslak', '');
+}
 let autoLocTried = false;
 function autoLocate(){
   if(autoLocTried || !prof || prof.loc_src === 'gps' || prof.loc_src === 'harita' || !navigator.geolocation) return;
@@ -385,7 +396,7 @@ const typing = () => { const a = document.activeElement; return a && (a.id==='o-
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 DB.init().then(() => {
-  if(loadProf()){ view = 'liste'; setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
+  if(loadProf()){ view = 'liste'; applyDraftAddr(); setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
   render();
 });
 J.registerSW();

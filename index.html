@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Jetgel · Komisyonsuz teslimat</title>
+<title>Jetgel · Yemek ve market siparişi, komisyonsuz</title>
+<meta name="description" content="Mahallendeki restoran ve marketlerden sipariş ver. Sabit ve şeffaf teslimat ücreti, teslimat ücretinin tamamı kuryeye.">
 <meta name="theme-color" content="#e8590c">
 <link rel="manifest" href="manifest-musteri.webmanifest">
 <link rel="icon" href="ikonlar/ikon-192.png">
@@ -14,71 +15,240 @@
 <script src="app/core.js"></script>
 <script src="app/ikon.js"></script>
 <style>
-.hero{padding:22px 18px 20px;margin:12px 0 0;border-radius:22px;background:linear-gradient(135deg,#1d1b18,#3a2a1e);color:#fff}
-.hero .muted{color:#e9e1d6}
-.hero .pill{background:rgba(255,255,255,.14);color:#fff}
-.fair{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
-.fair div{background:rgba(255,255,255,.1);border-radius:12px;padding:8px;text-align:center;font-size:11.5px;color:#e9e1d6}
-.fair b{display:block;font-size:17px;color:#fff}
-.hero h1{font-size:30px;margin:0 0 6px;letter-spacing:-.5px}
-.hero h1 span{color:var(--brand)}
-.roles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
-.role{display:block;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px}
-.role .e{width:44px;height:44px;border-radius:12px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center}
-.role.main .e{background:rgba(255,255,255,.18);color:#fff}
-.role b{display:block;font-size:17px;margin-top:6px}
-.role span{font-size:12.5px;color:var(--muted)}
-.role.main{grid-column:1/-1;background:var(--brand);color:#fff;border-color:var(--brand)}
-.role.main span{color:#ffe6d8}
-ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
+body{background:#fff}
+.c{max-width:1120px;margin:0 auto;padding:0 20px}
+a{text-decoration:none}
+/* Üst çubuk */
+.hd{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid #f0ede7}
+.hd .c{display:flex;align-items:center;gap:18px;height:64px}
+.logo{font-size:24px;font-weight:900;letter-spacing:-.5px;color:var(--ink)}
+.logo span{color:var(--brand)}
+.hd nav{margin-left:auto;display:flex;align-items:center;gap:6px}
+.hd nav a{color:var(--ink);font-weight:650;font-size:14px;padding:9px 12px;border-radius:10px}
+.hd nav a:hover{background:#f6f5f2}
+.hd nav a.btn{background:var(--brand);color:#fff}
+.hd nav a.btn:hover{background:#d24f09}
+/* Kahraman alanı */
+.hero{background:var(--brand);color:#fff;overflow:hidden;position:relative}
+.hero:before{content:"";position:absolute;right:-180px;top:-160px;width:560px;height:560px;border-radius:50%;background:rgba(255,255,255,.07)}
+.hero .c{display:grid;grid-template-columns:1.15fr .85fr;gap:30px;align-items:center;padding-top:56px;padding-bottom:64px;position:relative}
+.hero h1{font-size:46px;line-height:1.08;margin:0 0 14px;letter-spacing:-1px}
+.hero p{font-size:18px;opacity:.92;margin:0 0 26px;max-width:520px}
+.find{background:#fff;border-radius:16px;padding:8px;display:flex;gap:8px;box-shadow:0 12px 30px rgba(0,0,0,.18);max-width:640px}
+.find .in{flex:1;display:flex;align-items:center;gap:8px;padding:0 10px;color:#8a837a}
+.find input{border:0;padding:12px 0;font-size:16px;background:transparent}
+.find input:focus{outline:none}
+.find .loc{background:#f6f5f2;color:var(--ink);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.find .go{background:var(--ink);white-space:nowrap}
+.hero .mini{display:flex;gap:18px;margin-top:18px;font-size:14px;opacity:.95;flex-wrap:wrap}
+.hero .mini span{display:flex;align-items:center;gap:6px}
+/* Telefon görseli */
+.phone{justify-self:center;width:270px;background:#1d1b18;border-radius:38px;padding:12px;box-shadow:0 30px 60px rgba(0,0,0,.3);transform:rotate(3deg)}
+.screen{background:#f6f5f2;border-radius:28px;overflow:hidden;color:var(--ink);height:500px;display:flex;flex-direction:column}
+.screen .bar{background:#fff;padding:16px 14px 12px}
+.screen .bar small{display:block;color:#8a837a;font-size:10.5px}
+.screen .bar b{font-size:14px}
+.screen .eta{font-size:26px;font-weight:900;margin-top:2px}
+.screen .prog{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:10px}
+.screen .prog i{height:4px;border-radius:9px;background:#ece8e1}
+.screen .prog i.on{background:var(--brand)}
+.screen .map{flex:1;margin:0;border:0;border-radius:0;height:auto;background:#e9eef0;position:relative;overflow:hidden}
+.screen .map:before{content:"";position:absolute;inset:0;background:
+  linear-gradient(90deg,transparent 47%,#fff 47%,#fff 53%,transparent 53%) 0 0/90px 100%,
+  linear-gradient(0deg,transparent 47%,#fff 47%,#fff 53%,transparent 53%) 0 0/100% 80px;opacity:.9}
+.screen .route{position:absolute;left:58px;top:40px;width:120px;height:150px;border:4px solid var(--brand);border-left:0;border-bottom:0;border-radius:0 16px 0 0}
+.screen .pin{position:absolute;width:34px;height:34px;border-radius:50%;background:#fff;border:2px solid var(--ink);display:grid;place-items:center;box-shadow:0 3px 8px rgba(0,0,0,.2)}
+.screen .pin.c1{left:42px;top:24px;background:var(--brand);border-color:#fff;color:#fff}
+.screen .pin.c2{left:160px;top:174px}
+.screen .card2{background:#fff;margin:10px;border-radius:16px;padding:12px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.screen .card2 .av{width:36px;height:36px;border-radius:50%;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center}
+.screen .card2 .call{margin-left:auto;width:34px;height:34px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center}
+.screen .code{display:flex;gap:6px;justify-content:center;padding:0 10px 14px}
+.screen .code span{width:36px;height:42px;border-radius:10px;background:#1d1b18;color:#fff;display:grid;place-items:center;font-weight:900;font-size:20px}
+/* Bölümler */
+section{padding:64px 0}
+section h2{font-size:32px;letter-spacing:-.5px;margin:0 0 8px}
+section .lead{color:var(--muted);font-size:16px;margin:0 0 28px;max-width:640px}
+.cats{display:grid;grid-template-columns:repeat(6,1fr);gap:14px}
+.cat{background:#f6f5f2;border-radius:18px;padding:20px 12px;text-align:center;color:var(--ink);font-weight:700;transition:.15s}
+.cat:hover{background:var(--brand-soft);transform:translateY(-2px)}
+.cat i{width:58px;height:58px;margin:0 auto 10px;border-radius:50%;background:#fff;color:var(--brand);display:grid;place-items:center}
+.why{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.why div{padding:22px;border:1px solid #f0ede7;border-radius:18px}
+.why i{width:46px;height:46px;border-radius:14px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;margin-bottom:14px}
+.why b{display:block;font-size:16.5px;margin-bottom:6px}
+.why p{margin:0;color:var(--muted);font-size:14.5px}
+.gray{background:#f6f5f2}
+.steps3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;counter-reset:s}
+.steps3 div{background:#fff;border-radius:18px;padding:22px;position:relative}
+.steps3 div:before{counter-increment:s;content:counter(s);width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:800;margin-bottom:12px}
+.steps3 b{display:block;font-size:16.5px;margin-bottom:6px}
+.steps3 p{margin:0;color:var(--muted);font-size:14.5px}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center}
+.bars{background:#fff;border:1px solid #f0ede7;border-radius:20px;padding:24px}
+.bars .t{font-size:13px;color:var(--muted);margin-bottom:14px}
+.bars .r{margin-bottom:16px}
+.bars .r .l{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+.bars .r .b{height:14px;border-radius:9px;background:#f0ede7;overflow:hidden}
+.bars .r .b i{display:block;height:100%;border-radius:9px}
+.join{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.join a{display:block;border-radius:22px;padding:30px;color:#fff;position:relative;overflow:hidden;min-height:250px}
+.join a.biz{background:#1d1b18}
+.join a.cour{background:#2b8a3e}
+.join a i{width:52px;height:52px;border-radius:16px;background:rgba(255,255,255,.14);display:grid;place-items:center;margin-bottom:16px}
+.join a b{display:block;font-size:24px;margin-bottom:8px;letter-spacing:-.3px}
+.join a p{margin:0 0 20px;opacity:.85;max-width:380px}
+.join a span.cta{display:inline-flex;align-items:center;gap:6px;background:#fff;color:var(--ink);font-weight:750;padding:11px 16px;border-radius:12px}
+.join a:after{content:"";position:absolute;right:-60px;bottom:-60px;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.06)}
+.app{display:flex;align-items:center;justify-content:space-between;gap:20px;background:var(--brand-soft);border-radius:22px;padding:30px}
+.app b{font-size:22px}
+.app p{margin:6px 0 0;color:var(--muted)}
+.app .st{display:flex;gap:10px;flex-wrap:wrap}
+.app .st a{display:flex;align-items:center;gap:8px;background:var(--ink);color:#fff;padding:12px 16px;border-radius:12px;font-weight:700;font-size:14px}
+.app .st a.off{background:#d6d1c8;color:#6d6860;pointer-events:none}
+footer{background:#1d1b18;color:#cfc8bd;padding:44px 0 30px;font-size:14px}
+footer .c{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:24px}
+footer b{color:#fff;display:block;margin-bottom:10px}
+footer a{display:block;color:#cfc8bd;margin-bottom:7px}
+footer a:hover{color:#fff}
+footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-top:18px;margin-top:10px;font-size:12.5px;color:#8a837a}
+@media (max-width:900px){
+  .hero .c{grid-template-columns:1fr;padding-top:34px;padding-bottom:40px}
+  .hero h1{font-size:34px}
+  .hero p{font-size:16px}
+  .phone{display:none}
+  .cats{grid-template-columns:repeat(3,1fr)}
+  .why,.steps3{grid-template-columns:1fr 1fr}
+  .compare,.join{grid-template-columns:1fr}
+  .app{flex-direction:column;align-items:flex-start}
+  footer .c{grid-template-columns:1fr 1fr}
+  section{padding:44px 0}
+  section h2{font-size:26px}
+}
+@media (max-width:560px){
+  .hd nav a:not(.btn){display:none}
+  .find{flex-wrap:wrap}
+  .find .in{flex-basis:100%;padding:0 6px}
+  .find .loc,.find .go{flex:1}
+  .why,.steps3{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="hero">
-    <div class="row"><span class="pill">Prototip · geçici isim</span><span id="mode"></span></div>
-    <h1 style="margin-top:12px"><span>Jetgel</span></h1>
-    <div class="muted">Komisyonsuz, sabit ücretli teslimat. Esnaf yüzde vermez; teslimat ücretinin tamamı kuryeye gider.</div>
-    <div class="fair"><div><b>%0</b>komisyon</div><div><b>100 TL</b>kuryeye</div><div><b>SMS yok</b>kodla teslim</div></div>
+<header class="hd"><div class="c">
+  <a class="logo" href="./">Jet<span>gel</span></a>
+  <nav><a href="#isletme">Restoranını ekle</a><a href="#kurye">Kurye ol</a><a class="btn" href="musteri.html">Giriş yap</a></nav>
+</div></header>
+
+<div class="hero"><div class="c">
+  <div>
+    <h1>Yemek ve market,<br>kapına jet gibi gelsin.</h1>
+    <p>Mahallendeki restoran ve marketlerden sipariş ver. Teslimat ücreti sabit ve baştan belli; ödediğin teslimat ücretinin tamamı kuryeye gider.</p>
+    <form class="find" id="find">
+      <label class="in"><span data-ic="map-pin"></span><input id="adres" placeholder="Teslimat adresini yaz" autocomplete="street-address"></label>
+      <button type="button" class="loc" id="konum"><span data-ic="locate-fixed"></span>Konumumu bul</button>
+      <button class="go" type="submit">Restoranları göster</button>
+    </form>
+    <div class="mini"><span><span data-ic="circle-check"></span>Gizli ücret yok</span><span><span data-ic="lock"></span>Kodla güvenli teslimat</span><span><span data-ic="phone"></span>Numaran gizli kalır</span></div>
   </div>
-  <div class="roles">
-    <a class="role main" href="musteri.html"><div class="e" data-ic="utensils"></div><b>Sipariş ver</b><span>Müşteri uygulaması</span></a>
-    <a class="role" href="isletme.html"><div class="e" data-ic="store"></div><b>İşletme</b><span>Siparişleri al, hazırla</span></a>
-    <a class="role" href="kurye.html"><div class="e" data-ic="bike"></div><b>Kurye</b><span>Teklif al, navigasyonla teslim et</span></a>
-    <a class="role" href="yonetim.html"><div class="e" data-ic="layout-dashboard"></div><b>Yönetim</b><span>İşletme ekle, her şeyi izle</span></a>
-    <a class="role" href="simulasyon.html"><div class="e" data-ic="clapperboard"></div><b>Simülasyon</b><span>Tek ekranda tüm sistem (esnafa göstermek için)</span></a>
+  <div class="phone" aria-hidden="true"><div class="screen">
+    <div class="bar"><small>Tahmini varış</small><div class="eta">12-17 dk</div><b>Kuryen siparişini getiriyor</b><div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
+    <div class="map"><div class="route"></div><div class="pin c1" data-ic="bike"></div><div class="pin c2" data-ic="house"></div></div>
+    <div class="card2"><div class="av" data-ic="bike"></div><div><b style="font-size:13px">Kuryen yolda</b><div class="tiny muted">650 m uzakta</div></div><div class="call" data-ic="phone"></div></div>
+    <div class="tiny muted" style="text-align:center;margin-bottom:6px">Teslimat kodun</div>
+    <div class="code"><span>4</span><span>7</span><span>1</span><span>9</span></div>
+  </div></div>
+</div></div>
+
+<section><div class="c">
+  <h2>Ne istersin?</h2>
+  <p class="lead">Yemekten markete, kahveden manava; mahallendeki işletmeler tek uygulamada.</p>
+  <div class="cats">
+    <a class="cat" href="musteri.html"><i data-ic="utensils"></i>Yemek</a>
+    <a class="cat" href="musteri.html"><i data-ic="shopping-cart"></i>Market</a>
+    <a class="cat" href="musteri.html"><i data-ic="coffee"></i>Kahve</a>
+    <a class="cat" href="musteri.html"><i data-ic="cake-slice"></i>Tatlı</a>
+    <a class="cat" href="musteri.html"><i data-ic="carrot"></i>Manav</a>
+    <a class="cat" href="musteri.html"><i data-ic="pizza"></i>Pide ve pizza</a>
   </div>
-  <div class="card"><h3>Test hesapları</h3>
-    <table><tr><th>Rol</th><th>Kullanıcı adı</th><th>Şifre</th></tr>
-      <tr><td>Dükkân</td><td><b>test1</b> … <b>test9</b></td><td>test</td></tr>
-      <tr><td>Kurye</td><td><b>1test</b> … <b>9test</b></td><td>test</td></tr>
-      <tr><td>Müşteri</td><td><b>test</b></td><td>test</td></tr></table>
-    <div class="note">Bunlar sadece deneme hesapları. Prototipte şifreler güvenli saklanmıyor; gerçek şifre kullanma.</div>
+</div></section>
+
+<section class="gray"><div class="c">
+  <h2>Neden Jetgel?</h2>
+  <p class="lead">Teslimatı herkes için adil hale getirmek için kurallarımızı baştan açık yazdık.</p>
+  <div class="why">
+    <div><i data-ic="receipt"></i><b>Şeffaf ücret</b><p>Teslimat 50 TL, hizmet bedeli 5 TL. Sepette her kalemi görürsün; sonradan eklenen ücret yok.</p></div>
+    <div><i data-ic="bike"></i><b>Kuryeye tam ücret</b><p>Teslimat başına kuryeye 100 TL. Ödediğin teslimat ücretinden kesinti yapılmaz.</p></div>
+    <div><i data-ic="lock"></i><b>Kodla teslimat</b><p>Sipariş, kapında ekranındaki 4 haneli kodu söylemeden teslim edilmiş sayılmaz.</p></div>
+    <div><i data-ic="phone-call"></i><b>Ulaşılabilir işletme</b><p>İşletmeyi uygulamadan ararsın. Açmaz ve geri dönmezse siparişinin %15'i sana iade edilir.</p></div>
   </div>
-  <div class="card"><h3>Nasıl denenir? (3 telefonla)</h3>
-    <ol class="howto small">
-      <li><b>1. telefon → İşletme:</b> <b>test1</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap.</li>
-      <li><b>2. telefon → Kurye:</b> <b>1test</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap. Masa başında denemek için Hesap sekmesinden "Demo sürüş"ü seç; sokakta "Gerçek GPS".</li>
-      <li><b>3. telefon → Sipariş ver:</b> <b>test</b> / test ile giriş yap, "Test1 · Pideci"ye gir, ürün ekle, alttaki "Sepete git" → "Siparişi onayla".</li>
-      <li>İşletme onaylar, kuryeye 30 saniyelik teklif düşer, kurye kabul eder ve navigasyonla gider. Kapıda müşterinin ekranındaki kod girilir.</li>
-      <li>Sesli arama için siparişin içindeki telefon düğmelerini kullan. İlk aramada mikrofon izni istenir.</li>
-    </ol>
-    <div class="note">Tek telefonla denemek için aynı tarayıcıda farklı sekmeler açabilirsin. Ödeme simülasyondur, gerçek para çekilmez.</div>
+</div></section>
+
+<section><div class="c">
+  <h2>Nasıl çalışır?</h2>
+  <p class="lead">Üç adımda siparişin kapında.</p>
+  <div class="steps3" style="counter-reset:s">
+    <div style="background:#f6f5f2"><b>Adresini seç, işletmeni bul</b><p>Yakınındaki açık restoran ve marketler, tahmini süre ve teslimat ücretiyle listelenir.</p></div>
+    <div style="background:#f6f5f2"><b>Sepetini onayla</b><p>Ürünleri ekle, işletmeye notunu yaz. Ödeme önce sadece kartında bloke edilir, işletme onaylayınca çekilir.</p></div>
+    <div style="background:#f6f5f2"><b>Canlı takip et, kodla teslim al</b><p>Kuryeni haritada izle, gerekirse uygulamadan ara. Kapıda kodunu söyle, siparişin tamam.</p></div>
   </div>
-  <div class="card brand"><h3>Android uygulaması</h3>
-    <div class="small">Kurye ve işletme için önerilir: aramada <b>ahize/hoparlör</b> seçimi, <b>ekran kilitliyken çalan arama</b> ve sipariş bildirimi, <b>arka planda GPS</b>.</div>
-    <div class="btns"><a class="btnlink" href="https://github.com/Mihrali47/jetgel/releases/download/android-son/jetgel.apk"><span data-ic="download"></span> jetgel.apk indir</a></div>
-    <div class="note">İndirdikten sonra dosyayı aç, "bilinmeyen kaynaklardan yüklemeye izin ver" de ve yükle. Güncellemek için aynı linkten yenisini kurman yeterli. Site güncellemeleri uygulamaya kendiliğinden gelir.</div></div>
-  <div class="card soft"><h3>Telefona uygulama gibi yükle</h3>
-    <div class="small"><b>Android (Chrome):</b> sağ üstteki ⋮ menüsü → <b>Ana ekrana ekle</b> ya da <b>Uygulamayı yükle</b>.<br><b>iPhone (Safari):</b> alttaki paylaş simgesi → <b>Ana Ekrana Ekle</b>. iPhone'da bildirimler sadece ana ekrana eklenmiş uygulamada çalışır.</div>
-    <div class="note">Her rolü ayrı yükleyebilirsin: önce o rolün sayfasını aç, sonra ana ekrana ekle.</div>
+</div></section>
+
+<section class="gray" id="isletme"><div class="c compare">
+  <div>
+    <h2>İşletmeler için: komisyon yok.</h2>
+    <p class="lead">Sipariş başına sabit 55 TL ödersin; satışından yüzde alınmaz, aidat yok. Ürün bedeli doğrudan senin hesabına geçer.</p>
+    <a class="btnlink" style="background:var(--ink);color:#fff;padding:12px 16px;font-size:14px" href="isletme.html"><span data-ic="store"></span> İşletme paneline git</a>
   </div>
-  <div class="tiny muted" style="text-align:center;margin-top:16px">Kod: <a href="https://github.com/Mihrali47/jetgel">github.com/Mihrali47/jetgel</a></div>
-</div>
+  <div class="bars">
+    <div class="t">400 TL'lik bir siparişte işletmenin eline geçen</div>
+    <div class="r"><div class="l"><span>%35 komisyonlu platform</span><b>260 TL</b></div><div class="b"><i style="width:65%;background:#c9c2b8"></i></div></div>
+    <div class="r"><div class="l"><span><b>Jetgel</b> (sabit 55 TL)</span><b style="color:var(--ok)">345 TL</b></div><div class="b"><i style="width:86.25%;background:var(--ok)"></i></div></div>
+    <div class="tiny muted">Fark: sipariş başına 85 TL. Günde 30 siparişte ayda yaklaşık 76.500 TL.</div>
+  </div>
+</div></section>
+
+<section><div class="c">
+  <div class="join">
+    <a class="biz" href="isletme.html"><i data-ic="store"></i><b>Restoranını ya da marketini ekle</b><p>Menünü tek tek ya da Excel ile toplu yükle. Siparişler panelde sesli uyarıyla düşer, kuryeyi sistem bulur.</p><span class="cta">Başvur <span data-ic="chevron-right"></span></span></a>
+    <a class="cour" href="kurye.html" id="kurye"><i data-ic="bike"></i><b>Jetgel kuryesi ol</b><p>Teslimat başına sabit 100 TL. Teklifi reddetmenin cezası yok; müşteri kapıyı açmasa da ücretini alırsın.</p><span class="cta">Kurye ol <span data-ic="chevron-right"></span></span></a>
+  </div>
+</div></section>
+
+<section style="padding-top:0"><div class="c">
+  <div class="app">
+    <div><b>Jetgel cebinde</b><p>Siparişini takip et, kuryenle uygulamadan konuş, bildirimleri kaçırma.</p></div>
+    <div class="st"><a href="https://github.com/Mihrali47/jetgel/releases/download/android-son/jetgel.apk"><span data-ic="smartphone"></span>Android için indir</a><a class="off"><span data-ic="smartphone"></span>iPhone · yakında</a></div>
+  </div>
+</div></section>
+
+<footer><div class="c">
+  <div><div class="logo" style="color:#fff">Jet<span>gel</span></div><p style="margin:10px 0 0;max-width:280px">Komisyonsuz, sabit ücretli yemek ve market teslimatı.</p></div>
+  <div><b>Sipariş</b><a href="musteri.html">Sipariş ver</a><a href="musteri.html">Siparişlerim</a></div>
+  <div><b>İş ortakları</b><a href="isletme.html">İşletme paneli</a><a href="kurye.html">Kurye uygulaması</a><a href="yonetim.html">Yönetim</a></div>
+  <div><b>Diğer</b><a href="demo.html">Test ve demo</a><a href="simulasyon.html">Sistem simülasyonu</a></div>
+  <div class="cp">© <span id="yil"></span> Jetgel · Ön sürüm: ödemeler şu an simülasyondur, gerçek para çekilmez.</div>
+</div></footer>
+
 <script>
-J.DB.on(() => { document.getElementById('mode').innerHTML = J.modeBadge(); });
-J.DB.init().then(() => { document.getElementById('mode').innerHTML = J.modeBadge(); });
-document.querySelectorAll('[data-ic]').forEach(el => { el.innerHTML = J.ic(el.dataset.ic, el.classList.contains('e') ? 24 : 16); });
+document.getElementById('yil').textContent = new Date().getFullYear();
+document.querySelectorAll('[data-ic]').forEach(el => {
+  const big = el.tagName === 'I' || el.classList.contains('pin') || el.classList.contains('av') || el.classList.contains('call');
+  el.innerHTML = J.ic(el.dataset.ic, el.tagName === 'I' ? 26 : big ? 18 : 17);
+});
+// Adres: müşteri uygulamasına taşınır (profil ekranında adres tarifi olarak gelir)
+document.getElementById('find').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = document.getElementById('adres').value.trim();
+  if(v) J.store.set('adres_taslak', v);
+  location.href = 'musteri.html';
+});
+document.getElementById('konum').addEventListener('click', () => {
+  if(!navigator.geolocation){ location.href = 'musteri.html'; return; }
+  J.toast('Konum alınıyor…');
+  navigator.geolocation.getCurrentPosition(p => { J.store.set('konum_taslak', {lat:p.coords.latitude, lng:p.coords.longitude}); location.href = 'musteri.html'; },
+    () => { location.href = 'musteri.html'; }, {enableHighAccuracy:true, timeout:12000});
+});
 J.registerSW();
 </script>
 </body>

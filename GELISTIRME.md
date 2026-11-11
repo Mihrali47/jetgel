@@ -32,7 +32,8 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 
 | Yol | Ne |
 |---|---|
-| `index.html` | Giriş sayfası |
+| `index.html` | Müşteriye dönük ana sayfa (adres arama, kategoriler, işletme ve kurye başvurusu) |
+| `demo.html` | Test ve demo sayfası: tüm roller, test hesapları, APK ve kurulum notları |
 | `app/ikon.js` | Çizgi ikonlar (Lucide, ISC). Arayüzde emoji yerine `J.ic('ad')` kullanılır |
 | `musteri.html`, `isletme.html`, `kurye.html`, `yonetim.html` | Rol uygulamaları; her biri kendi arayüzünü çizer, iş mantığı `app/core.js`'te |
 | `app/core.js` | Veri katmanı (`J.DB`), iş kuralları (`J.FEE`, süreler), sipariş akışı, kurye atama (`J.dispatchTick`), ikaz (`J.strikeTick`), rota/navigasyon, WebRTC arama, uyarılar, harita (`J.Map`) |
