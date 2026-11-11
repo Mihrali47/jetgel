@@ -85,6 +85,19 @@ function tabOrders(b){
   J.pendingCallbacks(b.id).filter(k => k.cb_deadline).forEach(k => {
     h += `<div class="card bad"><h3>${J.ic('phone-off',16)} Cevapsız müşteri araması</h3><div class="small">#${J.esc(k.no)}: Müşteriyi <b><span data-live="mmss" data-end="${k.cb_deadline}">…</span></b> içinde geri aramazsanız ikaz alırsınız ve müşteriye %${J.PENALTY_RATE*100} iade yapılır.</div><div class="btns"><button class="bad" data-a="call" data-to="musteri" data-id="${k.order_id}">Müşteriyi geri ara</button></div></div>`;
   });
+  const claims = J.orders().filter(o => o.rid===b.id && o.claim && o.claim.state==='beklemede');
+  if(claims.length){
+    h += `<div class="p-sec">Müşteri sorun bildirimleri<span class="n hot">${claims.length}</span></div>`;
+    claims.forEach(o => { const c = o.claim;
+      J.notify('clm-'+o.id, 'Sorun bildirimi #'+o.no, J.CLAIM_REASONS[c.reason]+' · '+J.tl(c.amount));
+      h += `<div class="p-ord" style="border-color:var(--warn)"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${J.esc(J.CLAIM_REASONS[c.reason])} · ${ago(c.t)}</div><span class="pill warn">İnceleyin</span></div><div class="bd">
+        <ul class="p-items">${c.picks.map(p => { const it = o.items[p.i]||{}; return `<li><b>${p.qty}×</b><span>${J.esc(it.name||'')}${it.opts&&it.opts.length?`<span class="p-opts">${it.opts.map(J.esc).join(' · ')}</span>`:''}</span></li>`; }).join('')}</ul>
+        ${c.note?`<div class="p-note">${J.ic('message-square',15)} ${J.esc(c.note)}</div>`:''}
+        ${c.photo?`<img src="${c.photo}" alt="Müşterinin fotoğrafı" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-top:8px">`:''}
+        <div class="p-money"><span><b style="color:var(--ink)">İade tutarı (sizin payınızdan)</b></span><b>${J.tl(c.amount)}</b></div>
+        <div class="tiny muted" style="margin-top:6px">Reddederseniz müşteri yönetime itiraz edebilir; son kararı yönetim verir.</div>
+        <div class="p-act"><button class="ok" data-a="clm-ok" data-id="${o.id}">İade et</button><button class="sec" data-a="clm-no" data-id="${o.id}">Reddet</button></div></div></div>`; });
+  }
   const act = J.orders().filter(o => o.rid===b.id && o.state==='aktif');
   act.sort((x,y) => (!!y.priority - !!x.priority) || (x.created_at - y.created_at));   // hızlı teslimatlar önce
   const groups = [['Yeni siparişler', act.filter(o => o.prep==='bekliyor'), true], ['Hazırlanıyor', act.filter(o => o.prep==='hazirlaniyor'), false], ['Hazır · kurye bekleniyor', act.filter(o => o.prep==='hazir'), false]];
@@ -173,7 +186,7 @@ function renderMain(){
 function renderTabs(){
   const b = biz(); let h = '';
   if(b){
-    const nw = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor').length + J.pendingCallbacks(b.id).filter(k => k.cb_deadline).length;
+    const nw = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor').length + J.orders().filter(o => o.rid===b.id && o.claim && o.claim.state==='beklemede').length + J.pendingCallbacks(b.id).filter(k => k.cb_deadline).length;
     h = `<nav class="p-tabs">${[['siparis','receipt','Siparişler'],['menu','list','Menü'],['kazanc','wallet','Kazanç'],['ayar','settings','Ayarlar']].map(([k,ic,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}"><i>${J.ic(ic,22)}</i>${l}${k==='siparis'&&nw?`<span class="bdg">${nw}</span>`:''}</button>`).join('')}</nav>`;
   }
   const el = document.getElementById('ptabs'); if(el.innerHTML !== h) el.innerHTML = h;
@@ -210,6 +223,8 @@ document.addEventListener('click', async e => {
   if(a==='accept') J.acceptOrder(DB.get('orders', id));
   if(a==='reject') J.rejectOrder(DB.get('orders', id));
   if(a==='ready') J.markReady(DB.get('orders', id));
+  if(a==='clm-ok') J.decideClaim(DB.get('orders', id), true, 'isletme');
+  if(a==='clm-no') J.decideClaim(DB.get('orders', id), false, 'isletme');
   if(a==='avail' && b) DB.patch('businesses', b.id, {menu: b.menu.map(m => m.id===id ? Object.assign({}, m, {available: m.available===false}) : m)});
   if(a==='add-item' && b){
     const name = document.getElementById('new-name').value.trim(), price = parseFloat(document.getElementById('new-price').value.replace(',','.'));

@@ -320,6 +320,60 @@ J.complete = function(c, o, how){
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
 };
+/* ===================== SORUN BİLDİRİMİ VE İADE =====================
+   Müşteri teslimden sonra 24 saat içinde eksik/yanlış/bozuk ürünü (isteğe bağlı fotoğrafla) bildirir, siparişte bir kez.
+   İşletme onaylarsa iade işletme payından yapılır. Reddederse müşteri yönetime itiraz edebilir; son kararı yönetim verir. */
+J.CLAIM_HOURS = 24;
+J.CLAIM_REASONS = {eksik:'Eksik ürün', yanlis:'Yanlış ürün', bozuk:'Bozuk / dökülmüş', soguk:'Soğuk geldi', diger:'Diğer'};
+J.canClaim = o => o && o.state === 'teslim' && !o.claim && J.now() - (o.delivered_at || o.created_at || 0) < J.CLAIM_HOURS*3600e3;
+J.claimAmount = function(o, picks){
+  const sum = (picks||[]).reduce((t,p) => { const it = o.items[p.i]; return t + (it ? it.price * Math.min(p.qty, it.qty) : 0); }, 0);
+  return Math.round(Math.min(sum, o.subtotal - (o.discount||0)) * 100) / 100;
+};
+J.openClaim = async function(o, c){
+  if(!J.canClaim(o) || !(c.picks||[]).length) return false;
+  if(!(await DB.claim('orders', o.id, 'claim_opened'))) return false;
+  const claim = {picks:c.picks, reason:c.reason||'diger', note:String(c.note||'').slice(0,300), photo:c.photo||null, amount:J.claimAmount(o, c.picks), t:J.now(), state:'beklemede'};
+  DB.patch('orders', o.id, {claim});
+  J.log(`#${o.no} müşteri sorun bildirdi: ${J.CLAIM_REASONS[claim.reason]} (${J.tl(claim.amount)}).`, 'warn', o.id);
+  return true;
+};
+// by: 'isletme' | 'yonetim'; ok: iade onaylandı mı
+J.decideClaim = function(o, ok, by){
+  if(!o || !o.claim) return;
+  const st = o.claim.state;
+  if(by === 'isletme' && st !== 'beklemede') return;
+  if(by === 'yonetim' && st !== 'itiraz') return;
+  const claim = Object.assign({}, o.claim, {state: ok ? 'onaylandi' : (by === 'yonetim' ? 'kesin_red' : 'reddedildi'), decided_by:by, decided_t:J.now()});
+  const patch = {claim};
+  if(ok){
+    patch.claim_refund = claim.amount;
+    if(o.shares) patch.shares = Object.assign({}, o.shares, {business: o.shares.business - claim.amount, claim: claim.amount});
+  }
+  DB.patch('orders', o.id, patch);
+  J.log(`#${o.no} sorun bildirimi ${ok ? `onaylandı, müşteriye ${J.tl(claim.amount)} iade (işletme payından)` : 'reddedildi'} · ${by}.`, ok ? 'pay' : 'bad', o.id);
+};
+J.escalateClaim = function(o){
+  if(!o || !o.claim || o.claim.state !== 'reddedildi') return;
+  DB.patch('orders', o.id, {claim: Object.assign({}, o.claim, {state:'itiraz', esc_t:J.now()})});
+  J.log(`#${o.no} müşteri iade reddine itiraz etti, yönetim inceleyecek.`, 'warn', o.id);
+};
+J.CLAIM_TXT = {beklemede:'İşletme inceliyor', onaylandi:'İade onaylandı', reddedildi:'İşletme reddetti', itiraz:'Yönetim inceliyor', kesin_red:'Yönetim reddetti'};
+// Fotoğrafı küçültüp sıkıştırır (veritabanında az yer kaplasın)
+J.compressImage = function(file, max, q){
+  max = max || 720; q = q || 0.6;
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Fotoğraf okunamadı')); };
+    img.src = url;
+  });
+};
 /* ===================== MAHALLE: YILDIZ VE YARIŞ =====================
    Mahallenin Yıldızı: son 7 günde en çok teslim eden, puanı 4,3 ve üzeri (en az 3 değerlendirme) işletme.
    Mahalle yarışı: haftalık (pazartesi 00:00'dan itibaren) teslim edilmiş, en az 150 TL'lik siparişler;

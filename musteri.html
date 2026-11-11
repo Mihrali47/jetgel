@@ -69,7 +69,8 @@ const SORTS = [['onerilen','Önerilen'],['yakin','En yakın'],['hizli','En hızl
 const cdisc = (b, sub) => { const cp = J.activeCoupon(prof); return cp && useCoupon && b && b.race_join ? Math.min(cp.per, cp.left, sub) : 0; };
 const favs = () => (prof && prof.favs) || [];
 const addrs = () => (prof && prof.addresses) || [];
-let rate = {id:null, biz:0, cour:0, note:''};   // değerlendirme taslağı
+let rate = {id:null, biz:0, cour:0, note:''};
+let clm = {id:null, open:false, picks:{}, reason:'eksik', note:'', photo:null};   // sorun bildirimi taslağı   // değerlendirme taslağı
 const stars = (act, val) => `<div class="m-stars">${[1,2,3,4,5].map(v => `<button class="${v<=val?'on':''}" data-a="${act}" data-v="${v}" aria-label="${v} yıldız">${J.ic('star',30, v<=val?'fill':'')}</button>`).join('')}</div>`;   // seçenek penceresi: {mid, sel:[], qty}
 function fees(b){ return b.free_delivery ? {del:0, plat:0} : {del:J.FEE.custDel, plat:J.FEE.custPlat}; }
 function etaTxt(b){ const [a,z] = J.etaRange(b, prof); return `${a}-${z} dk`; }
@@ -290,12 +291,14 @@ function renderTrack(){
   if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
   h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.itemLabel(i)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
+    ${o.claim_refund?`<div class="row" style="color:var(--ok)"><span>İade (sorun bildirimi)</span><span class="money">−${J.tl(o.claim_refund)}</span></div>`:''}
     ${o.discount?`<div class="row" style="color:var(--ok)"><span>Başkan kuponu</span><span class="money">−${J.tl(o.discount)}</span></div>`:''}
     ${o.priority?`<div class="row"><span>Hızlı teslimat</span><span class="money">${J.tl(o.prio_fee)}</span></div>`:''}
     ${o.tip||o.tip_after?`<div class="row"><span>Kurye bahşişi</span><span class="money">${J.tl((o.tip||0)+(o.tip_after||0))}</span></div>`:''}
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
-    <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.refund||0))}</b></div>
+    <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.refund||0) - (o.claim_refund||0))}</b></div>
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
+  if(o.state==='teslim') h += claimBox(o);
   if(o.state==='teslim' && !o.rated){
     if(rate.id !== o.id) rate = {id:o.id, biz:0, cour:0, note:''};
     h += `<div class="m-box m-rate"><h3>Siparişin nasıldı?</h3>
@@ -312,6 +315,25 @@ function renderTrack(){
   return h + `</div>`;
 }
 
+function claimBox(o){
+  if(o.claim){
+    const c = o.claim, ok = c.state === 'onaylandi';
+    return `<div class="m-box"><h3>${J.ic('triangle-alert',16)} Sorun bildirimin</h3><div class="row small"><span>${J.esc(J.CLAIM_REASONS[c.reason]||'')} · ${c.picks.map(p => `${p.qty}× ${J.esc((o.items[p.i]||{}).name||'')}`).join(', ')}</span><b class="money">${J.tl(c.amount)}</b></div>
+      <div style="margin-top:8px"><span class="pill ${ok?'ok':c.state==='beklemede'||c.state==='itiraz'?'warn':'bad'}">${J.CLAIM_TXT[c.state]}</span></div>
+      ${ok?`<div class="small" style="margin-top:8px">${J.tl(c.amount)} iade, ödediğin karta yapılır (simülasyon). İade işletmenin payından karşılanır.</div>`:''}
+      ${c.state==='reddedildi'?`<div class="small muted" style="margin-top:8px">İşletme bildirimini kabul etmedi. Haklı olduğunu düşünüyorsan yönetime itiraz edebilirsin.</div><button class="sec wide" style="margin-top:8px" data-a="clm-esc">Yönetime itiraz et</button>`:''}</div>`;
+  }
+  if(!J.canClaim(o)) return '';
+  if(!(clm.open && clm.id === o.id)) return `<button class="ghost wide" style="margin-bottom:10px" data-a="clm-open">${J.ic('triangle-alert',15)} Siparişte sorun mu var?</button>`;
+  const picks = Object.keys(clm.picks).map(i => ({i:+i, qty:clm.picks[i]}));
+  return `<div class="m-box m-claim"><h3>${J.ic('triangle-alert',16)} Sorunu bildir</h3><div class="tiny muted" style="margin:-4px 0 8px">Teslimattan sonra ${J.CLAIM_HOURS} saat içinde, siparişte bir kez bildirebilirsin.</div>
+    <div class="lbl">Hangi ürünler?</div>${o.items.map((it,i) => `<button class="m-pick ${clm.picks[i]?'on':''}" data-a="clm-item" data-i="${i}"><span class="ck">${clm.picks[i]?J.ic('check',14):''}</span><span class="nm">${it.qty}× ${J.itemLabel(it)}</span><span class="pr">${J.tl(it.price*it.qty)}</span></button>`).join('')}
+    <div class="lbl">Sorun ne?</div><div class="m-sort" style="flex-wrap:wrap;overflow:visible">${Object.entries(J.CLAIM_REASONS).map(([k,v]) => `<button class="${clm.reason===k?'on':''}" data-a="clm-reason" data-v="${k}">${v}</button>`).join('')}</div>
+    <textarea id="clm-note" class="m-note" maxlength="300" placeholder="Kısaca anlat (isteğe bağlı)">${J.esc(clm.note)}</textarea>
+    ${clm.photo?`<div class="m-photo"><img src="${clm.photo}" alt="Fotoğraf"><button class="sm sec" data-a="clm-photo-del">Kaldır</button></div>`:`<label class="btnlink" style="margin-top:8px;cursor:pointer">${J.ic('camera',15)} Fotoğraf ekle<input type="file" accept="image/*" capture="environment" id="clm-photo" style="display:none"></label>`}
+    <div class="row" style="margin-top:12px"><span class="small">İade tutarı</span><b class="money">${J.tl(J.claimAmount(o, picks))}</b></div>
+    <div class="p-act" style="display:flex;gap:8px;margin-top:10px"><button class="brand" style="flex:1" data-a="clm-send" ${picks.length?'':'disabled'}>Bildir</button><button class="sec" data-a="clm-close">Vazgeç</button></div></div>`;
+}
 /* ---------- Siparişlerim ---------- */
 function renderOrders(){
   showMap(false);
@@ -480,6 +502,14 @@ document.addEventListener('click', e => {
   if(a==='addr-edit'){ addrPick = false; const ad = addrs().find(x => x.id === id); draft = Object.assign({}, prof, ad ? {lat:ad.lat, lng:ad.lng, note:ad.note, addr_label:ad.label, addr_id:ad.id} : {}); go('profil'); render(); return; }
   if(a==='addr-del' && prof){ DB.patch('customers', prof.id, {addresses: addrs().filter(x => x.id !== id)}); }
   if(a==='lbl' && draft){ draft.addr_label = el.dataset.v; }
+  if(a==='clm-open'){ clm = {id:trackId, open:true, picks:{}, reason:'eksik', note:'', photo:null}; }
+  if(a==='clm-close'){ clm.open = false; }
+  if(a==='clm-item'){ const i = el.dataset.i, o = DB.get('orders', trackId); if(clm.picks[i]) delete clm.picks[i]; else clm.picks[i] = o.items[i].qty; }
+  if(a==='clm-reason'){ clm.reason = el.dataset.v; }
+  if(a==='clm-photo-del'){ clm.photo = null; }
+  if(a==='clm-send'){ const o = DB.get('orders', trackId); const picks = Object.keys(clm.picks).map(i => ({i:+i, qty:clm.picks[i]}));
+    J.openClaim(o, {picks, reason:clm.reason, note:clm.note, photo:clm.photo}).then(ok => { if(ok){ clm.open = false; J.toast('Bildirimin işletmeye iletildi.'); } render(); }); return; }
+  if(a==='clm-esc'){ J.escalateClaim(DB.get('orders', trackId)); J.toast('İtirazın yönetime iletildi.'); }
   if(a==='rate-b') rate.biz = +el.dataset.v;
   if(a==='rate-c') rate.cour = +el.dataset.v;
   if(a==='rate-send'){ const o = DB.get('orders', trackId); J.rateOrder(o, rate).then(ok => { if(ok) J.toast('Teşekkürler, değerlendirmen kaydedildi.'); render(); }); return; }
@@ -513,17 +543,23 @@ function autoLocate(){
     J.toast('Teslimat noktan konumuna göre ayarlandı.');
   }, () => {}, {enableHighAccuracy:true, timeout:20000, maximumAge:60000});
 }
+document.addEventListener('change', e => {
+  if(e.target.id === 'clm-photo' && e.target.files && e.target.files[0]){
+    J.compressImage(e.target.files[0], 720, 0.6).then(d => { clm.photo = d; render(); }).catch(err => J.toast(err.message));
+  }
+});
 document.addEventListener('input', e => {
   if(e.target.id==='q'){ q = e.target.value; render(); return; }
   if(e.target.id==='o-note'){ orderNote = e.target.value; return; }
   if(e.target.id==='rate-note'){ rate.note = e.target.value; return; }
+  if(e.target.id==='clm-note'){ clm.note = e.target.value; return; }
   if(e.target.id==='tip-in'){ tip = Math.max(0, Math.min(J.TIP_MAX, parseInt(e.target.value.replace(/\D/g,''),10) || 0)); renderBar(); return; }
   if(!draft) return;
   if(e.target.id==='p-name') draft.name = e.target.value;
   if(e.target.id==='p-note') draft.note = e.target.value;
 });
 // Yazı yazılırken (not, adres) ekranı yeniden çizme
-const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='p-name' || a.id==='p-note'); };
+const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='clm-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='p-name' || a.id==='p-note'); };
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 DB.init().then(() => {
