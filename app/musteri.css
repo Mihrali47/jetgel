@@ -244,3 +244,6 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-loyal .dots i{width:18px;height:18px;border-radius:50%;border:2px solid #e9c46a;background:#fff}
 .m-loyal .dots i.on{background:#f5a524;border-color:#f5a524}
 .m-loyal .dots i.gift{border-style:dashed;border-color:var(--brand)}
+.tag.busy{background:#fff1ec;color:#c2410c}
+.m-busy{display:flex;gap:10px;align-items:flex-start;background:#fff4ea;color:#7c2d12;border-radius:14px;padding:12px 14px;margin-top:12px;font-size:13px;line-height:1.4}
+.m-busy>svg{flex:none;margin-top:2px}

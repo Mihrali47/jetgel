@@ -161,3 +161,14 @@ body.adm .kpi{border:0;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .adm-kpi b{font-size:17px}
 button.sm{padding:5px 9px;font-size:12px}
 .card h3 .cnt{background:var(--brand);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;vertical-align:2px}
+/* işletme: gecikme, reddetme, fiş, tablet görünümü */
+.p-timer.late{background:var(--bad-soft);color:var(--bad)}
+.p-print{display:flex;align-items:center;gap:6px;margin:10px auto 0;background:none;color:var(--muted);font-size:12.5px;font-weight:650;padding:6px 10px}
+.p-rj{margin-top:10px;background:#f6f5f2;border-radius:12px;padding:12px}
+.p-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.p-chips button{background:#fff;color:var(--ink);border:1.5px solid #e4e0d8;padding:7px 11px;border-radius:99px;font-size:12.5px;font-weight:650}
+.p-chips button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+@media (min-width:900px){
+  body.p.board .wrap{max-width:1280px}
+  body.p.board .p-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:0 16px;align-items:start}
+}

@@ -131,7 +131,7 @@ function restCard(x){
   const {b, d, open} = x;
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
-    <div class="m-cover" style="${cover(b)}"><div class="bdg">${b.id===starId?`<span class="tag star">${J.ic('award',13)} Mahallenin Yıldızı</span>`:''}${fee}${b.race_join && J.activeCoupon(prof)?'<span class="tag star">Kupon geçerli</span>':''}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
+    <div class="m-cover" style="${cover(b)}"><div class="bdg">${b.id===starId?`<span class="tag star">${J.ic('award',13)} Mahallenin Yıldızı</span>`:''}${fee}${b.race_join && J.activeCoupon(prof)?'<span class="tag star">Kupon geçerli</span>':''}${open && J.isFull(b)?'<span class="tag busy">Şu an çok yoğun</span>':''}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
     <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span>${!open && J.hoursState(b) && J.hoursState(b).next?`<span style="color:var(--brand);font-weight:700">${J.ic('clock',13)} Açılış: ${J.esc(J.hoursState(b).next)}</span>`:''}</div></div></div>`;
 }
 function raceCard(){
@@ -218,7 +218,7 @@ function renderMenu(){
   const cats = []; menu.forEach(m => { const c = m.cat || 'Menü'; if(!cats.includes(c)) cats.push(c); });
   let h = `<div class="m-hero" style="${cover(b)}"><button class="back" data-a="back" aria-label="Geri">${J.ic('chevron-left',22)}</button><span class="cv-ic big">${J.bizIcon(b,44)}</span></div>
     <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||'')}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
-    <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div>${loyalStrip(b)}</div>`;
+    <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div>${loyalStrip(b)}${J.isFull(b) ? `<div class="m-busy">${J.ic('hourglass',16)} <span><b>Şu an çok yoğun.</b> İşletme mevcut siparişleri hazırlıyor; birkaç dakika içinde yeniden sipariş alır. Dilersen ileri bir saate planlı sipariş verebilirsin.</span></div>` : ''}</div>`;
   if(cats.length > 1) h += `<div class="m-cats">${cats.map((c,i) => `<button data-a="jump" data-id="cat${i}">${J.esc(c)}</button>`).join('')}</div>`;
   h += `<div class="m-menu">`;
   cats.forEach((c,i) => {
@@ -306,7 +306,8 @@ function renderTrack(){
     J.msgNotify(o, 'musteri');
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
-  if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
+  if(o.state==='red') h += `<div class="card bad small"><b>${J.esc(J.REJECT_REASONS[o.reject_reason] || J.REJECT_REASONS.diger)}.</b>${o.reject_items && o.reject_items.length ? ` Tükenen: ${o.reject_items.map(J.esc).join(', ')}.` : ''} İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
+  if(o.state==='aktif' && o.prep==='hazirlaniyor' && o.prep_ext) h += `<div class="card small">${J.ic('clock',15)} İşletme siparişin için ${o.prep_ext_min} dk ek süre istedi; tahmini teslim saati güncellendi.</div>`;
   if(o.state==='iptal') h += `<div class="card bad small">Sipariş destek ekibimiz tarafından iptal edildi${o.cancel_reason ? ' (' + J.esc(o.cancel_reason) + ')' : ''}. ${o.pay==='iade' ? 'Ödediğin tutarın tamamı kartına iade edildi.' : 'Kartındaki blokaj kaldırıldı, para çekilmedi.'}</div>`;
   h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.itemLabel(i)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
@@ -515,6 +516,7 @@ document.addEventListener('click', e => {
   }
   if(a==='order'){
     const b = DB.get('businesses', curBiz);
+    if(J.isFull(b) && !sched){ J.toast('İşletme şu an çok yoğun. Birkaç dakika sonra tekrar dene ya da planlı sipariş ver.'); render(); return; }
     const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; sched = null; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
   }

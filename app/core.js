@@ -203,6 +203,7 @@ J.itemLabel = i => J.esc(i.name) + (i.opts && i.opts.length ? ` <span class="opt
 J.placeOrder = function(b, cart, cust, extra){
   const items = J.cartLines(b, cart).map(l => Object.assign({name:l.m.name, price:l.unit, qty:l.qty}, l.opts.length ? {opts:l.opts.map(o => o.name)} : {}));
   if(!items.length) return null;
+  if(J.isFull(b) && !(extra && extra.sched_at)) return null;   // işletme kapasitesi dolu
   const subtotal = items.reduce((s,i) => s + i.price*i.qty, 0);
   const F = J.FEE;
   const fees = b.free_delivery ? {cust:0, biz:F.custDel+F.custPlat+F.bizDel+F.bizPlat} : {cust:F.custDel+F.custPlat, biz:F.bizDel+F.bizPlat};
@@ -256,11 +257,27 @@ J.acceptOrder = function(o, prepMin){
   DB.patch('orders', o.id, {prep:'hazirlaniyor', prep_until: J.now() + prepMin*J.minMs(), prep_min:prepMin, pay:'bekletiliyor', del:'araniyor', accepted_at:J.now()});
   J.log(`#${o.no} işletme onayladı (tahmini hazırlık ${prepMin} dk). Ödeme çekildi, teslimata kadar bekletiliyor.`, 'order', o.id);
 };
-J.rejectOrder = function(o){
-  DB.patch('orders', o.id, {state:'red', pay:'kalkti'});
+J.REJECT_REASONS = {yogun:'Şu an çok yoğunuz', tukendi:'Siparişteki bir ürün tükendi', kapaniyor:'Mutfağımız kapanmak üzere', adres:'Adresiniz hizmet alanımızın dışında', diger:'İşletme siparişi kabul edemedi'};
+// outIdx: tükenen ürünlerin sipariş içindeki sırası; menüde "tükendi" olarak işaretlenir
+J.rejectOrder = function(o, reason, outIdx){
+  reason = J.REJECT_REASONS[reason] ? reason : 'diger';
+  const out = (outIdx||[]).map(i => o.items[i] && o.items[i].name).filter(Boolean);
+  DB.patch('orders', o.id, {state:'red', pay:'kalkti', reject_reason:reason, reject_items:out});
+  if(out.length){ const b = DB.get('businesses', o.rid); if(b) DB.patch('businesses', b.id, {menu:(b.menu||[]).map(m => out.includes(m.name) ? Object.assign({}, m, {available:false}) : m)}); }
   if(o.discount && o.coupon_id) J.couponReturn(o);
-  J.log(`#${o.no} işletme reddetti. Blokaj kaldırıldı.`, 'bad', o.id);
+  J.log(`#${o.no} işletme reddetti (${J.REJECT_REASONS[reason]}${out.length ? ': ' + out.join(', ') : ''}). Blokaj kaldırıldı.`, 'bad', o.id);
 };
+// Hazırlık süresi aşılınca işletme ek süre ister; müşterinin tahmini güncellenir
+J.PREP_EXT_MAX = 3;
+J.extendPrep = function(o, min){
+  if(!o || o.prep !== 'hazirlaniyor' || (o.prep_ext||0) >= J.PREP_EXT_MAX) return false;
+  DB.patch('orders', o.id, {prep_until: Math.max(o.prep_until, J.now()) + min*J.minMs(), prep_ext:(o.prep_ext||0)+1, prep_ext_min:(o.prep_ext_min||0)+min});
+  J.log(`#${o.no} hazırlık ${min} dk uzatıldı.`, 'warn', o.id);
+  return true;
+};
+// Kapasite: aynı anda en fazla b.cap sipariş (onay bekleyen + hazırlanan). Dolunca yeni sipariş geçici olarak alınmaz.
+J.bizLoad = b => J.orders().filter(o => o.rid === b.id && o.state === 'aktif' && !J.isHeld(o) && (o.prep === 'bekliyor' || o.prep === 'hazirlaniyor')).length;
+J.isFull = b => !!(b && b.cap > 0 && J.bizLoad(b) >= b.cap);
 J.markReady = function(o){ DB.patch('orders', o.id, {prep:'hazir', ready_at:J.now()}); J.log(`#${o.no} hazır.`, '', o.id); };
 
 /* ===================== KURYE ATAMA =====================

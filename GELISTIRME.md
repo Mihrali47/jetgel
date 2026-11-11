@@ -89,3 +89,4 @@ Dükkân `test1`…`test9`, kurye `1test`…`9test`, müşteri `test`; hepsinin 
 
 Stok takibi, kasa entegrasyonu, gerçek ödeme, gerçek (güvenli) kullanıcı girişi ve sunucu tarafı (push bildirim) henüz yok. Veritabanı politikası prototip için herkese açıktır. Bunlar `README.md`'deki yol haritasında. Sahip istemeden bunlara başlama.
 - Yönetim: `J.orderAlerts` (eşikler `J.ALERT_MIN`), `J.adminReassign` (`assign_n` artar, yeni kurye `kabul_<n>` alanını kilitler), `J.adminCancel` (state 'iptal', pay 'iade' ya da 'kalkti'). Finans sekmesi `renderFin`/`finCsv`.
+- İşletme: `J.REJECT_REASONS`, `J.rejectOrder(o, neden, tükenenSıra)`, `J.extendPrep` (`J.PREP_EXT_MAX`), `J.bizLoad`/`J.isFull` (`b.cap`; placeOrder dolu işletmeye planlı olmayan siparişi kabul etmez). Fiş: isletme.html `printTicket`.

@@ -100,6 +100,10 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | İkaz | İşletme müşteri aramasını açmaz ve 5 dk içinde geri aramazsa ikaz alır; müşteriye siparişin %15'i işletme payından iade edilir. 3 ikazda askıya alma. İkazlar 90 günde silinir, itiraz hakkı vardır. Bir siparişte en fazla bir ikaz ve bir iade uygulanır (tekrarlanan aramalar cezayı katlamaz). |
 | Bildirim | Kurye ve işletme için zorunlu, müşteri için önerilir. |
 | Yönetim müdahalesi | Takılan siparişler Genel sekmesinde listelenir: 3 dk onaylanmayan, 5 dk kurye bulunamayan, hazırlık süresini 5 dk aşan, yolda beklenenden 10 dk uzun kalan, kapıda 12 dk bekleyen. Yönetim kuryeyi değiştirebilir (paket alınmadan önce) ya da siparişi iptal edebilir: para çekilmediyse blokaj kalkar, çekildiyse tamamı iade edilir, kupon bakiyesi geri döner. |
+| İşletme reddi | Reddederken gerekçe seçilir (yoğunluk, ürün tükendi, kapanış, adres, diğer); müşteri gerekçeyi görür. "Ürün tükendi" seçilirse işaretlenen ürünler menüde otomatik tükendi olur. |
+| Hazırlık aşımı | Süre dolunca kart kırmızıya döner ve uyarı sesi çalar. İşletme +5/+10 dk ek süre isteyebilir (en fazla 3 kez); müşterinin tahmini teslim saati güncellenir. |
+| Kapasite | İşletme aynı anda hazırlayabileceği sipariş sayısını belirler. Dolunca yeni sipariş geçici olarak durur, müşteri "Şu an çok yoğun" görür; planlı sipariş verilebilir. |
+| Fiş | Her siparişten 80 mm fiş yazdırılır (sipariş no, ürünler, seçenekler, not, adres). Tablette sipariş sütunları yan yana gösterilir. |
 | Finans | Yönetimde günlük/7/30 günlük tablo: müşteriden tahsil, işletme, kurye (bahşiş ve hızlı teslimat dahil), platform, indirim, iade. CSV olarak indirilebilir. |
 
 ## Dosyalar
