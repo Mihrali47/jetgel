@@ -50,7 +50,7 @@ function renderApply(){
     <label class="f" for="ap-owner">Yetkili adı soyadı</label><input id="ap-owner" value="${J.esc(A.owner)}" autocomplete="name">
     <label class="f" for="ap-phone">İletişim telefonu</label><input id="ap-phone" value="${J.esc(A.phone)}" inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx"><div class="tiny muted">Sadece başvurunuz hakkında size ulaşmak için; müşterilere gösterilmez.</div>
     <label class="f" for="ap-addr">Adres</label><input id="ap-addr" value="${J.esc(A.addr)}" placeholder="Mahalle, cadde, no">
-    <button class="sec wide" style="margin-top:8px" data-a="ap-gps">${J.ic('locate-fixed',16)} ${A.lat?'Konum alındı ✓ (yeniden al)':'Dükkânın konumunu al'}</button><div class="tiny muted" style="margin-top:4px">Dükkândayken basın; kurye bu noktaya gelir.</div>
+    <button class="sec wide" style="margin-top:8px" data-a="ap-gps">${J.ic('locate-fixed',16)} ${A.lat?'Konum alındı · yeniden al':'Dükkânın konumunu al'}</button><div class="tiny muted" style="margin-top:4px">Dükkândayken basın; kurye bu noktaya gelir.</div>
     <label class="f" for="ap-user">Giriş kullanıcı adı</label><input id="ap-user" value="${J.esc(A.user)}" autocapitalize="none">
     <label class="f" for="ap-pass">Şifre</label><input id="ap-pass" type="password" value="${J.esc(A.pass)}" placeholder="En az 6 karakter">
     <label class="row small" style="margin-top:12px;gap:8px;justify-content:flex-start"><input type="checkbox" id="ap-kvkk" style="width:auto" ${A.kvkk?'checked':''}><span><a href="yasal.html#kvkk" target="_blank">Aydınlatma metnini</a> ve <a href="yasal.html#isletme" target="_blank">işletme sözleşmesini</a> okudum, kabul ediyorum.</span></label>
@@ -132,6 +132,11 @@ function printTicket(o){
   <div>${J.esc(o.customer.name)}</div><div>${J.esc(o.customer.note || '')}</div><hr><div class="c">Kurye bu fişteki sipariş numarasıyla paketi alır.</div>
   <script>window.onload=()=>{window.print();}<\/script></body></html>`);
   w.document.close();
+}
+function locCard(b){
+  return `<div class="p-sec">Dükkân konumu</div><div class="p-card"><div class="small">${b.loc_real ? `${J.ic('circle-check',15)} Konum dükkândayken GPS ile kaydedildi${b.loc_t ? ' · ' + new Date(b.loc_t).toLocaleDateString('tr-TR') : ''}.` : `${J.ic('triangle-alert',15)} Konum henüz dükkânda doğrulanmadı. Kuryeler ve müşteriler sizi bu noktada görür.`}</div>
+    <div class="tiny muted" style="margin-top:6px">Dükkânın içindeyken dokunun; kuryeler paketi almaya tam bu noktaya gelir, mesafe ve süre buna göre hesaplanır.</div>
+    <button class="sec wide" style="margin-top:10px" data-a="loc-set">${J.ic('locate-fixed',16)} Şu anki konumumu dükkân konumu yap</button></div>`;
 }
 function capCard(b){
   const load = J.bizLoad(b);
@@ -263,7 +268,7 @@ function loyaltyCard(b){
     <div class="p-grid2" style="margin-top:10px"><label class="tiny">Kaçıncı siparişte<input id="ly-every" type="number" min="2" max="30" value="${L.every}"></label><label class="tiny">İndirim (TL)<input id="ly-amount" type="number" min="1" max="1000" value="${L.amount}"></label></div></div>`;
 }
 function tabSettings(b){
-  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}${hoursCard(b)}${capCard(b)}${loyaltyCard(b)}${linkCard(b)}
+  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}${hoursCard(b)}${locCard(b)}${capCard(b)}${loyaltyCard(b)}${linkCard(b)}
     <div class="p-card"><div class="row"><label for="free" style="flex:1"><b>Müşterinin teslimat payını ben üstleneyim</b><div class="tiny muted">Müşteri "Ücretsiz teslimat" görür; ${J.tl(J.FEE.custDel+J.FEE.custPlat)} sizin payınıza eklenir.</div></label><input type="checkbox" id="free" data-a="free" style="width:22px;height:22px" ${b.free_delivery?'checked':''}></div></div>
     <div class="p-card"><div class="row"><label for="racej" style="flex:1"><b>Mahalle Başkanı kampanyasına katıl</b><div class="tiny muted">Haftanın en çok sipariş veren müşterisi ${J.tl(J.COUPON.total)} kupon kazanır. Başkan sizden sipariş verirse, siparişte en fazla ${J.tl(J.COUPON.per)} indirim sizin payınızdan düşer. Katılan işletmeler müşterilere "Kupon geçerli" etiketiyle gösterilir. İstediğiniz zaman ayrılabilirsiniz.</div></label><input type="checkbox" id="racej" data-a="racej" style="width:22px;height:22px" ${b.race_join?'checked':''}></div></div>
     <div class="p-card small"><h3>Ücretler</h3><div class="row"><span>Sipariş başına sabit ücret</span><b>${J.tl(J.FEE.bizDel+J.FEE.bizPlat)}</b></div><div class="row"><span>Yüzde komisyon</span><b>Yok</b></div><div class="row"><span>Aidat</span><b>Yok</b></div></div>
@@ -326,6 +331,15 @@ document.addEventListener('click', async e => {
   if(a==='free' && b) DB.patch('businesses', b.id, {free_delivery: el.checked});
   if(a==='tab'){ tab = id; window.scrollTo(0,0); }
   if(a==='accept') J.acceptOrder(DB.get('orders', id));
+  if(a==='loc-set' && b){
+    if(!navigator.geolocation){ J.toast('Bu cihaz konum desteklemiyor.'); return; }
+    J.toast('Konum alınıyor…');
+    navigator.geolocation.getCurrentPosition(p => {
+      if(p.coords.accuracy > 150){ J.toast(`Konum hassasiyeti düşük (±${Math.round(p.coords.accuracy)} m). Açık alanda ya da pencere kenarında tekrar deneyin.`); return; }
+      DB.patch('businesses', b.id, {lat:p.coords.latitude, lng:p.coords.longitude, loc_real:true, loc_t:J.now()}); J.log(`${b.name} dükkân konumunu GPS ile güncelledi.`); J.toast('Dükkân konumu kaydedildi.');
+    }, err => J.toast('Konum alınamadı: ' + (err.code===1 ? 'izin verilmedi' : err.message)), {enableHighAccuracy:true, timeout:20000, maximumAge:0});
+    return;
+  }
   if(a==='rj-open'){ rj = id; rjWhy = ''; rjOut = []; }
   if(a==='rj-close') rj = null;
   if(a==='rj-why') rjWhy = id;

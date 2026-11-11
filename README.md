@@ -10,10 +10,9 @@ Komisyonsuz, sabit ücretli yemek ve market teslimat sistemi. Bu repo, sistemin 
 |---|---|---|
 | `musteri.html` | Müşteri | Yemek uygulaması düzeninde: adres çubuğu, arama (restoran ve ürün), kategori filtreleri, "Tekrar sipariş ver", fotoğraf yerine renkli kapaklı restoran kartları (tahmini süre, mesafe, teslimat ücreti açıkça). Restoran sayfasında kategorili menü ve alttan sepet çubuğu; sepette işletmeye not ve gizli ücretsiz tam döküm. Takipte büyük tahmini varış, 4 adımlı ilerleme, harita, kurye/işletme arama, teslimat kodu. Sıralama (önerilen, en yakın, en hızlı, puan), favori işletmeler, birden çok kayıtlı adres (Ev, İş, Diğer). Alt menü: Keşfet · Siparişlerim · Hesabım. Stili `app/musteri.css` |
 | `isletme.html` | İşletme | Koyu başlıkta açık/kapalı anahtarı ve bugünün özeti (teslim, aktif, hesaba geçen). Siparişler "Yeni / Hazırlanıyor / Hazır" gruplarında; yeni sipariş kartı yanıp söner, hazırlık süresi büyük düğmelerle seçilir, müşteri notu sarı kutuda. Menüde kategoriye göre ürünler ve satışta/tükendi anahtarı, kategori, açıklama ve seçenekli ürün ekleme ve düzenleme, **Excel/CSV ile toplu ürün yükleme** (şablon indirilebilir; okunan ürünler önce önizlenir, hatalı satırlar ve şablondaki örnek satırlar gösterilir). Kazanç (komisyonlu platformla fark) ve ikazlar. Satış raporu (bugün/7/30 gün, en çok satanlar, saat yoğunluğu, Excel için CSV), sadakat kartı, çalışma saatleri (saatlere göre otomatik aç/kapat), ürün fotoğrafı, işletmeye özel sipariş linki ve yazdırılabilir QR kod, müşteri sorun bildirimlerini inceleme. Alt menü: Siparişler · Menü · Kazanç · Ayarlar. Stili `app/panel.css` |
-| `kurye.html` | Kurye | Koyu başlıkta çevrimiçi anahtarı ve bugünkü kazanç. Büyük turuncu teklif kartı (geri sayım, 100 TL, alış/teslim mesafeleri). Boştayken yoğunluk haritası (son 2 saatte sipariş çıkan dükkânlar). Aktif teslimatta 4 adımlı ilerleme, hazır mesajlar, gerçek yol rotası ve adım adım tarif, hedef kartında arama; kapıda büyük kod alanı (harita gizlenir). Alt menü: Görev · Kazanç · Hesap (GPS/demo sürüş seçimi burada). Stili `app/panel.css` |
+| `kurye.html` | Kurye | Koyu başlıkta çevrimiçi anahtarı ve bugünkü kazanç. Büyük turuncu teklif kartı (geri sayım, 100 TL, alış/teslim mesafeleri). Boştayken yoğunluk haritası (son 2 saatte sipariş çıkan dükkânlar). Aktif teslimatta 4 adımlı ilerleme, hazır mesajlar, gerçek yol rotası ve adım adım tarif, hedef kartında arama; kapıda büyük kod alanı (harita gizlenir). Alt menü: Görev · Kazanç · Hesap (konum durumu ve yeniden alma). Stili `app/panel.css` |
 | `yonetim.html` | Yönetim | Koyu başlıkta canlı özet. Sekmeler: Genel (harita, günlük, siparişler), Şikâyetler (iade ve ikaz itirazları, kesin karar), Başvurular (işletme başvurularını onayla/reddet), İşletmeler, Kuryeler, Aramalar, Ayarlar |
 | `yasal.html` | Herkes | KVKK aydınlatma metni, kullanım koşulları, mesafeli satış bilgilendirmesi, işletme ve kurye sözleşme özetleri (**taslak, avukat kontrolü gerekir**) |
-| `simulasyon.html` | Esnafa sunum | Tüm sistemi tek ekranda gösteren simülasyon (sürüm 2) |
 
 **Gerçek olanlar:** Telefonlar arası canlı sipariş akışı (Supabase), telefonun GPS konumu, harita ve yol rotası (OpenStreetMap/OSRM), uygulama içi **gerçek sesli arama** (WebRTC), bildirimler ve sesli uyarılar, telefona uygulama gibi yükleme (PWA).
 
@@ -34,16 +33,16 @@ Eksik test hesapları ilk açılışta otomatik oluşur. Yönetim → Ayarlar'da
 ## Nasıl denenir (3 telefonla)
 
 1. **1. telefon → İşletme:** `test1` / `test` ile giriş, bildirim izni ver, üstteki anahtarı "Açık" yap.
-2. **2. telefon → Kurye:** `1test` / `test` ile giriş, bildirim izni ver, üstteki anahtarı "Açık" yap. Masa başında Hesap sekmesinden "Demo sürüş", sokakta "Gerçek GPS".
+2. **2. telefon → Kurye:** `1test` / `test` ile giriş, bildirim ve konum izni ver, üstteki anahtarı "Açık" yap. Kurye telefonun gerçek GPS konumuyla takip edilir.
 3. **3. telefon → Müşteri:** `test` / `test` ile giriş, "Test1 · Pideci"ye gir, ürün ekle, "Sepete git" → "Siparişi onayla".
 4. İşletme onaylar → kuryeye teklif düşer → kurye kabul eder, navigasyonla gider → işletme "hazır" der → kurye paketi alır → müşterinin kapısında kodu girer.
 
-Yönetim → Ayarlar'daki **hızlı test modu** açıkken süreler 10 kat kısalır. Gerçek denemede kapatın.
 
 ## Modlar
 
 - **Canlı mod:** `app/config.js` içinde Supabase bilgileri varsa tüm cihazlar aynı veritabanına bağlanır.
-- **Demo modu:** Supabase bilgisi yoksa (ya da Yönetim → Ayarlar'dan seçilirse) veriler sadece o cihazın tarayıcısında tutulur; aynı cihazdaki sekmeler birbirini görür.
+- Cihaza özel veri modu, hızlandırılmış süreler ve simüle sürüş kaldırıldı. Test hesapları da gerçek veriyle çalışır: ortak canlı veritabanı, gerçek süreler, kuryenin gerçek GPS konumu. (Geliştirme bilgisayarındaki otomatik testler bunları yalnızca `localhost` üzerinde kullanabilir.)
+- Test dükkânları ilk açılışta deneyenin çevresine yerleştirilir; dükkândayken Ayarlar > Dükkân konumu ile gerçek GPS konumu kaydedilir ve bir daha taşınmaz. Çevrimiçi kuryenin konumu hiçbir zaman taşınmaz.
 
 Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir kez çalıştırılır.
 
@@ -122,9 +121,8 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Yol | Ne |
 |---|---|
 | `index.html` | Müşteriye dönük ana sayfa (adres arama, kategoriler, işletme ve kurye başvurusu) |
-| `demo.html` | Test ve demo sayfası: tüm roller, test hesapları, APK ve kurulum notları |
+| `ekip.html` | Ekip girişi sayfası: tüm roller, test hesapları, APK ve kurulum notları |
 | `musteri.html`, `isletme.html`, `kurye.html`, `yonetim.html` | Rol uygulamaları |
-| `simulasyon.html` | Tek ekranda simülasyon (eski `index.html`) |
 | `app/core.js` | Ortak çekirdek: veri katmanı, iş kuralları, kurye atama, navigasyon, sesli arama, uyarılar, harita |
 | `app/app.css` | Ortak görünüm |
 | `app/config.js` | Supabase bağlantı bilgisi (sadece URL ve publishable key) ve arama sunucuları |

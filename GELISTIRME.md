@@ -6,7 +6,6 @@ Bu projede çalışan herkes için kurallar ve teknik notlar. Bir değişiklik y
 
 **Jetgel** (geçici isim): İstanbul'da tek bir semtten başlayacak, **komisyonsuz, sabit ücretli** yemek ve market teslimat sistemi. Yemeksepeti, Getir ve Trendyol Go'nun yüzde komisyonuna karşı esnafa sabit ücret sunar.
 
-Şu an repoda **kullanılabilir bir prototip** var: müşteri, işletme, kurye ve yönetim için ayrı sayfalar; telefonlar Supabase üzerinden canlı bağlı; gerçek GPS, gerçek yol rotası ve uygulama içi gerçek sesli arama (WebRTC) var. **Ödeme simülasyondur**, kullanıcı girişi yoktur. Ayrıca tek ekranda her şeyi gösteren `simulasyon.html` vardır.
 
 Canlı site: https://mihrali47.github.io/jetgel/ (GitHub Pages, `main` dalının kökünden yayınlanır).
 
@@ -37,7 +36,7 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | Yol | Ne |
 |---|---|
 | `index.html` | Müşteriye dönük ana sayfa (adres arama, kategoriler, işletme ve kurye başvurusu) |
-| `demo.html` | Test ve demo sayfası: tüm roller, test hesapları, APK ve kurulum notları |
+| `ekip.html` | Ekip girişi sayfası: tüm roller, test hesapları, APK ve kurulum notları |
 | `app/ikon.js` | Çizgi ikonlar (Lucide, ISC). Arayüzde emoji yerine `J.ic('ad')` kullanılır |
 | `musteri.html`, `isletme.html`, `kurye.html`, `yonetim.html` | Rol uygulamaları; her biri kendi arayüzünü çizer, iş mantığı `app/core.js`'te |
 | `app/core.js` | Veri katmanı (`J.DB`), iş kuralları (`J.FEE`, süreler), sipariş akışı, kurye atama (`J.dispatchTick`), ikaz (`J.strikeTick`), rota/navigasyon, WebRTC arama, uyarılar, harita (`J.Map`) |
@@ -47,7 +46,6 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | `app/excel.js` | Dış kütüphanesiz .xlsx/.csv okuyucu (`J.readSheetFile`), şablondan ürün çıkarma (`J.productsFromSheets`), menüyle birleştirme (`J.mergeMenu`). Sadece işletme sayfası yükler |
 | `app/panel.css` | İşletme ve kurye uygulamalarının ortak stili (`p-` önekli sınıflar) |
 | `supabase/kurulum.sql` | Veritabanı: tek tablo `kayitlar(tbl, id, data jsonb)`, `jg_patch` (alan bazlı güncelleme) ve `jg_claim` (tek seferlik iş) fonksiyonları, realtime |
-| `simulasyon.html` | Bağımsız tek dosyalık simülasyon (sürüm 2); kendi kodunu içerir |
 | `sw.js`, `manifest-*.webmanifest`, `ikonlar/` | PWA |
 | `vendor/` | Leaflet 1.9.4, supabase-js 2 ve qrcode-generator (MIT) yerel kopyaları |
 | `sablonlar/` | Excel ürün şablonu |
@@ -70,7 +68,7 @@ Dükkân `test1`…`test9`, kurye `1test`…`9test`, müşteri `test`; hepsinin 
 
 - Sunucu yok; her cihaz kendi rolünün işini yapar: **işletme cihazı** kendi siparişleri için kurye atar ve teklif süresini takip eder; **arayan cihaz** cevapsız aramayı işaretler; **ikaz** herhangi bir cihazda `jg_claim` ile tek sefer uygulanır.
 - Kayıt güncellemelerinde her zaman `J.DB.patch` kullan (sadece değişen alanlar gönderilir; farklı cihazlar birbirinin alanını ezmesin).
-- Süreler `J.D(ms)` ile hızlı test moduna uyarlanır; yeni süre eklerken bunu kullan.
+- Süreleri `J.D(ms)` ile yaz: üretimde aynen döner; yalnızca localhost'ta `test_hizli` bayrağıyla otomatik testlerde 10'da 1'e iner.
 - `J.render` yeniden çizimde odak ve kaydırmayı korur; sayaçlar `data-live` ile güncellenir.
 - Harita/rota servisleri erişilemezse uygulama çalışmaya devam etmeli (rota düz çizgiye düşer).
 

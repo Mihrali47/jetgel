@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Jetgel · Test ve demo</title>
+<title>Jetgel · Ekip girişi</title>
 <meta name="theme-color" content="#e8590c">
 <link rel="manifest" href="manifest-musteri.webmanifest">
 <link rel="icon" href="ikonlar/ikon-192.png">
@@ -46,7 +46,6 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
     <a class="role" href="isletme.html"><div class="e" data-ic="store"></div><b>İşletme</b><span>Siparişleri al, hazırla</span></a>
     <a class="role" href="kurye.html"><div class="e" data-ic="bike"></div><b>Kurye</b><span>Teklif al, navigasyonla teslim et</span></a>
     <a class="role" href="yonetim.html"><div class="e" data-ic="layout-dashboard"></div><b>Yönetim</b><span>İşletme ekle, her şeyi izle</span></a>
-    <a class="role" href="simulasyon.html"><div class="e" data-ic="clapperboard"></div><b>Simülasyon</b><span>Tek ekranda tüm sistem (esnafa göstermek için)</span></a>
   </div>
   <div class="card"><h3>Test hesapları</h3>
     <table><tr><th>Rol</th><th>Kullanıcı adı</th><th>Şifre</th></tr>
@@ -58,12 +57,12 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
   <div class="card"><h3>Nasıl denenir? (3 telefonla)</h3>
     <ol class="howto small">
       <li><b>1. telefon → İşletme:</b> <b>test1</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap.</li>
-      <li><b>2. telefon → Kurye:</b> <b>1test</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap. Masa başında denemek için Hesap sekmesinden "Demo sürüş"ü seç; sokakta "Gerçek GPS".</li>
+      <li><b>2. telefon → Kurye:</b> <b>1test</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap. Konum izni ver; kurye telefonun gerçek GPS konumuyla takip edilir.</li>
       <li><b>3. telefon → Sipariş ver:</b> <b>test</b> / test ile giriş yap, "Test1 · Pideci"ye gir, ürün ekle, alttaki "Sepete git" → "Siparişi onayla".</li>
       <li>İşletme onaylar, kuryeye 30 saniyelik teklif düşer, kurye kabul eder ve navigasyonla gider. Kapıda müşterinin ekranındaki kod girilir.</li>
       <li>Sesli arama için siparişin içindeki telefon düğmelerini kullan. İlk aramada mikrofon izni istenir.</li>
     </ol>
-    <div class="note">Tek telefonla denemek için aynı tarayıcıda farklı sekmeler açabilirsin. Ödeme simülasyondur, gerçek para çekilmez.</div>
+    <div class="note">Tüm telefonlar aynı canlı veriyi görür; konumlar ve süreler gerçektir. Ödeme altyapısı bağlanana kadar kartlardan para çekilmez.</div>
   </div>
   <div class="card brand"><h3>Android uygulaması</h3>
     <div class="small">Kurye ve işletme için önerilir: aramada <b>ahize/hoparlör</b> seçimi, <b>ekran kilitliyken çalan arama</b> ve sipariş bildirimi, <b>arka planda GPS</b>.</div>

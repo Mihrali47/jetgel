@@ -116,7 +116,8 @@ const live = {
 
 let ADP = demo;
 DB.init = async function(){
-  const wantLive = CFG.supabaseUrl && CFG.supabaseKey && !J.store.get('force_demo', false);
+  // Her zaman ortak canlı veri. Cihaza özel veri modu yalnızca geliştirme bilgisayarında (localhost) testler için açılabilir.
+  const wantLive = CFG.supabaseUrl && CFG.supabaseKey && !(J.store.get('force_demo', false) && /^(localhost|127\.0\.0\.1)$/.test(location.hostname));
   if(wantLive && window.supabase){
     DB.mode = 'canli'; ADP = live;
     try{ await live.init(); }
@@ -137,8 +138,9 @@ DB.clearAll = async () => { await ADP.clearAll().catch(fail); TABLES.forEach(t =
 DB.refresh = () => ADP.refresh();
 
 /* ===================== AYAR: HIZLI TEST MODU ===================== */
-J.settings = () => DB.get('settings','ayar') || {fast:true};
-J.D = ms => J.settings().fast ? Math.max(1000, Math.round(ms/10)) : ms;   // hızlı test modunda süreler 10'da 1
+J.settings = () => DB.get('settings','ayar') || {};
+// Süreler her zaman gerçek. Yalnızca geliştirme bilgisayarındaki otomatik testler süreleri kısaltabilir.
+J.D = ms => (J.store.get('test_hizli', false) && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) ? Math.max(1000, Math.round(ms/10)) : ms;
 J.minMs = () => J.D(60000);  // "1 dakika" kaç ms
 
 /* ===================== OLAY GÜNLÜĞÜ ===================== */
@@ -1197,7 +1199,7 @@ J.ensureTestAccounts = function(reset){
     made++;
   }
   if(reset || !DB.get('customers','m_test')){ DB.put('customers', 'm_test', {name:'Test Müşteri', note:'Test adresi', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login:{user:'test', pass:'test'}}); made++; }
-  if(!DB.get('settings','ayar')) DB.put('settings', 'ayar', {fast:true});
+  if(!DB.get('settings','ayar')) DB.put('settings', 'ayar', {});
   if(made) J.log(reset ? 'Test hesapları sıfırlandı.' : `Test hesapları oluşturuldu (${made} kayıt).`, 'ok');
 };
 J.seedDemo = () => J.ensureTestAccounts(false);
@@ -1207,16 +1209,17 @@ J.relocateTests = function(center){
   const dLat = center.lat - c0.lat, dLng = center.lng - c0.lng;
   let n = 0;
   DB.rows('businesses').filter(b => /^b_test\d$/.test(b.id)).forEach(b => {
+    if(b.loc_real) return;   // dükkân konumunu GPS ile kaydettiyse dokunma
     const i = +b.id.slice(6) - 1; DB.patch('businesses', b.id, {lat:GRID[i][0]+dLat, lng:GRID[i][1]+dLng}); n++;
   });
   DB.rows('couriers').filter(c => /^c_\dtest$/.test(c.id)).forEach(c => {
     const k = +c.id.slice(2,3); const g = GRID[(k+3)%9];
-    if(!c.busy) DB.patch('couriers', c.id, {lat:g[0]+0.0012+dLat, lng:g[1]-0.0010+dLng}); n++;
+    if(!c.busy && !(c.online && J.isAlive(c))) DB.patch('couriers', c.id, {lat:g[0]+0.0012+dLat, lng:g[1]-0.0010+dLng}); n++;   // çevrimiçi kuryenin gerçek konumu korunur
   });
   const mt = DB.get('customers','m_test');
   if(mt && mt.loc_src !== 'gps' && mt.loc_src !== 'harita') DB.patch('customers', 'm_test', {lat:40.9840+dLat, lng:29.0335+dLng});
   if(mt && /Moda Cd\./.test(mt.note||'')) DB.patch('customers', 'm_test', {note:'Test adresi'});
-  if(DB.get('settings','ayar')) DB.patch('settings','ayar',{center}); else DB.put('settings','ayar',{fast:true, center});
+  if(DB.get('settings','ayar')) DB.patch('settings','ayar',{center}); else DB.put('settings','ayar',{center});
   J.log(`Test hesapları yeni konuma taşındı (${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}).`, 'ok');
   return n;
 };
@@ -1249,8 +1252,7 @@ J.loginForm = function(o){
 
 /* ===================== ORTAK SAYFA İSKELETİ ===================== */
 J.modeBadge = function(){
-  const fast = J.settings().fast ? '<span class="pill bad" title="Süreler 10 kat hızlı. Gerçek kuryeyle denemeden önce Yönetim > Ayarlar\'dan kapatın.">Hızlı test</span> ' : '';
-  return fast + (J.native ? '<span class="pill blue" title="Android uygulaması: ahize, kilitli ekranda bildirim, arka plan GPS">' + J.ic('smartphone',12) + ' Uygulama</span> ' : '') + modeBadge2();
+  return (J.native ? '<span class="pill blue" title="Android uygulaması: ahize, kilitli ekranda bildirim, arka plan GPS">' + J.ic('smartphone',12) + ' Uygulama</span> ' : '') + modeBadge2();
 };
 function modeBadge2(){
   if(DB.mode === 'demo') return `<span class="pill warn" title="Veriler sadece bu cihazda">Demo modu · bu cihaz</span>`;
@@ -1269,6 +1271,8 @@ J.live = function(){
 };
 // Yeniden çizimde odak ve kaydırma korunur
 J.render = function(el, html){
+  if(el._html === html){ J.live(); return; }   // değişiklik yoksa DOM'a dokunma (dokunuşlar kaybolmasın)
+  el._html = html;
   const act = document.activeElement, id = act && act.id, sel = act && act.selectionStart, sc = el.scrollTop;
   el.innerHTML = html; el.scrollTop = sc;
   J.live();
