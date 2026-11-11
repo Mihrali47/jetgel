@@ -410,6 +410,16 @@ J.rateOrder = async function(o, r){
   J.log(`#${o.no} değerlendirildi: işletme ${bz||'-'}/5, kurye ${cr||'-'}/5.`, 'ok', o.id);
   return true;
 };
+/* Önerilen sıralama puanı: SADECE hizmet kalitesi. Kampanya/kupon katılımı sıralamayı etkilemez
+   (1 Nisan 2026 Ticaret Bakanlığı düzenlemesi: kampanyaya katılmayana görünürlük cezası yasak). */
+J.qualityScore = function(b, to){
+  const r = J.ratingOf(b), rated = r.n >= J.RATING_MIN_N;
+  const rating = rated ? (r.avg - 3) / 2 : 0.3;                       // 0..1; yeni işletmeye nötr başlangıç
+  const strikes = J.activeStrikes ? J.activeStrikes(b).length : 0;   // aramaya dönmeme
+  const eta = to ? J.etaRange(b, to)[0] : 30;
+  const speed = Math.max(0, Math.min(1, (45 - eta) / 30));
+  return rating * 0.5 + speed * 0.3 - strikes * 0.2 + (b.free_delivery ? 0.05 : 0);
+};
 J.ratingOf = x => ({n: (x && x.rating_n) || 0, avg: x && x.rating_n ? x.rating_sum / x.rating_n : 0});
 J.fmtRating = avg => avg.toFixed(1).replace('.', ',');
 J.ratingBadge = function(x){
