@@ -80,6 +80,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Ücret | Müşteri 50 + 5 TL, işletme 50 + 5 TL öder. Kuryeye 100 TL, platforma 10 TL. İşletme isterse müşterinin payını üstlenir. |
 | Bahşiş | İsteğe bağlı; sepette ya da teslimattan sonra (bir kez) verilir. Tamamı kuryeye gider, kesinti yapılmaz. Üst sınır 500 TL. |
 | Hızlı teslimat | İsteğe bağlı +25 TL. İşletme siparişi öne alır (listede üstte, kırmızı etiket), kurye teklif süresi 15 sn'ye iner. Hedef 5-10 dk daha erken; ücretin tamamı kuryeye. Gerekçe: kuryeye giden her ek ücret daha çok kurye, daha hızlı teslimat ve memnun işletme demek. |
+| Hazırlık süresi | İşletmeye sorulmaz. Sistem hesaplar: işletmenin son 10 siparişteki gerçek ortalaması (en az 3 sipariş yoksa türüne göre başlangıç: yemek 12, market 7, kahve/tatlı 6 dk) + şu an hazırlanan her sipariş için 3 dk; 5-45 dk arası. Müşterinin gördüğü tahmini süre de buna göre değişir. |
 | Komisyon | Yok. Sipariş tutarı ne olursa olsun teslimat ücreti sabittir. |
 | Ödeme | Para platformun hesabına uğramaz (lisanslı ödeme kuruluşunun alt üye işyeri modeli varsayılır). Siparişte kartta blokaj → işletme onayında çekim → teslimata kadar bekletme → teslimde otomatik bölüştürme (işletme, kurye, platform). Reddedilen siparişte blokaj kalkar, para çekilmez. |
 | Kurye atama | İşletme onaylayınca 3 km içindeki en yakın, boşta ve bildirimi açık kuryeye teklif gider. 30 sn içinde yanıt yoksa ya da reddederse sıradakine geçer. Reddetmenin cezası yoktur. |

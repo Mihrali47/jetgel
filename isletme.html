@@ -69,7 +69,9 @@ function orderCard(o){
     <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}${i.opts&&i.opts.length?`<span class="p-opts">${i.opts.map(J.esc).join(' · ')}</span>`:''}</span></li>`).join('')}</ul>
     ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
     <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
-  if(o.prep==='bekliyor') h += `<div class="small" style="margin-top:12px"><b>Hazırlık süresini seçip onaylayın</b></div><div class="p-prep">${[5,10,15,20].map(m => `<button data-a="accept" data-id="${o.id}" data-min="${m}">${m}<small>dakika</small></button>`).join('')}</div><button class="ghost wide" style="color:var(--bad);margin-top:6px" data-a="reject" data-id="${o.id}">Siparişi reddet</button>`;
+  if(o.prep==='bekliyor'){ const st = J.prepStats(b), est = J.prepEstimate(b);
+    h += `<div class="p-timer" style="background:#f6f5f2;color:var(--ink)"><span>${J.ic('timer',16)} Tahmini hazırlık süresi</span><span><b>${est}</b> dk</span></div><div class="tiny muted" style="margin-top:6px">${st.avg!=null?`Son siparişlerinizdeki ortalama ${Math.round(st.avg)} dk`:'Başlangıç süresi'}${st.load?` + şu an hazırlanan ${st.load} sipariş`:''}. Süreyi sistem yoğunluğunuza göre belirler; "Hazır" dediğiniz anlar ortalamayı günceller.</div>
+    <div class="p-act"><button class="ok" style="flex:2;padding:15px;font-size:16px" data-a="accept" data-id="${o.id}">${J.ic('circle-check',18)} Siparişi onayla</button><button class="sec" data-a="reject" data-id="${o.id}">Reddet</button></div>`; }
   if(o.prep==='hazirlaniyor') h += `<div class="p-timer"><span>${J.ic('timer',16)} Kalan hazırlık süresi</span><span><b data-live="mdown" data-end="${o.prep_until}">…</b> dk</span></div><button class="ok p-big" data-a="ready" data-id="${o.id}">${J.ic('circle-check',18)} Sipariş hazır</button>`;
   let ct = o.prep==='bekliyor' ? 'Onaydan sonra kurye aranır' : 'Kurye aranıyor…';
   if(o.offer && !c){ const oc = DB.get('couriers', o.offer.cid); ct = `${J.esc(oc?oc.name:'Kurye')}'e teklif gönderildi (<span data-live="down" data-end="${o.offer.exp}">…</span> sn)`; }
@@ -200,7 +202,7 @@ document.addEventListener('click', async e => {
   }
   if(a==='free' && b) DB.patch('businesses', b.id, {free_delivery: el.checked});
   if(a==='tab'){ tab = id; window.scrollTo(0,0); }
-  if(a==='accept') J.acceptOrder(DB.get('orders', id), +el.dataset.min);
+  if(a==='accept') J.acceptOrder(DB.get('orders', id));
   if(a==='reject') J.rejectOrder(DB.get('orders', id));
   if(a==='ready') J.markReady(DB.get('orders', id));
   if(a==='avail' && b) DB.patch('businesses', b.id, {menu: b.menu.map(m => m.id===id ? Object.assign({}, m, {available: m.available===false}) : m)});

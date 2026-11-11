@@ -220,15 +220,33 @@ J.placeOrder = function(b, cart, cust, extra){
   J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip+o.prio_fee)} bloke.${o.priority?' Hızlı teslimat.':''}${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
   return o;
 };
+/* Hazırlık süresi işletmeye sorulmaz; sistem hesaplar:
+   işletmenin son siparişlerdeki gerçek ortalama hazırlık süresi (yoksa türüne göre başlangıç değeri)
+   + şu an hazırlanan her sipariş için 3 dk. 5-45 dk arasında tutulur. */
+J.PREP_BASE = {Yemek:12, Market:7, 'Kahve & Tatlı':6};
+J.PREP_PER_ORDER = 3;
+J.prepStats = function(b){
+  const mine = J.orders().filter(o => o.rid === b.id);
+  const done = mine.filter(o => o.accepted_at && o.ready_at && o.ready_at > o.accepted_at).slice(0, 10);
+  const avg = done.length >= 3 ? done.reduce((t,o) => t + (o.ready_at - o.accepted_at) / J.minMs(), 0) / done.length : null;
+  const load = mine.filter(o => o.state === 'aktif' && o.prep === 'hazirlaniyor').length;
+  return {avg, load, base: avg != null ? Math.min(30, Math.max(4, avg)) : (J.PREP_BASE[J.bizGroup(b)] || 12)};
+};
+J.prepEstimate = function(b, extraLoad){
+  const st = J.prepStats(b);
+  return Math.round(Math.min(45, Math.max(5, st.base + J.PREP_PER_ORDER * (st.load + (extraLoad||0)))));
+};
 J.acceptOrder = function(o, prepMin){
+  const b = DB.get('businesses', o.rid);
+  if(!prepMin) prepMin = b ? J.prepEstimate(b) : 12;
   DB.patch('orders', o.id, {prep:'hazirlaniyor', prep_until: J.now() + prepMin*J.minMs(), prep_min:prepMin, pay:'bekletiliyor', del:'araniyor', accepted_at:J.now()});
-  J.log(`#${o.no} işletme onayladı (${prepMin} dk). Ödeme çekildi, teslimata kadar bekletiliyor.`, 'order', o.id);
+  J.log(`#${o.no} işletme onayladı (tahmini hazırlık ${prepMin} dk). Ödeme çekildi, teslimata kadar bekletiliyor.`, 'order', o.id);
 };
 J.rejectOrder = function(o){
   DB.patch('orders', o.id, {state:'red', pay:'kalkti'});
   J.log(`#${o.no} işletme reddetti. Blokaj kaldırıldı.`, 'bad', o.id);
 };
-J.markReady = function(o){ DB.patch('orders', o.id, {prep:'hazir'}); J.log(`#${o.no} hazır.`, '', o.id); };
+J.markReady = function(o){ DB.patch('orders', o.id, {prep:'hazir', ready_at:J.now()}); J.log(`#${o.no} hazır.`, '', o.id); };
 
 /* ===================== KURYE ATAMA =====================
    İşletmenin cihazı kendi siparişleri için çalıştırır:
@@ -743,7 +761,8 @@ J.bizColor = b => J.KIND_COLOR[b.kind] || '#e8590c';
 // Tahmini teslim süresi (dk): ortalama hazırlık + yol
 J.etaRange = function(b, to){
   const ride = isFinite(J.dist(b,to)) ? J.dist(b,to)*1.3/J.M_PER_MIN : 10;
-  const lo = Math.max(15, Math.round((12 + ride)/5)*5);
+  const prep = J.prepEstimate(b, 0) + 3;   // yoğunluğa göre hazırlık + kuryenin işletmeye varışı
+  const lo = Math.max(15, Math.round((prep + ride)/5)*5);
   return [lo, lo+10];
 };
 const GRID = [[40.9830,29.0265],[40.9830,29.0305],[40.9830,29.0345],[40.9868,29.0265],[40.9868,29.0305],[40.9868,29.0345],[40.9903,29.0265],[40.9903,29.0305],[40.9903,29.0345]];
