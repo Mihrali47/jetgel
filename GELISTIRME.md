@@ -21,6 +21,7 @@ Canlı site: https://mihrali47.github.io/jetgel/ (GitHub Pages, `main` dalının
 Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değiştirme**. Ayrıntılar `README.md` içindeki "Kurallar" tablosunda.
 
 - **Ücret:** Müşteri 50 + 5 TL, işletme 50 + 5 TL öder. Kuryeye 100 TL, platforma 10 TL. Yüzde komisyon yok. İşletme isterse müşterinin payını üstlenir.
+- **Bahşiş:** İsteğe bağlı, tamamı kuryeye.
 - **Ödeme:** Para platformun hesabına uğramaz (alt üye işyeri modeli). Blokaj → onayda çekim → teslimata kadar bekletme → teslimde otomatik bölüştürme.
 - **SMS yok.** Teslimat onayı uygulama içi 4 haneli kod veya QR ile; kod yalnızca 100 m içinde geçerli. Serbest "teslim edildi" butonu yok.
 - **Arama:** Uygulama içi, internet üzerinden, numaralar gizli, yalnızca aktif sipariş varken.

@@ -78,6 +78,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Konu | Kural |
 |---|---|
 | Ücret | Müşteri 50 + 5 TL, işletme 50 + 5 TL öder. Kuryeye 100 TL, platforma 10 TL. İşletme isterse müşterinin payını üstlenir. |
+| Bahşiş | İsteğe bağlı; sepette ya da teslimattan sonra (bir kez) verilir. Tamamı kuryeye gider, kesinti yapılmaz. Üst sınır 500 TL. |
 | Komisyon | Yok. Sipariş tutarı ne olursa olsun teslimat ücreti sabittir. |
 | Ödeme | Para platformun hesabına uğramaz (lisanslı ödeme kuruluşunun alt üye işyeri modeli varsayılır). Siparişte kartta blokaj → işletme onayında çekim → teslimata kadar bekletme → teslimde otomatik bölüştürme (işletme, kurye, platform). Reddedilen siparişte blokaj kalkar, para çekilmez. |
 | Kurye atama | İşletme onaylayınca 3 km içindeki en yakın, boşta ve bildirimi açık kuryeye teklif gider. 30 sn içinde yanıt yoksa ya da reddederse sıradakine geçer. Reddetmenin cezası yoktur. |

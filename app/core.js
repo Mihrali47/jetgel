@@ -8,6 +8,7 @@ const J = window.J = window.J || {};
 
 /* ===================== AYARLAR (iş kuralları) ===================== */
 J.FEE = {custDel:50, custPlat:5, bizDel:50, bizPlat:5, courier:100, platform:10};
+J.TIP_MAX = 500;                // bahşiş üst sınırı (TL)
 J.PENALTY_RATE = 0.15;          // ikazda müşteriye iade
 J.COMMISSION_RATE = 0.35;       // karşılaştırma için
 J.RADIUS_M = 3000;              // kurye arama yarıçapı
@@ -164,7 +165,8 @@ J.partyName = function(p){
 J.PAY_TXT = {blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi'};
 J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic('credit-card',12)} ${J.PAY_TXT[o.pay]||o.pay}</span>`;
 function payout(o){
-  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0), courier: J.FEE.courier, platform: J.FEE.platform, refund: o.refund||0};
+  const tip = o.tip || 0;   // bahşişin tamamı kuryeye
+  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0), courier: J.FEE.courier + tip, tip, platform: J.FEE.platform, refund: o.refund||0};
   DB.patch('orders', o.id, {pay:'dagitildi', shares});
   J.log(`#${o.no} ödeme dağıtıldı: işletme ${J.tl(shares.business)}, kurye ${J.tl(shares.courier)}, platform ${J.tl(shares.platform)}${shares.refund?`, iade ${J.tl(shares.refund)}`:''}.`, 'pay', o.id);
 }
@@ -182,11 +184,12 @@ J.placeOrder = function(b, cart, cust, extra){
     state:'aktif', prep:'bekliyor', del:'yok', pay:'blokaj', refund:0,
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||''},
     note: String((extra && extra.note) || '').slice(0, 200),
+    tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
     pin: String(Math.floor(1000+Math.random()*9000)), courier_id:null, offer:null, tried:[],
     created_at: J.now()
   };
   DB.put('orders', id, o);
-  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust)} bloke.`, 'order', id);
+  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip)} bloke.${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
   return o;
 };
 J.acceptOrder = function(o, prepMin){
@@ -249,14 +252,29 @@ J.arriveBusiness = o => { DB.patch('orders', o.id, {del:'isletmede'}); J.log(`#$
 J.pickup = o => { DB.patch('orders', o.id, {del:'yolda', picked_at:J.now()}); J.log(`#${o.no} paket alındı (fiş QR), müşteriye gidiyor.`, '', o.id); };
 J.arriveCustomer = o => { DB.patch('orders', o.id, {del:'kapida', arrived_at:J.now()}); J.log(`#${o.no} kurye müşterinin kapısında.`, '', o.id); };
 function finishCourier(c, o){
-  const jobs = [{id:o.id, no:o.no, t:J.now(), amount:J.FEE.courier, rname:o.rname}].concat(c.jobs||[]).slice(0,50);
-  DB.patch('couriers', c.id, {busy:null, earnings:(c.earnings||0)+J.FEE.courier, jobs});
+  const tip = o.tip || 0;
+  const jobs = [{id:o.id, no:o.no, t:J.now(), amount:J.FEE.courier + tip, tip, rname:o.rname}].concat(c.jobs||[]).slice(0,50);
+  DB.patch('couriers', c.id, {busy:null, earnings:(c.earnings||0)+J.FEE.courier+tip, jobs});
 }
 J.complete = function(c, o, how){
   DB.patch('orders', o.id, {state:'teslim', del:'teslim', delivered_at:J.now(), how});
   finishCourier(c, o);
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
+};
+// Teslimattan sonra bahşiş: siparişte bahşiş yoksa bir kez verilebilir; tamamı kuryeye
+J.addTip = async function(o, amount){
+  amount = Math.max(0, Math.min(J.TIP_MAX, Math.round(+amount || 0)));
+  if(!amount || !o || o.state !== 'teslim' || o.tip || !o.courier_id) return false;
+  if(!(await DB.claim('orders', o.id, 'tip_after_given'))) return false;
+  DB.patch('orders', o.id, {tip_after: amount});
+  const c = DB.get('couriers', o.courier_id);
+  if(c){
+    const jobs = (c.jobs||[]).map(j => j.id === o.id ? Object.assign({}, j, {amount:(j.amount||0)+amount, tip:(j.tip||0)+amount}) : j);
+    DB.patch('couriers', c.id, {earnings:(c.earnings||0)+amount, jobs});
+  }
+  J.log(`#${o.no} müşteri kuryeye ${J.tl(amount)} bahşiş bıraktı (tamamı kuryeye).`, 'pay', o.id);
+  return true;
 };
 J.unreachable = function(c, o){
   DB.patch('orders', o.id, {state:'ulasilamadi', del:'ulasilamadi'});

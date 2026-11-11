@@ -147,3 +147,7 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-active-ic{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;flex:none}
 .m-meta svg.ic{vertical-align:-2px}
 .m-cover .eta svg.ic{vertical-align:-2px}
+.m-tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:6px}
+.m-tips button{background:#f6f5f2;color:var(--ink);padding:10px 4px;border-radius:12px;font-size:13.5px;border:1.5px solid transparent}
+.m-tips button.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
+.m-box h3 svg.ic{color:var(--brand)}
