@@ -64,7 +64,9 @@ const soft = b => `background:${J.bizColor(b)}22`;
 const cartCount = () => Object.values(cart).reduce((s,n) => s+n, 0);
 function cartSum(b){ return J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0); }
 const inCart = mid => Object.keys(cart).filter(k => k === mid || k.startsWith(mid+'|')).reduce((t,k) => t + cart[k], 0);
-let sheet = null;   // seçenek penceresi: {mid, sel:[], qty}
+let sheet = null;
+let rate = {id:null, biz:0, cour:0, note:''};   // değerlendirme taslağı
+const stars = (act, val) => `<div class="m-stars">${[1,2,3,4,5].map(v => `<button class="${v<=val?'on':''}" data-a="${act}" data-v="${v}" aria-label="${v} yıldız">${J.ic('star',30, v<=val?'fill':'')}</button>`).join('')}</div>`;   // seçenek penceresi: {mid, sel:[], qty}
 function fees(b){ return b.free_delivery ? {del:0, plat:0} : {del:J.FEE.custDel, plat:J.FEE.custPlat}; }
 function etaTxt(b){ const [a,z] = J.etaRange(b, prof); return `${a}-${z} dk`; }
 const ST = {aktif:['brand','Yolda / hazırlanıyor'], teslim:['ok','Teslim edildi'], red:['bad','Reddedildi'], ulasilamadi:['bad','Ulaşılamadı']};
@@ -111,7 +113,7 @@ function restCard(x){
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
     <div class="m-cover" style="${cover(b)}"><div class="bdg">${fee}<span class="tag dark">Komisyonsuz</span></div><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
-    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta"><span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
+    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
 }
 function renderList(){
   showMap(false);
@@ -154,7 +156,7 @@ function renderMenu(){
   const f = fees(b), menu = b.menu||[];
   const cats = []; menu.forEach(m => { const c = m.cat || 'Menü'; if(!cats.includes(c)) cats.push(c); });
   let h = `<div class="m-hero" style="${cover(b)}"><button class="back" data-a="back" aria-label="Geri">${J.ic('chevron-left',22)}</button><span class="cv-ic big">${J.bizIcon(b,44)}</span></div>
-    <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta"><span>${J.esc(b.kind||'')}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
+    <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||'')}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
     <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div></div>`;
   if(cats.length > 1) h += `<div class="m-cats">${cats.map((c,i) => `<button data-a="jump" data-id="cat${i}">${J.esc(c)}</button>`).join('')}</div>`;
   h += `<div class="m-menu">`;
@@ -242,6 +244,15 @@ function renderTrack(){
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
     <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.refund||0))}</b></div>
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
+  if(o.state==='teslim' && !o.rated){
+    if(rate.id !== o.id) rate = {id:o.id, biz:0, cour:0, note:''};
+    h += `<div class="m-box m-rate"><h3>Siparişin nasıldı?</h3>
+      <div class="small muted">${J.esc(o.rname)}</div>${stars('rate-b', rate.biz)}
+      ${o.courier_id?`<div class="small muted" style="margin-top:6px">Kurye${(() => { const c = DB.get('couriers', o.courier_id); return c ? ' · ' + J.esc(c.name) : ''; })()}</div>${stars('rate-c', rate.cour)}`:''}
+      <textarea id="rate-note" class="m-note" maxlength="300" placeholder="Eklemek istediğin bir şey var mı? (isteğe bağlı)" style="margin-top:10px">${J.esc(rate.note)}</textarea>
+      <button class="brand wide" style="margin-top:10px" data-a="rate-send" ${rate.biz||rate.cour?'':'disabled'}>Değerlendirmeyi gönder</button></div>`;
+  }
+  if(o.state==='teslim' && o.rated && o.rating) h += `<div class="m-fair"><i>${J.ic('star',20)}</i><div><b>Değerlendirmen için teşekkürler.</b> İşletme ${o.rating.biz||'-'}/5${o.courier_id?` · Kurye ${o.rating.cour||'-'}/5`:''}</div></div>`;
   if(o.state==='teslim' && o.courier_id && !o.tip && !o.tip_after) h += `<div class="m-box"><h3>${J.ic('heart-handshake',16)} Kuryene bahşiş bırak</h3><div class="tiny muted" style="margin:-4px 0 10px">Memnun kaldıysan teşekkür et. Tamamı kuryeye gider.</div><div class="m-tips">${[20,30,50,100].map(v => `<button data-a="tip-after" data-v="${v}">${J.tl(v)}</button>`).join('')}</div></div>`;
   if(o.state==='teslim' && o.tip_after) h += `<div class="m-fair"><i>${J.ic('heart-handshake',22)}</i><div><b>Teşekkürler!</b> ${J.tl(o.tip_after)} bahşişin kuryene iletildi.</div></div>`;
   if(o.state==='teslim' && bizOpen(b)) h += `<button class="brand wide" data-a="reorder" data-id="${o.id}">${J.ic('rotate-ccw',16)} Aynısını tekrar sipariş ver</button>`;
@@ -394,6 +405,9 @@ document.addEventListener('click', e => {
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
   }
   if(a==='prio'){ prio = !prio; }
+  if(a==='rate-b') rate.biz = +el.dataset.v;
+  if(a==='rate-c') rate.cour = +el.dataset.v;
+  if(a==='rate-send'){ const o = DB.get('orders', trackId); J.rateOrder(o, rate).then(ok => { if(ok) J.toast('Teşekkürler, değerlendirmen kaydedildi.'); render(); }); return; }
   if(a==='tip'){ const v = el.dataset.v; if(v==='diger'){ tipCustom = true; } else { tipCustom = false; tip = +v; } }
   if(a==='tip-after'){ const o = DB.get('orders', trackId); J.addTip(o, +el.dataset.v).then(ok => { if(ok){ J.toast('Bahşişin kuryene iletildi.'); render(); } }); return; }
   if(a==='track'){ trackId = id; J.store.set('musteri_takip', id); go('takip'); }
@@ -427,13 +441,14 @@ function autoLocate(){
 document.addEventListener('input', e => {
   if(e.target.id==='q'){ q = e.target.value; render(); return; }
   if(e.target.id==='o-note'){ orderNote = e.target.value; return; }
+  if(e.target.id==='rate-note'){ rate.note = e.target.value; return; }
   if(e.target.id==='tip-in'){ tip = Math.max(0, Math.min(J.TIP_MAX, parseInt(e.target.value.replace(/\D/g,''),10) || 0)); renderBar(); return; }
   if(!draft) return;
   if(e.target.id==='p-name') draft.name = e.target.value;
   if(e.target.id==='p-note') draft.note = e.target.value;
 });
 // Yazı yazılırken (not, adres) ekranı yeniden çizme
-const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='tip-in' || a.id==='p-name' || a.id==='p-note'); };
+const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='p-name' || a.id==='p-note'); };
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 DB.init().then(() => {

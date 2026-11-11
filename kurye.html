@@ -167,6 +167,7 @@ function tabTask(c){
 function tabEarn(c){
   const jobs = c.jobs||[];
   let h = `<div class="p-card" style="background:linear-gradient(135deg,#1f9d55,#2b8a3e);color:#fff"><div class="small" style="opacity:.85">Toplam kazancın</div><div style="font-size:32px;font-weight:900">${J.tl(c.earnings||0)}</div><div class="small" style="opacity:.85">${jobs.length} teslimat · teslimat başına sabit ${J.tl(J.FEE.courier)}</div></div>
+    ${(() => { const rt = J.ratingOf(c); return `<div class="p-card"><div class="row"><span>Müşteri puanın</span>${rt.n?`<b style="font-size:20px">${J.ic('star',16,'fill')} ${J.fmtRating(rt.avg)} <span class="tiny muted">(${rt.n})</span></b>`:'<span class="small muted">Henüz yok</span>'}</div><div class="tiny muted" style="margin-top:4px">Puan cezaya dönüşmez; sadece sana geri bildirimdir.</div></div>`; })()}
     <div class="p-card small"><div class="row"><span>Ödeme</span><b>Gerçek sistemde günlük</b></div><div class="row"><span>Bahşiş</span><b>Tamamı senin</b></div><div class="row"><span>Ceza puanı</span><b>Yok</b></div><div class="row"><span>Teklif reddetme</span><b>Cezasız</b></div><div class="row"><span>Müşteri kapıyı açmazsa</span><b>Ücretini yine alırsın</b></div></div>`;
   h += `<div class="p-sec">Son teslimatlar<span class="n">${jobs.length}</span></div>`;
   if(!jobs.length) h += `<div class="p-empty"><div>${J.ic('receipt',34)}</div>Henüz teslimat yok.</div>`;

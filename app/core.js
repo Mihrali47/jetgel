@@ -309,6 +309,31 @@ J.complete = function(c, o, how){
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
 };
+/* Puanlama: teslim edilen siparişte müşteri işletmeyi ve kuryeyi 1-5 puanlar (bir kez).
+   Kartlarda sadece gerçek puan gösterilir; 3'ten az değerlendirme varsa "Yeni" yazar. */
+J.RATING_MIN_N = 3;
+J.rateOrder = async function(o, r){
+  const bz = Math.max(0, Math.min(5, Math.round(+r.biz || 0))), cr = Math.max(0, Math.min(5, Math.round(+r.cour || 0)));
+  if(!o || o.state !== 'teslim' || (!bz && !cr)) return false;
+  if(!(await DB.claim('orders', o.id, 'rated'))) return false;
+  const note = String(r.note || '').trim().slice(0, 300);
+  DB.patch('orders', o.id, {rating:{biz:bz, cour:cr, note, t:J.now()}});
+  const b = DB.get('businesses', o.rid);
+  if(b && bz){
+    const reviews = [{t:J.now(), stars:bz, note, no:o.no, name:(o.customer.name||'').split(' ')[0]}].concat(b.reviews||[]).slice(0, 30);
+    DB.patch('businesses', b.id, {rating_sum:(b.rating_sum||0)+bz, rating_n:(b.rating_n||0)+1, reviews});
+  }
+  const c = o.courier_id && DB.get('couriers', o.courier_id);
+  if(c && cr) DB.patch('couriers', c.id, {rating_sum:(c.rating_sum||0)+cr, rating_n:(c.rating_n||0)+1});
+  J.log(`#${o.no} değerlendirildi: işletme ${bz||'-'}/5, kurye ${cr||'-'}/5.`, 'ok', o.id);
+  return true;
+};
+J.ratingOf = x => ({n: (x && x.rating_n) || 0, avg: x && x.rating_n ? x.rating_sum / x.rating_n : 0});
+J.fmtRating = avg => avg.toFixed(1).replace('.', ',');
+J.ratingBadge = function(x){
+  const r = J.ratingOf(x);
+  return r.n >= J.RATING_MIN_N ? `<span class="rt">${J.ic('star',13,'fill')} ${J.fmtRating(r.avg)} <span class="rt-n">(${r.n})</span></span>` : `<span class="rt new">Yeni</span>`;
+};
 // Teslimattan sonra bahşiş: siparişte bahşiş yoksa bir kez verilebilir; tamamı kuryeye
 J.addTip = async function(o, amount){
   amount = Math.max(0, Math.min(J.TIP_MAX, Math.round(+amount || 0)));

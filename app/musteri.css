@@ -181,3 +181,8 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-sheet .opts .pr{color:var(--muted);font-size:13.5px}
 .m-sheet .ft{display:flex;gap:10px;align-items:center;padding:12px 16px 14px;border-top:1px solid #f0ede7}
 .m-sheet .ft .m-qty button{width:36px;height:36px}
+.m-stars{display:flex;gap:4px;margin-top:6px}
+.m-stars button{background:none;padding:2px;color:#d6d1c8;border-radius:8px}
+.m-stars button.on{color:#f5a524}
+.m-stars svg.fill{fill:#f5a524}
+.m-meta .rt{font-size:12.5px}
