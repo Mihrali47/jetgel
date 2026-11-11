@@ -135,8 +135,9 @@ function printTicket(o){
 }
 function capCard(b){
   const load = J.bizLoad(b);
-  return `<div class="p-sec">Kapasite</div><div class="p-card"><div class="row"><label for="cap" style="flex:1"><b>Aynı anda en fazla kaç sipariş hazırlayabilirsiniz?</b><div class="tiny muted">Sınıra ulaşınca yeni siparişler geçici olarak durur, müşteri "Şu an çok yoğun" görür. Bir sipariş hazır olunca otomatik açılır. Planlı siparişler etkilenmez.</div></label>
+  return `<div class="p-sec">Kapasite ve minimum tutar</div><div class="p-card"><div class="row"><label for="cap" style="flex:1"><b>Aynı anda en fazla kaç sipariş hazırlayabilirsiniz?</b><div class="tiny muted">Sınıra ulaşınca yeni siparişler geçici olarak durur, müşteri "Şu an çok yoğun" görür. Bir sipariş hazır olunca otomatik açılır. Planlı siparişler etkilenmez.</div></label>
     <select id="cap" style="width:110px">${[0,2,3,4,5,6,8,10,12,15].map(n => `<option value="${n}" ${(b.cap||0)===n?'selected':''}>${n?n+' sipariş':'Sınırsız'}</option>`).join('')}</select></div>
+    <div class="row" style="margin-top:12px"><label for="minord" style="flex:1"><b>Minimum sipariş tutarı</b><div class="tiny muted">Bu tutarın altındaki sepetler sipariş veremez (teslimat ve hizmet bedeli hariç).</div></label><select id="minord" style="width:110px">${[0,100,150,200,250,300,400,500].map(n => `<option value="${n}" ${(b.min_order||0)===n?'selected':''}>${n?J.tl(n):'Yok'}</option>`).join('')}</select></div>
     <div class="tiny" style="margin-top:8px">Şu an: <b>${load}</b> sipariş${J.isFull(b) ? ' · <b style="color:var(--bad)">dolu, yeni sipariş alınmıyor</b>' : ''}</div></div>`;
 }
 function tabOrders(b){
@@ -190,7 +191,8 @@ function importCard(b){
 function editForm(cats){
   return `<div class="p-edit"><input id="ed-name" placeholder="Ürün adı" value="${J.esc(ed.name)}"><div class="p-grid2" style="margin-top:8px"><input id="ed-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(ed.price)}"><input id="ed-cat" placeholder="Kategori" list="cats" value="${J.esc(ed.cat)}"></div>
     <input id="ed-desc" placeholder="Kısa açıklama" style="margin-top:8px" value="${J.esc(ed.desc)}">
-    <div class="p-photo">${ed.photo?`<img src="${ed.photo}" alt=""><button class="sm sec" data-a="ed-photo-del">Fotoğrafı kaldır</button>`:`<label class="btnlink" style="cursor:pointer">${J.ic('camera',15)} Ürün fotoğrafı ekle<input type="file" accept="image/*" id="ed-photo" style="display:none"></label><span class="tiny muted">Fotoğraflı ürünler daha çok satar.</span>`}</div><input id="ed-opts" placeholder="Seçenekler: Ekstra kaşar=40 | Soğansız=0" style="margin-top:8px" value="${J.esc(ed.opts)}">
+    <div class="p-photo">${ed.photo?`<img src="${ed.photo}" alt=""><button class="sm sec" data-a="ed-photo-del">Fotoğrafı kaldır</button>`:`<label class="btnlink" style="cursor:pointer">${J.ic('camera',15)} Ürün fotoğrafı ekle<input type="file" accept="image/*" id="ed-photo" style="display:none"></label><span class="tiny muted">Fotoğraflı ürünler daha çok satar.</span>`}</div><input id="ed-opts" placeholder="Seçenekler: Boy* > Küçük=0 | Boy* > Büyük=40 | Ekstra kaşar=40" style="margin-top:8px" value="${J.esc(ed.opts)}"><div class="tiny muted" style="margin-top:4px">Aynı gruptan tek seçim için "Grup > Seçenek" yazın; grup adının sonuna * koyarsanız seçim zorunlu olur.</div>
+    <div class="tiny" style="margin-top:10px"><b>Alerjenler</b> <span class="muted">(müşteriye "İçerir" olarak gösterilir)</span></div><div class="p-chips">${Object.entries(J.ALLERGENS).map(([k,t]) => `<button class="${(ed.alg||[]).includes(k)?'on':''}" data-a="ed-alg" data-id="${k}">${t}</button>`).join('')}</div>
     <div class="p-act"><button class="brand" data-a="ed-save">Kaydet</button><button class="sec" data-a="ed-cancel">Vazgeç</button></div><button class="ghost wide" style="color:var(--bad)" data-a="ed-del">Ürünü sil</button></div>`;
 }
 function tabMenu(b){
@@ -373,8 +375,9 @@ document.addEventListener('click', async e => {
     nf = {name:'', price:'', cat:'', desc:'', opts:''};
     J.toast('Ürün eklendi.');
   }
-  if(a==='edit-item' && b){ const m = b.menu.find(x => x.id === id); if(m) ed = {id, name:m.name, price:String(m.price), cat:m.cat||'', desc:m.desc||'', opts:J.optsText(m.opts), photo:m.photo||null}; }
+  if(a==='edit-item' && b){ const m = b.menu.find(x => x.id === id); if(m) ed = {id, name:m.name, price:String(m.price), cat:m.cat||'', desc:m.desc||'', opts:J.optsText(m.opts), photo:m.photo||null, alg:(m.alg||[]).slice()}; }
   if(a==='ed-cancel'){ ed = null; }
+  if(a==='ed-alg' && ed){ ed.alg = (ed.alg||[]).includes(id) ? ed.alg.filter(x => x !== id) : (ed.alg||[]).concat([id]); }
   if(a==='ed-photo-del' && ed){ ed.photo = null; }
   if(a==='h-auto' && b){ const H = b.hours || J.defaultHours(); DB.patch('businesses', b.id, {hours: Object.assign({}, H, {auto: el.checked})}); J.toast(el.checked ? 'Otomatik açma/kapama açık.' : 'Otomatik açma/kapama kapalı.'); }
   if(a==='copy-link'){ const i = document.getElementById('biz-link'); i.select(); try{ navigator.clipboard.writeText(i.value); }catch(e){ document.execCommand('copy'); } J.toast('Link kopyalandı.'); return; }
@@ -385,7 +388,7 @@ document.addEventListener('click', async e => {
     const price = parseFloat(String(ed.price).replace(',','.'));
     if(!ed.name.trim() || !(price > 0)){ J.toast('Ürün adı ve fiyat girin.'); return; }
     const opts = J.parseOpts(ed.opts);
-    DB.patch('businesses', b.id, {menu: b.menu.map(m => { if(m.id !== ed.id) return m; const n = Object.assign({}, m, {name:ed.name.trim(), price, cat:ed.cat.trim(), desc:ed.desc.trim()}); if(opts.length) n.opts = opts; else delete n.opts; if(ed.photo) n.photo = ed.photo; else delete n.photo; return n; })});
+    DB.patch('businesses', b.id, {menu: b.menu.map(m => { if(m.id !== ed.id) return m; const n = Object.assign({}, m, {name:ed.name.trim(), price, cat:ed.cat.trim(), desc:ed.desc.trim()}); if(opts.length) n.opts = opts; else delete n.opts; if(ed.photo) n.photo = ed.photo; else delete n.photo; if(ed.alg && ed.alg.length) n.alg = ed.alg; else delete n.alg; return n; })});
     ed = null; J.toast('Ürün güncellendi.');
   }
   if(a==='imp-cancel'){ imp = null; }
@@ -432,6 +435,7 @@ document.addEventListener('change', async e => {
     if(e.target.id==='ly-amount') L.amount = Math.max(1, Math.min(1000, parseInt(e.target.value,10) || 100));
     DB.patch('businesses', b0.id, {loyalty:L}); J.toast('Sadakat kartı güncellendi.'); return;
   }
+  if(e.target.id==='minord' && b0){ DB.patch('businesses', b0.id, {min_order: parseInt(e.target.value,10) || 0}); J.toast('Minimum tutar kaydedildi.'); return; }
   if(e.target.id==='cap' && b0){ DB.patch('businesses', b0.id, {cap: parseInt(e.target.value,10) || 0}); J.toast('Kapasite kaydedildi.'); return; }
   const hm = /^h-(o|c|off)-(\d)$/.exec(e.target.id||'');
   if(hm && b0){

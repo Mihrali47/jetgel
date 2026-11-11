@@ -176,14 +176,27 @@ function payout(o){
 /* ===================== SİPARİŞ ===================== */
 /* Ürün seçenekleri: menüde m.opts = [{name, price}] (price ek ücret; 0 ya da eksi olabilir).
    Yazı biçimi: "Ekstra kaşar=40 | Soğansız=0 | Yarım porsiyon=-100" */
+// Seçenek yazımı: "Ad=fiyat" (isteğe bağlı, çoklu). Gruplu: "Boy* > Büyük=40" — aynı gruptan yalnızca biri seçilir,
+// grup adının sonundaki * zorunlu demektir (müşteri seçmeden sepete ekleyemez).
 J.parseOpts = function(txt){
   return String(txt||'').split(/[|\n;]/).map(x => x.trim()).filter(Boolean).map(x => {
+    let grp = '', req = false;
+    const g = x.match(/^(.+?)\s*>\s*(.+)$/);
+    if(g){ grp = g[1].trim(); x = g[2].trim(); if(/\*$/.test(grp)){ req = true; grp = grp.replace(/\s*\*$/, ''); } grp = grp.slice(0, 30); }
     const m = x.match(/^(.*?)\s*(?:=|\+)\s*(-?\d+(?:[.,]\d+)?)\s*(?:TL)?$/i);
     const name = (m ? m[1] : x).trim().slice(0, 40), price = m ? parseFloat(m[2].replace(',','.')) : 0;
-    return name ? {name, price: isFinite(price) ? price : 0} : null;
-  }).filter(Boolean).slice(0, 20);
+    return name ? Object.assign({name, price: isFinite(price) ? price : 0}, grp ? {grp, req} : {}) : null;
+  }).filter(Boolean).slice(0, 30);
 };
-J.optsText = opts => (opts||[]).map(o => `${o.name}=${o.price}`).join(' | ');
+J.optsText = opts => (opts||[]).map(o => `${o.grp ? o.grp + (o.req ? '*' : '') + ' > ' : ''}${o.name}=${o.price}`).join(' | ');
+// Seçenekleri gruplar: [{grp, req, list:[{o,i}]}]; grupsuzlar en sonda tek "Ekstralar" grubunda
+J.optGroups = function(opts){
+  const out = [];
+  (opts||[]).forEach((o, i) => { const k = o.grp || ''; let g = out.find(x => x.grp === k); if(!g){ g = {grp:k, req:!!o.req, list:[]}; out.push(g); } if(o.req) g.req = true; g.list.push({o, i}); });
+  return out.sort((a, b) => (!a.grp) - (!b.grp));
+};
+J.optsMissing = (m, sel) => J.optGroups(m.opts).filter(g => g.grp && g.req && !g.list.some(x => sel.includes(x.i))).map(g => g.grp);
+J.ALLERGENS = {gluten:'Gluten', sut:'Süt', yumurta:'Yumurta', yerfistigi:'Yer fıstığı', kuruyemis:'Sert kabuklu yemiş', susam:'Susam', soya:'Soya', balik:'Balık', kabuklu:'Kabuklu deniz ürünü', hardal:'Hardal', kereviz:'Kereviz', sulfit:'Sülfit'};
 J.optLabel = o => o.price > 0 ? `${o.name} (+${J.tl(o.price)})` : o.price < 0 ? `${o.name} (−${J.tl(-o.price)})` : o.name;
 // Sepet anahtarı: "ürünId" ya da "ürünId|0,2" (seçilen seçeneklerin sırası)
 J.cartKey = (mid, sel) => sel && sel.length ? mid + '|' + sel.slice().sort((a,b) => a-b).join(',') : mid;
@@ -204,6 +217,8 @@ J.placeOrder = function(b, cart, cust, extra){
   const items = J.cartLines(b, cart).map(l => Object.assign({name:l.m.name, price:l.unit, qty:l.qty}, l.opts.length ? {opts:l.opts.map(o => o.name)} : {}));
   if(!items.length) return null;
   if(J.isFull(b) && !(extra && extra.sched_at)) return null;   // işletme kapasitesi dolu
+  if(J.cartLines(b, cart).some(l => J.optsMissing(l.m, l.opts.map(o => (l.m.opts||[]).indexOf(o))).length)) return null;   // zorunlu seçim eksik
+  if(b.min_order > 0 && J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0) < b.min_order) return null;   // minimum tutar
   const subtotal = items.reduce((s,i) => s + i.price*i.qty, 0);
   const F = J.FEE;
   const fees = b.free_delivery ? {cust:0, biz:F.custDel+F.custPlat+F.bizDel+F.bizPlat} : {cust:F.custDel+F.custPlat, biz:F.bizDel+F.bizPlat};
@@ -1050,6 +1065,27 @@ document.addEventListener('click', e => {
    Bu gerçek bir güvenlik DEĞİLDİR; sadece test hesaplarını ayırmak içindir. Gerçek şifre kullanmayın.
    Gerçek kullanımdan önce Supabase Auth + satır güvenlik kuralları ile değiştirilmelidir. */
 J.norm = u => String(u||'').trim().toLocaleLowerCase('tr');
+// Arama: Türkçe karakter ve küçük yazım hatalarına dayanıklı ("lahmacn", "kunefe", "doner" bulur)
+J.fold = u => J.norm(u).replace(/[ıİ]/g,'i').replace(/ş/g,'s').replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c').replace(/â/g,'a').replace(/î/g,'i').replace(/û/g,'u');
+function editDist(a, b, max){
+  if(Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({length:b.length+1}, (_,j) => j);
+  for(let i = 1; i <= a.length; i++){
+    const cur = [i]; let best = i;
+    for(let j = 1; j <= b.length; j++){ cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (a[i-1]===b[j-1] ? 0 : 1)); if(cur[j] < best) best = cur[j]; }
+    if(best > max) return max + 1; prev = cur;
+  }
+  return prev[b.length];
+}
+J.match = function(text, query){
+  const t = J.fold(text), qs = J.fold(query).split(/\s+/).filter(Boolean);
+  if(!qs.length) return true;
+  const words = t.split(/[^a-z0-9]+/).filter(Boolean);
+  return qs.every(q => t.includes(q) || (q.length >= 4 && words.some(w => {
+    const max = q.length >= 7 ? 2 : 1;
+    return editDist(w, q, max) <= max || (w.length > q.length && editDist(w.slice(0, q.length), q, max) <= max);
+  })));
+};
 J.findLogin = (tbl, user) => DB.rows(tbl).find(r => r.login && J.norm(r.login.user) === J.norm(user));
 J.userTaken = user => ['businesses','couriers','customers'].some(t => J.findLogin(t, user)) || DB.rows('applications').some(a => a.state === 'beklemede' && a.login && J.norm(a.login.user) === J.norm(user));
 J.findApplication = user => DB.rows('applications').filter(a => a.login && J.norm(a.login.user) === J.norm(user)).sort((a,b) => (b.t||0)-(a.t||0))[0] || null;
@@ -1216,4 +1252,21 @@ J.qr = function(seed){
   for(let y=0;y<21;y++) for(let x=0;x<21;x++){ if((x<8&&y<8)||(x>12&&y<8)||(x<8&&y>12)) continue; h = (h*1103515245+12345)>>>0; if(h & 0x10000) s += `<rect x="${x}" y="${y}" width="1" height="1" fill="#1d1b18"/>`; }
   return `<svg class="qr" viewBox="0 0 21 21">${s}</svg>`;
 };
+})();
+
+/* ===================== BAĞLANTI DURUMU =====================
+   İnternet giderse ekranın üstünde uyarı çıkar; gelince kaybolur ve veriler tazelenir. */
+(function(){
+  if(typeof window === 'undefined' || !window.addEventListener) return;
+  let el = null;
+  const show = off => {
+    if(!document.body) return;
+    if(!el){ el = document.createElement('div'); el.className = 'net-bar'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.innerHTML = off ? `${J.ic ? J.ic('triangle-alert',15) : ''} İnternet bağlantısı yok` : `${J.ic ? J.ic('circle-check',15) : ''} Bağlantı geri geldi.`;
+    el.classList.toggle('ok', !off); el.classList.add('on');
+    if(!off) setTimeout(() => el.classList.remove('on'), 2500);
+  };
+  window.addEventListener('offline', () => show(true));
+  window.addEventListener('online', () => { show(false); try{ J.DB && J.DB.refresh && J.DB.refresh(); }catch(e){} });
+  window.addEventListener('load', () => { if(navigator.onLine === false) show(true); });
 })();

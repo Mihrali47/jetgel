@@ -104,6 +104,13 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Hazırlık aşımı | Süre dolunca kart kırmızıya döner ve uyarı sesi çalar. İşletme +5/+10 dk ek süre isteyebilir (en fazla 3 kez); müşterinin tahmini teslim saati güncellenir. |
 | Kapasite | İşletme aynı anda hazırlayabileceği sipariş sayısını belirler. Dolunca yeni sipariş geçici olarak durur, müşteri "Şu an çok yoğun" görür; planlı sipariş verilebilir. |
 | Fiş | Her siparişten 80 mm fiş yazdırılır (sipariş no, ürünler, seçenekler, not, adres). Tablette sipariş sütunları yan yana gösterilir. |
+| Misafir gezinme | Giriş yapmadan işletmeler ve menüler gezilir, sepet doldurulur. Giriş yalnızca sipariş verirken, favori eklerken ya da siparişlere bakarken istenir; girişten sonra sepete geri dönülür. |
+| Arama | Türkçe karakter ve küçük yazım hatalarına dayanıklı ("lahmacn", "kunefe", "kiymali" bulur). |
+| Seçenek grupları | "Boy* > Büyük=40" yazımıyla gruplu seçenek: gruptan yalnızca biri seçilir, * zorunlu demektir. Grupsuz seçenekler çoklu ve isteğe bağlıdır. |
+| Alerjenler | İşletme ürüne 12 temel alerjenden seçer; müşteri menüde "İçerir: …" görür. |
+| Minimum tutar | İşletme isterse minimum sepet tutarı koyar (teslimat ve hizmet bedeli hariç). |
+| Çift sipariş koruması | Onay düğmesine art arda basılırsa tek sipariş oluşur; aynı sepet 1 dk içinde tekrar gönderilirse mevcut siparişe yönlendirilir. |
+| Bağlantı uyarısı | İnternet giderse tüm ekranlarda üstte uyarı çıkar, gelince veriler tazelenir. |
 | Finans | Yönetimde günlük/7/30 günlük tablo: müşteriden tahsil, işletme, kurye (bahşiş ve hızlı teslimat dahil), platform, indirim, iade. CSV olarak indirilebilir. |
 
 ## Dosyalar

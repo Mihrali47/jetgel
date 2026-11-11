@@ -41,14 +41,23 @@ function openPendingBiz(){
 }
 let cuid = J.store.get('musteri_id', null);
 let prof = null;                       // giriş yapan müşterinin kaydı (DB 'customers')
-const loadProf = () => { prof = cuid ? (DB.get('customers', cuid) || null) : null; return prof; };
+// Giriş yapmamış ziyaretçi: menüleri gezebilir, sepet doldurabilir; sipariş anında giriş istenir
+function guestProf(){
+  const k = J.store.get('misafir_konum', null) || J.store.get('konum_taslak', null), c0 = J.settings().center || J.DEFAULT_POS;
+  return {id:null, guest:true, name:'', note: J.store.get('adres_taslak', '') || (k ? 'Konumun' : 'Konum seçilmedi'), lat: k ? k.lat : c0.lat, lng: k ? k.lng : c0.lng, loc_src: k ? 'gps' : null};
+}
+const loadProf = () => { prof = cuid ? (DB.get('customers', cuid) || null) : guestProf(); return prof; };
+const isGuest = () => !prof || prof.guest;
+let afterLogin = null, placing = false;   // placing: çift dokunuşta iki sipariş oluşmasın   // girişten sonra dönülecek ekran
+const GUEST_VIEWS = ['liste', 'menu', 'sepet', 'giris'];
+function needLogin(next, msg){ afterLogin = next; loginErr = ''; showReg = false; J.toast(msg || 'Devam etmek için giriş yap ya da hesap oluştur.'); go('giris'); }
 let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
 let q = '', group = 'Hepsi', orderNote = '', tip = 0, tipCustom = false, prio = false, sched = null;
 const TIPS = [0, 10, 20, 30, 50];
 const tipBox = (sel, act, custom) => `<div class="m-tips">${TIPS.map(v => `<button class="${sel===v && !custom?'on':''}" data-a="${act}" data-v="${v}">${v?J.tl(v):'Yok'}</button>`).join('')}<button class="${custom?'on':''}" data-a="${act}" data-v="diger">Diğer</button></div>`;
 let map = null, wantMap = false, pendingFit = null;
-const me = () => prof ? {type:'musteri', id:prof.id, name:prof.name} : null;
+const me = () => prof && !prof.guest ? {type:'musteri', id:prof.id, name:prof.name} : null;
 const GROUPS = [['Hepsi','layout-dashboard','Hepsi'],['Yemek','utensils','Yemek'],['Market','shopping-cart','Market'],['Kahve & Tatlı','coffee','Kahve'],['Ücretsiz','gift','Ücretsiz']];
 const TABS = ['liste','siparisler','hesap'];
 
@@ -65,7 +74,7 @@ function placeMap(){
 }
 function showMap(on){ wantMap = on; if(on) ensureMap(); }
 
-const myOrders = () => prof ? J.orders().filter(o => o.customer && o.customer.id === prof.id) : [];
+const myOrders = () => prof && !prof.guest ? J.orders().filter(o => o.customer && o.customer.id === prof.id) : [];
 const activeOrders = () => myOrders().filter(o => o.state==='aktif');
 const bizOpen = b => b && b.open && J.isAlive(b) && !b.suspended;
 const cover = b => `background:linear-gradient(135deg, ${J.bizColor(b)}, ${J.bizColor(b)}cc)`;
@@ -79,6 +88,7 @@ const ldisc = (b, sub) => { const lp = prof && J.loyaltyProgress(b, prof.id); re
 const loyalStrip = b => { const lp = prof && J.loyaltyProgress(b, prof.id); if(!lp) return '';
   return `<div class="m-loyal"><div class="row"><b>${J.ic('award',15)} Sadakat kartı</b><span class="small">${lp.eligible?`<b style="color:var(--ok)">Bu siparişte ${J.tl(lp.amount)} indirim!</b>`:`${lp.count}/${lp.every}`}</span></div><div class="dots">${Array.from({length:lp.every}, (_,i) => `<i class="${i<lp.count?'on':''} ${i===lp.every-1?'gift':''}"></i>`).join('')}</div><div class="tiny muted">Her ${lp.every}. siparişinde ${J.tl(lp.amount)} indirim · işletmenin hediyesi</div></div>`; };
 const cdisc = (b, sub) => { const cp = J.activeCoupon(prof); return cp && useCoupon && b && b.race_join ? Math.max(0, Math.min(cp.per, cp.left, sub - ldisc(b, sub))) : 0; };
+const algLine = m => m.alg && m.alg.length ? `<div class="m-alg">${J.ic('info',13)} İçerir: ${m.alg.map(k => J.esc(J.ALLERGENS[k]||k)).join(', ')}</div>` : '';
 const favs = () => (prof && prof.favs) || [];
 const addrs = () => (prof && prof.addresses) || [];
 let rate = {id:null, biz:0, cour:0, note:''};
@@ -99,7 +109,7 @@ function renderLogin(){
     <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
     <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><div class="tiny muted" style="text-align:center;margin-top:8px">Devam ederek <a href="yasal.html#sartlar" target="_blank">kullanım koşullarını</a> ve <a href="yasal.html#kvkk" target="_blank">aydınlatma metnini</a> kabul etmiş olursun.</div><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
-  return top + `<div class="m-body">` + J.loginForm({title:'Hoş geldin', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button></div>`;
+  return top + `<div class="m-body">` + J.loginForm({title: afterLogin==='sepet' ? 'Siparişi tamamla' : 'Hoş geldin', sub: afterLogin==='sepet' ? 'Sepetin hazır. Siparişi vermek için giriş yap ya da hızlıca hesap oluştur.' : 'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button><button class="ghost wide" data-a="browse">${afterLogin==='sepet' ? 'Sepete geri dön' : 'Giriş yapmadan göz at'}</button></div>`;
 }
 
 /* ---------- Adres / profil ---------- */
@@ -135,6 +145,7 @@ function restCard(x){
     <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span>${!open && J.hoursState(b) && J.hoursState(b).next?`<span style="color:var(--brand);font-weight:700">${J.ic('clock',13)} Açılış: ${J.esc(J.hoursState(b).next)}</span>`:''}</div></div></div>`;
 }
 function raceCard(){
+  if(isGuest()) return '';
   const mh = J.mahalleOf(prof); if(!mh) return '';
   const board = J.raceBoard(mh), me = board.findIndex(p => p.id === prof.id);
   const ws = J.weekStart(), last = J.raceBoard(mh, ws - 7*864e5, ws)[0];
@@ -149,7 +160,7 @@ function raceCard(){
 // Mahalle adı: konum değişince bir kez sorgulanır; ulaşılamazsa yakın çevre bölgesi kullanılır
 let mhBusy = false;
 async function ensureMahalle(){
-  if(mhBusy || !prof || prof.lat == null) return;
+  if(mhBusy || !prof || prof.guest || prof.lat == null) return;
   const mp = prof.mahalle_pos;
   if(prof.mahalle && mp && J.dist(mp, prof) < 300) return;
   mhBusy = true;
@@ -186,8 +197,8 @@ function renderList(){
   else if(group!=='Hepsi') list = list.filter(x => J.bizGroup(x.b)===group);
   let prods = [];
   if(qn){
-    list.forEach(x => (x.b.menu||[]).forEach(m => { if(J.norm(m.name).includes(qn) && m.available!==false) prods.push({x, m}); }));
-    list = list.filter(x => J.norm(x.b.name+' '+(x.b.kind||'')).includes(qn) || (x.b.menu||[]).some(m => J.norm(m.name).includes(qn)));
+    list.forEach(x => (x.b.menu||[]).forEach(m => { if(J.match(m.name+' '+(m.cat||''), q) && m.available!==false) prods.push({x, m}); }));
+    list = list.filter(x => J.match(x.b.name+' '+(x.b.kind||''), q) || (x.b.menu||[]).some(m => J.match(m.name+' '+(m.cat||''), q)));
   }
   starId = J.starBusiness(list.map(x => x.b));
   const eta = b => J.etaRange(b, prof)[0], rt = b => { const r = J.ratingOf(b); return r.n >= J.RATING_MIN_N ? r.avg : 0; };
@@ -218,7 +229,7 @@ function renderMenu(){
   const cats = []; menu.forEach(m => { const c = m.cat || 'Menü'; if(!cats.includes(c)) cats.push(c); });
   let h = `<div class="m-hero" style="${cover(b)}"><button class="back" data-a="back" aria-label="Geri">${J.ic('chevron-left',22)}</button><span class="cv-ic big">${J.bizIcon(b,44)}</span></div>
     <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||'')}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
-    <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div>${loyalStrip(b)}${J.isFull(b) ? `<div class="m-busy">${J.ic('hourglass',16)} <span><b>Şu an çok yoğun.</b> İşletme mevcut siparişleri hazırlıyor; birkaç dakika içinde yeniden sipariş alır. Dilersen ileri bir saate planlı sipariş verebilirsin.</span></div>` : ''}</div>`;
+    <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div>${loyalStrip(b)}${b.min_order > 0 ? `<div class="tiny muted" style="margin-top:8px">Minimum sipariş tutarı: <b>${J.tl(b.min_order)}</b></div>` : ''}${J.isFull(b) ? `<div class="m-busy">${J.ic('hourglass',16)} <span><b>Şu an çok yoğun.</b> İşletme mevcut siparişleri hazırlıyor; birkaç dakika içinde yeniden sipariş alır. Dilersen ileri bir saate planlı sipariş verebilirsin.</span></div>` : ''}</div>`;
   if(cats.length > 1) h += `<div class="m-cats">${cats.map((c,i) => `<button data-a="jump" data-id="cat${i}">${J.esc(c)}</button>`).join('')}</div>`;
   h += `<div class="m-menu">`;
   cats.forEach((c,i) => {
@@ -226,7 +237,7 @@ function renderMenu(){
     menu.filter(m => (m.cat||'Menü')===c).forEach(m => {
       const av = m.available !== false, hasOpt = (m.opts||[]).length > 0, n = hasOpt ? inCart(m.id) : (cart[m.id] || 0);
       const ctl = !av ? '' : hasOpt ? `<button class="m-add" data-a="opt-open" data-id="${m.id}" aria-label="Seçenekleri gör">+</button>${n?`<span class="m-badge">${n}</span>`:''}` : n ? `<div class="m-step"><button data-a="dec" data-id="${m.id}" aria-label="Azalt">−</button><b>${n}</b><button data-a="inc" data-id="${m.id}" aria-label="Arttır">+</button></div>` : `<button class="m-add" data-a="inc" data-id="${m.id}" aria-label="Sepete ekle">+</button>`;
-      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}${hasOpt&&av?' <span class="m-optnote">· seçenekli</span>':''}</div></div>${m.photo?`<div class="mph"><img src="${m.photo}" alt="${J.esc(m.name)}" loading="lazy"><div class="act">${ctl}</div></div>`:`<div class="act">${ctl}</div>`}</div>`;
+      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}${algLine(m)}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}${hasOpt&&av?' <span class="m-optnote">· seçenekli</span>':''}</div></div>${m.photo?`<div class="mph"><img src="${m.photo}" alt="${J.esc(m.name)}" loading="lazy"><div class="act">${ctl}</div></div>`:`<div class="act">${ctl}</div>`}</div>`;
     });
   });
   if(!menu.length) h += `<div class="m-empty"><div>${J.ic('list',36)}</div>Bu işletme henüz ürün eklemedi.</div>`;
@@ -398,7 +409,9 @@ function renderBar(){
     if(b) h = `<div class="m-bar"><button data-a="cart"><span class="cnt">${cartCount()}</span><span>Sepete git</span><span class="money">${J.tl(cartSum(b))}</span></button></div>`;
   } else if(view==='sepet'){
     const b = DB.get('businesses', curBiz);
-    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>${sched?'Siparişi planla':'Siparişi onayla'}</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b))-ldisc(b, cartSum(b)))}</span></button></div>`; }
+    const short = b && b.min_order > 0 ? b.min_order - cartSum(b) : 0;
+    if(b && cartCount() && short > 0) h = `<div class="m-bar"><button disabled style="opacity:.6"><span>Minimum sipariş ${J.tl(b.min_order)}</span><span class="money">${J.tl(short)} daha ekle</span></button></div>`;
+    else if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order" ${placing?'disabled':''}><span>${placing?'Gönderiliyor…':sched?'Siparişi planla':'Siparişi onayla'}</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b))-ldisc(b, cartSum(b)))}</span></button></div>`; }
   } else if(TABS.includes(view) || view==='takip'){
     const t = view==='takip' ? 'siparisler' : view, act = activeOrders().length;
     h = `<nav class="m-tabs">${[['liste','house','Keşfet'],['siparisler','receipt','Siparişlerim'],['hesap','user','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${J.ic(ic,22)}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;
@@ -413,9 +426,10 @@ function renderSheet(){
     const unit = Math.max(0, m.price + sheet.sel.reduce((t,i) => t + ((m.opts[i]||{}).price||0), 0));
     h = `<div class="m-sheet-bg" data-a="opt-close"></div><div class="m-sheet" role="dialog" aria-label="${J.esc(m.name)}">
       <div class="hd"><div><b>${J.esc(m.name)}</b>${m.desc?`<div class="small muted">${J.esc(m.desc)}</div>`:''}<div class="small" style="margin-top:4px;font-weight:700">${J.tl(m.price)}</div></div><button class="x" data-a="opt-close" aria-label="Kapat">${J.ic('x',20)}</button></div>
-      <div class="lbl">Seçenekler <span class="tiny muted">· isteğe bağlı, birden çok seçilebilir</span></div>
-      <div class="opts">${(m.opts||[]).map((o,i) => `<button class="${sheet.sel.includes(i)?'on':''}" data-a="opt-tog" data-i="${i}"><span class="ck">${sheet.sel.includes(i)?J.ic('check',14):''}</span><span class="nm">${J.esc(o.name)}</span><span class="pr">${o.price>0?'+'+J.tl(o.price):o.price<0?'−'+J.tl(-o.price):''}</span></button>`).join('')}</div>
-      <div class="ft"><div class="m-qty"><button data-a="opt-dec">−</button><b>${sheet.qty}</b><button data-a="opt-inc">+</button></div><button class="brand" data-a="opt-add" style="flex:1;display:flex;justify-content:space-between"><span>Sepete ekle</span><span class="money">${J.tl(unit*sheet.qty)}</span></button></div></div>`;
+      ${algLine(m)}
+      ${J.optGroups(m.opts).map(g => `<div class="lbl">${J.esc(g.grp || 'Ekstralar')} <span class="tiny ${g.req && !g.list.some(x => sheet.sel.includes(x.i)) ? 'req' : 'muted'}">· ${g.grp ? (g.req ? 'zorunlu, birini seç' : 'isteğe bağlı, birini seç') : 'isteğe bağlı, birden çok seçilebilir'}</span></div>
+      <div class="opts">${g.list.map(({o,i}) => `<button class="${sheet.sel.includes(i)?'on':''} ${g.grp?'one':''}" data-a="opt-tog" data-i="${i}"><span class="ck">${sheet.sel.includes(i)?J.ic('check',14):''}</span><span class="nm">${J.esc(o.name)}</span><span class="pr">${o.price>0?'+'+J.tl(o.price):o.price<0?'−'+J.tl(-o.price):''}</span></button>`).join('')}</div>`).join('')}
+      <div class="ft"><div class="m-qty"><button data-a="opt-dec">−</button><b>${sheet.qty}</b><button data-a="opt-inc">+</button></div>${(() => { const miss = J.optsMissing(m, sheet.sel); return miss.length ? `<button class="brand" data-a="opt-add" style="flex:1;opacity:.55">${J.esc(miss[0])} seçin</button>` : `<button class="brand" data-a="opt-add" style="flex:1;display:flex;justify-content:space-between"><span>Sepete ekle</span><span class="money">${J.tl(unit*sheet.qty)}</span></button>`; })()}</div></div>`;
   }
   if(addrPick && prof && view === 'liste'){
     const list = addrs().length ? addrs() : [{id:'_cur', label:prof.addr_label||'Ev', note:prof.note, lat:prof.lat, lng:prof.lng}];
@@ -427,7 +441,7 @@ function renderSheet(){
 }
 function render(){
   loadProf();
-  if(!prof && view !== 'giris'){ view = 'giris'; }
+  if(isGuest() && !GUEST_VIEWS.includes(view)){ afterLogin = view; view = 'giris'; }
   const R = {giris:renderLogin, profil:renderProfile, menu:renderMenu, sepet:renderCart, takip:renderTrack, siparisler:renderOrders, hesap:renderAccount};
   parkMap();
   const html = (R[view] || renderList)();
@@ -461,13 +475,14 @@ document.addEventListener('click', e => {
     const book = base.filter(x => x.id !== aid).concat([{id:aid, label, note:draft.note, lat:draft.lat, lng:draft.lng}]).slice(-8);
     DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng, addr_label:label, addr_id:aid, addresses:book, loc_src: draft.src==='gps'||draft.src==='harita' ? draft.src : (prof && prof.loc_src) || null});
     if(draft.src==='gps') J.autoRelocate(draft);
-    draft = null; go('liste');
+    draft = null; const nx = afterLogin; afterLogin = null; go(nx && nx !== 'giris' && nx !== 'profil' ? nx : 'liste');
   }
   if(a==='show-reg'){ showReg = true; regErr = ''; }
+  if(a==='browse'){ const nx = afterLogin === 'sepet' ? 'sepet' : 'liste'; afterLogin = null; go(nx); }
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
     J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value).then(r => {
-      if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); loadProf(); openPendingBiz(); setTimeout(() => { loadProf(); applyDraftAddr(); autoLocate(); }, 300); }
+      if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); const nx = afterLogin; afterLogin = null; go(nx && nx !== 'giris' ? nx : 'liste'); loadProf(); if(!nx) openPendingBiz(); setTimeout(() => { loadProf(); applyDraftAddr(); autoLocate(); }, 300); }
       render();
     });
     return;
@@ -479,13 +494,14 @@ document.addEventListener('click', e => {
     if(J.userTaken(user)){ regErr = 'Bu kullanıcı adı alınmış.'; render(); return; }
     J.makeLogin(user, pass).then(login => {
       cuid = J.uid('m'); J.store.set('musteri_id', cuid); showReg = false;
-      DB.put('customers', cuid, {name, note:'', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login, terms_t:J.now()});
+      const k = J.store.get('misafir_konum', null);
+      DB.put('customers', cuid, {name, note:'', lat: k ? k.lat : J.DEFAULT_POS.lat, lng: k ? k.lng : J.DEFAULT_POS.lng, loc_src: k ? 'gps' : null, login, terms_t:J.now()});
       draft = null; go('profil'); render();
     });
     return;
   }
 
-  if(a==='logout'){ cuid = null; prof = null; draft = null; J.store.set('musteri_id', null); go('giris'); }
+  if(a==='logout'){ cuid = null; prof = null; draft = null; J.store.set('musteri_id', null); go('liste'); }
   if(a==='edit-prof'){ draft = Object.assign({}, prof); go('profil'); }
   if(a==='tab'){ go(id); }
   if(a==='grp'){ group = id; }
@@ -495,9 +511,16 @@ document.addEventListener('click', e => {
   if(a==='cart'){ go('sepet'); }
   if(a==='opt-open'){ sheet = {mid:id, sel:[], qty:1}; }
   if(a==='opt-close'){ sheet = null; }
-  if(a==='opt-tog' && sheet){ const i = +el.dataset.i; sheet.sel = sheet.sel.includes(i) ? sheet.sel.filter(x => x !== i) : sheet.sel.concat([i]); }
+  if(a==='opt-tog' && sheet){
+    const i = +el.dataset.i, b = DB.get('businesses', curBiz), m = b && (b.menu||[]).find(x => x.id === sheet.mid), o = m && m.opts[i];
+    if(o && o.grp){   // gruptan yalnızca bir seçim
+      const same = m.opts.map((x,j) => x.grp === o.grp ? j : -1).filter(j => j >= 0);
+      sheet.sel = sheet.sel.includes(i) && !o.req ? sheet.sel.filter(x => x !== i) : sheet.sel.filter(x => !same.includes(x)).concat([i]);
+    } else sheet.sel = sheet.sel.includes(i) ? sheet.sel.filter(x => x !== i) : sheet.sel.concat([i]);
+  }
   if(a==='opt-inc' && sheet) sheet.qty = Math.min(50, sheet.qty + 1);
   if(a==='opt-dec' && sheet) sheet.qty = Math.max(1, sheet.qty - 1);
+  if(a==='opt-add' && sheet){ const b = DB.get('businesses', curBiz), m = b && (b.menu||[]).find(x => x.id === sheet.mid); const miss = m ? J.optsMissing(m, sheet.sel) : []; if(miss.length){ J.toast(miss[0] + ' seçimi zorunlu.'); return; } }
   if(a==='opt-add' && sheet){ const k = J.cartKey(sheet.mid, sheet.sel); cart[k] = (cart[k]||0) + sheet.qty; sheet = null; J.toast('Sepete eklendi.'); }
   if(a==='inc') cart[id] = (cart[id]||0) + 1;
   if(a==='dec'){ cart[id] = Math.max(0,(cart[id]||0)-1); if(!cart[id]) delete cart[id]; }
@@ -514,8 +537,15 @@ document.addEventListener('click', e => {
     if(miss) J.toast(`${miss} ürün artık satışta değil, sepete eklenmedi.`);
     go(cartCount() ? 'sepet' : 'menu');
   }
+  if(a==='order' && isGuest()){ needLogin('sepet'); render(); return; }
   if(a==='order'){
     const b = DB.get('businesses', curBiz);
+    if(placing) return;
+    if(b && b.min_order > 0 && cartSum(b) < b.min_order){ J.toast(`Bu işletmede minimum sipariş ${J.tl(b.min_order)}.`); return; }
+    // Aynı sepetle 1 dakika içinde verilmiş sipariş varsa tekrar oluşturma
+    const dup = myOrders().find(o => o.rid === curBiz && o.state === 'aktif' && J.now() - o.created_at < 60000 && o.subtotal === cartSum(b));
+    if(dup){ J.toast('Bu siparişi az önce verdin; takip ekranına yönlendiriliyorsun.'); cart = {}; trackId = dup.id; J.store.set('musteri_takip', dup.id); go('takip'); render(); return; }
+    placing = true; setTimeout(() => { placing = false; }, 3000);
     if(J.isFull(b) && !sched){ J.toast('İşletme şu an çok yoğun. Birkaç dakika sonra tekrar dene ya da planlı sipariş ver.'); render(); return; }
     const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; sched = null; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
@@ -526,7 +556,9 @@ document.addEventListener('click', e => {
   if(a==='qm'){ const o = DB.get('orders', trackId); if(J.sendMsg(o, 'musteri', J.QUICK_MSGS.musteri[+el.dataset.i])) J.toast('Mesaj gönderildi.'); }
   if(a==='coupon'){ useCoupon = !useCoupon; }
   if(a==='sort') sort = id;
+  if(a==='fav' && isGuest()){ needLogin('liste', 'Favorilere eklemek için giriş yap.'); render(); return; }
   if(a==='fav' && prof){ const f = favs(); DB.patch('customers', prof.id, {favs: f.includes(id) ? f.filter(x => x !== id) : f.concat([id])}); J.toast(f.includes(id) ? 'Favorilerden çıkarıldı.' : 'Favorilere eklendi.'); }
+  if(a==='addr-pick' && isGuest()){ guestLocate(); return; }
   if(a==='addr-pick'){ addrPick = true; }
   if(a==='addr-acc'){ addrPick = true; go('liste'); }
   if(a==='addr-close'){ addrPick = false; }
@@ -596,8 +628,15 @@ document.addEventListener('input', e => {
 const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='clm-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='p-name' || a.id==='p-note'); };
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
+function guestLocate(){
+  if(!navigator.geolocation){ J.toast('Adres seçmek için giriş yap.'); return; }
+  J.toast('Konum alınıyor…');
+  navigator.geolocation.getCurrentPosition(p => { J.store.set('misafir_konum', {lat:p.coords.latitude, lng:p.coords.longitude}); J.autoRelocate({lat:p.coords.latitude, lng:p.coords.longitude}); render(); J.toast('Yakınındaki işletmeler gösteriliyor.'); },
+    () => J.toast('Konum alınamadı. Adres kaydetmek için giriş yap.'), {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
+}
 DB.init().then(() => {
-  if(loadProf()){ view = 'liste'; applyDraftAddr(); openPendingBiz(); setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
+  if(!cuid){ view = 'liste'; loadProf(); if(!J.store.get('misafir_konum', null) && !J.store.get('konum_taslak', null) && navigator.permissions) navigator.permissions.query({name:'geolocation'}).then(st => { if(st.state === 'granted') guestLocate(); }).catch(() => {}); openPendingBiz(); }
+  else if(loadProf()){ view = 'liste'; applyDraftAddr(); openPendingBiz(); setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
   render();
 });
 J.registerSW();
