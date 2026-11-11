@@ -162,7 +162,7 @@ J.partyName = function(p){
 /* ===================== ÖDEME (simülasyon) =====================
    Para platformun hesabına uğramaz (alt üye işyeri modeli varsayımı).
    blokaj → işletme onayında çekim (bekletiliyor) → teslimde dağıtım. Red → blokaj kalkar. */
-J.PAY_TXT = {blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi'};
+J.PAY_TXT = {blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi', iade:'Tamamı iade edildi'};
 J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic('credit-card',12)} ${J.PAY_TXT[o.pay]||o.pay}</span>`;
 function payout(o){
   const tip = o.tip || 0;   // bahşişin tamamı kuryeye
@@ -300,7 +300,7 @@ J.dispatchTick = function(o){
 };
 J.courierAccept = async function(c, o){
   if(!o.offer || o.offer.cid !== c.id || o.offer.exp < J.now()) { J.toast('Teklifin süresi doldu.'); return; }
-  const ok = await DB.claim('orders', o.id, 'kabul_edildi');
+  const ok = await DB.claim('orders', o.id, 'kabul_' + (o.assign_n || 0));   // yeniden atamada sayaç artar
   if(!ok){ J.toast('Bu sipariş başka bir kuryeye geçti.'); return; }
   DB.patch('orders', o.id, {courier_id:c.id, cname:c.name, offer:null, del:'isletmeye'});
   DB.patch('couriers', c.id, {busy:o.id});
@@ -413,6 +413,40 @@ J.loyaltyProgress = function(b, custId){
   let count = 0; mine.forEach(o => { count = o.loyalty_disc ? 0 : count + 1; });
   return {every:L.every, amount:L.amount, count, eligible: count >= L.every - 1};
 };
+/* ===================== YÖNETİM: UYARI VE MÜDAHALE ===================== */
+J.ALERT_MIN = {onay:3, kurye:5, hazirlik:5, yol:10, kapi:12};   // dakika (hızlı test modunda 10'da 1)
+J.orderAlerts = function(){
+  const t = J.now(), m = k => J.D(J.ALERT_MIN[k]*60000), out = [];
+  J.orders().filter(o => o.state === 'aktif' && !J.isHeld(o)).forEach(o => {
+    const age = x => Math.round((t - x) / J.minMs());
+    if(o.prep === 'bekliyor' && t - (o.sched_at ? o.sched_at - J.SCHED_LEAD*60000 : o.created_at) > m('onay')) out.push({o, kind:'onay', txt:`İşletme ${age(o.created_at)} dk'dır onaylamadı`});
+    if(o.prep !== 'bekliyor' && !o.courier_id && o.accepted_at && t - o.accepted_at > m('kurye')) out.push({o, kind:'kurye', txt:`${age(o.accepted_at)} dk'dır kurye bulunamadı`});
+    if(o.prep === 'hazirlaniyor' && o.prep_until && t > o.prep_until + m('hazirlik')) out.push({o, kind:'hazirlik', txt:`Hazırlık süresi ${age(o.prep_until)} dk aşıldı`});
+    if(o.del === 'yolda' && o.picked_at && t - o.picked_at > m('yol') + J.D(Math.round(J.dist(DB.get('businesses', o.rid)||o.customer, o.customer)*1.3/J.M_PER_MIN)*60000)) out.push({o, kind:'yol', txt:`Kurye ${age(o.picked_at)} dk'dır yolda`});
+    if(o.del === 'kapida' && o.arrived_at && t - o.arrived_at > m('kapi')) out.push({o, kind:'kapi', txt:`Kurye ${age(o.arrived_at)} dk'dır kapıda bekliyor`});
+  });
+  return out;
+};
+// Kuryeyi siparişten al, yeniden kurye aransın
+J.adminReassign = function(o){
+  if(!o || o.state !== 'aktif' || ['yolda','kapida'].includes(o.del)) return false;
+  const cid = o.courier_id || (o.offer && o.offer.cid);
+  if(o.courier_id) DB.patch('couriers', o.courier_id, {busy:null});
+  DB.patch('orders', o.id, {courier_id:null, cname:null, offer:null, tried:(o.tried||[]).concat(cid ? [cid] : []), assign_n:(o.assign_n||0)+1, del: o.prep === 'bekliyor' ? 'yok' : 'araniyor', retry_at:0});
+  J.log(`#${o.no} yönetim kuryeyi değiştirdi; yeniden kurye aranıyor.`, 'warn', o.id);
+  return true;
+};
+// Siparişi iptal et: para çekilmediyse blokaj kalkar, çekildiyse tamamı iade edilir
+J.adminCancel = function(o, reason){
+  if(!o || o.state !== 'aktif') return false;
+  if(o.courier_id) DB.patch('couriers', o.courier_id, {busy:null});
+  const refunded = o.pay === 'bekletiliyor';
+  DB.patch('orders', o.id, {state:'iptal', pay: refunded ? 'iade' : 'kalkti', cancel_reason: reason || 'Yönetim iptali', cancelled_at:J.now(), offer:null});
+  if(o.discount && o.coupon_id) J.couponReturn(o);
+  J.log(`#${o.no} yönetim tarafından iptal edildi (${reason||'-'}). ${refunded ? 'Ödemenin tamamı iade edildi.' : 'Blokaj kaldırıldı.'}`, 'bad', o.id);
+  return true;
+};
+J.custPaid = o => o.subtotal + (o.fees ? o.fees.cust : 0) + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0);
 /* ===================== SORUN BİLDİRİMİ VE İADE =====================
    Müşteri teslimden sonra 24 saat içinde eksik/yanlış/bozuk ürünü (isteğe bağlı fotoğrafla) bildirir, siparişte bir kez.
    İşletme onaylarsa iade işletme payından yapılır. Reddederse müşteri yönetime itiraz edebilir; son kararı yönetim verir. */

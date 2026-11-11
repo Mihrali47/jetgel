@@ -86,7 +86,7 @@ let clm = {id:null, open:false, picks:{}, reason:'eksik', note:'', photo:null}; 
 const stars = (act, val) => `<div class="m-stars">${[1,2,3,4,5].map(v => `<button class="${v<=val?'on':''}" data-a="${act}" data-v="${v}" aria-label="${v} yıldız">${J.ic('star',30, v<=val?'fill':'')}</button>`).join('')}</div>`;   // seçenek penceresi: {mid, sel:[], qty}
 function fees(b){ return b.free_delivery ? {del:0, plat:0} : {del:J.FEE.custDel, plat:J.FEE.custPlat}; }
 function etaTxt(b){ const [a,z] = J.etaRange(b, prof); return `${a}-${z} dk`; }
-const ST = {aktif:['brand','Yolda / hazırlanıyor'], teslim:['ok','Teslim edildi'], red:['bad','Reddedildi'], ulasilamadi:['bad','Ulaşılamadı']};
+const ST = {aktif:['brand','Yolda / hazırlanıyor'], teslim:['ok','Teslim edildi'], red:['bad','Reddedildi'], ulasilamadi:['bad','Ulaşılamadı'], iptal:['bad','İptal edildi']};
 
 /* ---------- Giriş ---------- */
 function renderLogin(){
@@ -291,7 +291,7 @@ function renderTrack(){
     if(mins != null){ k = 'Tahmini varış'; v = `${mins}-${mins+5} dk`; }
   } else { k = '#'+o.no; v = ST[o.state][1]; sub = J.esc(o.rname); }
   let h = topBar(`#${J.esc(o.no)} · ${J.esc(o.rname)}`, 'back') + `<div class="m-eta"><div class="k">${k}${o.priority&&o.state==='aktif'?` <span class="pill brand">${J.ic('timer',11)} Hızlı teslimat</span>`:''}</div><div class="v">${v}</div><div class="s">${sub}</div>
-    ${o.state!=='red'?`<div class="m-prog">${done.map((d,i) => `<span class="${d?'done':i===now?'now':''}"></span>`).join('')}</div><div class="m-prog-l">${['Onay','Hazırlık','Yolda','Teslim'].map((t,i) => `<span class="${done[i]||i===now?'on':''}">${t}</span>`).join('')}</div>`:''}</div>
+    ${!['red','iptal'].includes(o.state)?`<div class="m-prog">${done.map((d,i) => `<span class="${d?'done':i===now?'now':''}"></span>`).join('')}</div><div class="m-prog-l">${['Onay','Hazırlık','Yolda','Teslim'].map((t,i) => `<span class="${done[i]||i===now?'on':''}">${t}</span>`).join('')}</div>`:''}</div>
     <div id="mapslot"></div><div class="m-body">`;
   if(o.state==='aktif' && ['yolda','kapida'].includes(o.del)){
     h += `<div class="m-pin"><small>TESLİMAT KODUN</small><div class="d">${String(o.pin).split('').map(d => `<span>${J.esc(d)}</span>`).join('')}</div><small>Kodu yalnızca kurye kapına geldiğinde söyle. Kurye ${J.PIN_RADIUS_M} m'den uzaksa kod çalışmaz.</small></div>`;
@@ -307,6 +307,7 @@ function renderTrack(){
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
   if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
+  if(o.state==='iptal') h += `<div class="card bad small">Sipariş destek ekibimiz tarafından iptal edildi${o.cancel_reason ? ' (' + J.esc(o.cancel_reason) + ')' : ''}. ${o.pay==='iade' ? 'Ödediğin tutarın tamamı kartına iade edildi.' : 'Kartındaki blokaj kaldırıldı, para çekilmedi.'}</div>`;
   h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.itemLabel(i)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
     ${o.loyalty_disc?`<div class="row" style="color:var(--ok)"><span>Sadakat indirimi</span><span class="money">−${J.tl(o.loyalty_disc)}</span></div>`:''}

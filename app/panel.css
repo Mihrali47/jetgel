@@ -153,3 +153,11 @@ body.adm .p-head .adm-in{max-width:1200px;margin:0 auto}
 body.adm .card{border:0;border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 body.adm .kpi{border:0;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 @media (max-width:700px){ .adm-stats{grid-template-columns:repeat(3,1fr)} }
+/* yönetim: uyarılar ve finans */
+.adm-al{border-left:3px solid var(--bad)}
+.adm-al .ic{vertical-align:-3px}
+.adm-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px}
+.adm-kpi>div{background:var(--soft,#f5f5f4);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.adm-kpi b{font-size:17px}
+button.sm{padding:5px 9px;font-size:12px}
+.card h3 .cnt{background:var(--brand);color:#fff;border-radius:99px;font-size:11px;padding:1px 7px;vertical-align:2px}

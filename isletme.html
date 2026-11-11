@@ -130,7 +130,7 @@ function tabOrders(b){
   groups.forEach(([t, list, hot]) => { if(list.length){ h += `<div class="p-sec">${t}<span class="n ${hot?'hot':''}">${list.length}</span></div>`; list.forEach(o => h += orderCard(o)); } });
   if(held.length){ h += `<div class="p-sec">Planlı siparişler<span class="n">${held.length}</span></div>`; held.sort((x,y) => x.sched_at - y.sched_at).forEach(o => h += `<div class="p-mini"><span>${J.ic('clock',14)} <b>${J.esc(J.fmtSched(o.sched_at))}</b> · #${J.esc(o.no)} · ${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</span><span class="tiny muted">${J.SCHED_LEAD} dk önce düşer</span></div>`); }
   const done = J.orders().filter(o => o.rid===b.id && o.state!=='aktif').slice(0,8);
-  if(done.length){ h += `<div class="p-sec">Son siparişler</div>`; done.forEach(o => h += `<div class="p-mini"><span>#${J.esc(o.no)} · ${J.esc(o.customer.name)} · <b>${J.tl(o.subtotal)}</b></span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim':o.state==='red'?'Reddedildi':'Ulaşılamadı'}</span></div>`); }
+  if(done.length){ h += `<div class="p-sec">Son siparişler</div>`; done.forEach(o => h += `<div class="p-mini"><span>#${J.esc(o.no)} · ${J.esc(o.customer.name)} · <b>${J.tl(o.subtotal)}</b></span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim':o.state==='red'?'Reddedildi':o.state==='iptal'?'İptal edildi':'Ulaşılamadı'}</span></div>`); }
   return h;
 }
 

@@ -29,11 +29,11 @@
 </div>
 <script>
 const {DB} = J;
-let tab = 'genel', edit = null, confirmReset = false;
+let tab = 'genel', edit = null, confirmReset = false, cx = null, fin = 7, alertSig = '';
 const map = J.Map(document.getElementById('map'), {wheel:true});
 map.onClick(p => { if(tab==='isletmeler' && edit){ edit.lat = p.lat; edit.lng = p.lng; render(); } });
 
-const stTxt = o => o.state==='red' ? '<span class="pill bad">Reddedildi</span>' : o.state==='teslim' ? '<span class="pill ok">Teslim</span>' : o.state==='ulasilamadi' ? '<span class="pill bad">Ulaşılamadı</span>' :
+const stTxt = o => o.state==='iptal' ? '<span class="pill bad">İptal</span>' : o.state==='red' ? '<span class="pill bad">Reddedildi</span>' : o.state==='teslim' ? '<span class="pill ok">Teslim</span>' : o.state==='ulasilamadi' ? '<span class="pill bad">Ulaşılamadı</span>' :
   `<span class="pill blue">${{bekliyor:'Onay bekliyor',hazirlaniyor:'Hazırlanıyor',hazir:'Hazır'}[o.prep]}</span> <span class="pill">${{yok:'—',araniyor:'Kurye aranıyor',isletmeye:'Kurye işletmeye',isletmede:'Kurye işletmede',yolda:'Yolda',kapida:'Kapıda'}[o.del]||o.del}</span>`;
 
 function drawMap(){
@@ -61,8 +61,41 @@ function renderGenel(){
   const saved = paid.reduce((s,o) => s + Math.max(0, o.shares.business - o.subtotal*(1-J.COMMISSION_RATE)), 0);
   const onlineC = J.couriers().filter(c => c.online && J.isAlive(c)).length, openB = J.businesses().filter(b => b.open && J.isAlive(b)).length;
   let h = `<div class="p-card" style="margin-bottom:12px"><div class="row"><span>Toplam tamamlanan: <b>${paid.length}</b> · Platform geliri: <b>${J.tl(paid.length*J.FEE.platform)}</b></span><span class="small" style="color:var(--ok)">İşletmelerin komisyonsuz sistemle fazladan kazancı: <b>${J.tl(saved)}</b></span></div></div>`;
-  h += `<div class="card"><h3>Siparişler ve ödeme</h3>${os.length ? `<div style="overflow-x:auto"><table><tr><th>#</th><th>İşletme</th><th>Müşteri</th><th>Durum</th><th>Ödeme</th><th>Kurye</th><th>Saat</th></tr>${os.slice(0,30).map(o => `<tr><td>${J.esc(o.no)}</td><td>${J.esc(o.rname)}</td><td>${J.esc(o.customer.name)}</td><td>${stTxt(o)}</td><td>${J.payPill(o)}${o.shares?`<div class="tiny muted">İşletme ${J.tl(o.shares.business)} · Kurye ${J.tl(o.shares.courier)} · Platform ${J.tl(o.shares.platform)}${o.shares.refund?` · İade ${J.tl(o.shares.refund)}`:''}</div>`:''}</td><td>${J.esc(o.cname||'—')}</td><td class="tiny">${new Date(o.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Henüz sipariş yok.</div>'}</div>`;
+  const al = J.orderAlerts(), AK = {onay:'clock', kurye:'bike', hazirlik:'utensils', yol:'navigation', kapi:'door-open'};
+  const grp = []; al.forEach(x => { const g = grp.find(y => y.o.id === x.o.id); if(g) g.list.push(x); else grp.push({o:x.o, list:[x]}); });
+  h += `<div class="card"><h3>Dikkat gerektirenler ${grp.length ? `<span class="cnt">${grp.length}</span>` : ''}</h3>${grp.length ? grp.map(({o,list}) => `<div class="p-card adm-al"><div class="row"><b>${J.ic(AK[list[0].kind]||'triangle-alert',16)} #${J.esc(o.no)} · ${J.esc(o.rname)}</b><span>${list.map(x => `<span class="pill bad">${J.esc(x.txt)}</span>`).join(' ')}</span></div><div class="tiny muted">Müşteri: ${J.esc(o.customer.name)}${o.cname ? ' · Kurye: ' + J.esc(o.cname) : ''}</div>${actBtns(o)}</div>`).join('') : '<div class="small muted">Şu an geciken ya da takılan sipariş yok.</div>'}</div>`;
+  h += `<div class="card"><h3>Siparişler ve ödeme</h3>${os.length ? `<div style="overflow-x:auto"><table><tr><th>#</th><th>İşletme</th><th>Müşteri</th><th>Durum</th><th>Ödeme</th><th>Kurye</th><th>Saat</th><th></th></tr>${os.slice(0,30).map(o => `<tr><td>${J.esc(o.no)}</td><td>${J.esc(o.rname)}</td><td>${J.esc(o.customer.name)}</td><td>${stTxt(o)}</td><td>${J.payPill(o)}${o.shares?`<div class="tiny muted">İşletme ${J.tl(o.shares.business)} · Kurye ${J.tl(o.shares.courier)} · Platform ${J.tl(o.shares.platform)}${o.shares.refund?` · İade ${J.tl(o.shares.refund)}`:''}</div>`:''}</td><td>${J.esc(o.cname||'—')}</td><td class="tiny">${new Date(o.created_at).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</td><td>${o.state==='aktif' ? `<button class="sec sm" data-a="cx-open" data-id="${o.id}">Müdahale</button>` : o.cancel_reason ? `<span class="tiny muted">${J.esc(o.cancel_reason)}</span>` : ''}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Henüz sipariş yok.</div>'}</div>`;
   return h;
+}
+const CX_REASONS = ['İşletme yanıt vermiyor', 'Kurye bulunamadı', 'Müşteri talebi', 'Ürün tükendi', 'Teknik sorun'];
+function actBtns(o){
+  if(cx === o.id) return `<div class="p-act" style="flex-wrap:wrap"><select id="cx-rsn">${CX_REASONS.map(r => `<option>${r}</option>`).join('')}</select><button class="no" data-a="cx-yes" data-id="${o.id}">İptal et ve ${o.pay==='bekletiliyor' ? 'parayı iade et' : 'blokajı kaldır'}</button><button class="sec" data-a="cx-close">Vazgeç</button></div>`;
+  const canRe = o.prep !== 'bekliyor' && !['yolda','kapida'].includes(o.del) && (o.courier_id || o.offer);
+  return `<div class="p-act">${canRe ? `<button class="sec" data-a="re-assign" data-id="${o.id}">${J.ic('refresh-cw',14)} Kuryeyi değiştir</button>` : ''}<button class="no" data-a="cx-open" data-id="${o.id}">${J.ic('ban',14)} Siparişi iptal et</button></div>`;
+}
+function finRows(){
+  const from = J.now() - fin*86400000;
+  return J.orders().filter(o => o.created_at >= from && (o.state==='teslim' || o.state==='iptal' || o.state==='red' || o.state==='ulasilamadi')).sort((a,b) => b.created_at - a.created_at).map(o => {
+    const sh = o.shares || {}, done = o.pay === 'dagitildi';
+    if(o.pay==='iade'){ const v = J.custPaid(o); return {o, paid:v, biz:0, cour:0, plat:0, disc:0, ref:v}; }
+    return {o, paid: done ? J.custPaid(o) : 0, biz: done ? sh.business||0 : 0, cour: done ? sh.courier||0 : 0, plat: done ? sh.platform||0 : 0, disc: done ? (o.discount||0)+(o.loyalty_disc||0) : 0, ref: (sh.refund||0) + (o.claim_refund||0)};
+  });
+}
+function renderFin(){
+  const rows = finRows(), sum = k => rows.reduce((t,r) => t + r[k], 0), done = rows.filter(r => r.o.pay==='dagitildi');
+  const cxN = rows.filter(r => r.o.state==='iptal').length, redN = rows.filter(r => r.o.state==='red').length;
+  let h = `<div class="card"><div class="row"><h3 style="margin:0">Finans</h3><div class="m-sort" style="margin:0">${[1,7,30].map(d => `<button class="${fin===d?'on':''}" data-a="fin" data-id="${d}">${d===1?'Bugün':d+' gün'}</button>`).join('')}</div></div>
+    <div class="adm-kpi">${[['Müşteriden tahsil', sum('paid')],['İşletmelere', sum('biz')],['Kuryelere', sum('cour')],['Platform geliri', sum('plat')],['İndirim / kupon', sum('disc')],['İade', sum('ref')]].map(([l,v]) => `<div><span class="tiny muted">${l}</span><b>${J.tl(v)}</b></div>`).join('')}</div>
+    <div class="tiny muted" style="margin-top:6px">${done.length} teslim · ${cxN} iptal · ${redN} red. Para platform hesabından geçmez; tablo ödeme kuruluşunun yaptığı dağıtımı gösterir.</div>
+    <div class="p-act"><button class="sec" data-a="fin-csv">${J.ic('download',14)} CSV indir</button></div></div>`;
+  h += `<div class="card"><div style="overflow-x:auto"><table><tr><th>#</th><th>Tarih</th><th>İşletme</th><th>Durum</th><th>Tahsil</th><th>İşletme</th><th>Kurye</th><th>Platform</th><th>İndirim</th><th>İade</th></tr>${rows.slice(0,200).map(r => `<tr><td>${J.esc(r.o.no)}</td><td class="tiny">${new Date(r.o.created_at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td>${J.esc(r.o.rname)}</td><td>${stTxt(r.o)}</td><td>${J.tl(r.paid)}</td><td>${J.tl(r.biz)}</td><td>${J.tl(r.cour)}${r.o.tip||r.o.tip_after||r.o.prio_fee ? `<div class="tiny muted">bahşiş/hızlı dahil</div>` : ''}</td><td>${J.tl(r.plat)}</td><td>${J.tl(r.disc)}</td><td>${J.tl(r.ref)}</td></tr>`).join('') || '<tr><td colspan="10" class="muted small">Bu dönemde kapanan sipariş yok.</td></tr>'}</table></div></div>`;
+  return h;
+}
+function finCsv(){
+  const q = v => '"' + String(v).replace(/"/g,'""') + '"';
+  const lines = [['Sipariş','Tarih','İşletme','Durum','Tahsil','İşletme payı','Kurye payı','Platform','İndirim','İade','İptal nedeni'].map(q).join(';')];
+  finRows().forEach(r => lines.push([r.o.no, new Date(r.o.created_at).toLocaleString('tr-TR'), r.o.rname, r.o.state, r.paid, r.biz, r.cour, r.plat, r.disc, r.ref, r.o.cancel_reason||''].map(q).join(';')));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], {type:'text/csv;charset=utf-8'})); a.download = `finans-${fin}gun.csv`; a.click();
 }
 
 function renderBiz(){
@@ -153,11 +186,11 @@ function renderClaims(){
 function render(){
   document.getElementById('ahead').innerHTML = header();
   const nA = pendingApps().length, nC = pendingClaims().length + J.businesses().reduce((t,b) => t + (b.strikes||[]).filter(s => s.appeal==='beklemede').length, 0);
-  document.getElementById('tabs').innerHTML = [['genel','Genel'],['sikayet','Şikâyetler',nC],['basvuru','Başvurular',nA],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l,n]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}${n?` <span class="cnt">${n}</span>`:''}</button>`).join('');
+  document.getElementById('tabs').innerHTML = [['genel','Genel',new Set(J.orderAlerts().map(x => x.o.id)).size],['finans','Finans'],['sikayet','Şikâyetler',nC],['basvuru','Başvurular',nA],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l,n]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}${n?` <span class="cnt">${n}</span>`:''}</button>`).join('');
   const showMap = tab==='genel' || tab==='isletmeler';
   document.getElementById('genel-grid').style.display = showMap ? '' : 'none';
   J.render(document.getElementById('side'), tab==='isletmeler' ? renderBiz() : renderSide());
-  J.render(document.getElementById('panel'), tab==='genel' ? renderGenel() : tab==='kuryeler' ? renderCour() : tab==='aramalar' ? renderCalls() : tab==='ayarlar' ? renderSettings() : tab==='basvuru' ? renderApps() : tab==='sikayet' ? renderClaims() : '');
+  J.render(document.getElementById('panel'), tab==='genel' ? renderGenel() : tab==='kuryeler' ? renderCour() : tab==='aramalar' ? renderCalls() : tab==='ayarlar' ? renderSettings() : tab==='basvuru' ? renderApps() : tab==='sikayet' ? renderClaims() : tab==='finans' ? renderFin() : '');
   if(showMap){ map.invalidate(); drawMap(); }
 }
 
@@ -187,7 +220,13 @@ document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
   const a = el.dataset.a, id = el.dataset.id;
   readForm();
-  if(a==='tab'){ tab = id; edit = null; confirmReset = false; }
+  if(a==='tab'){ tab = id; edit = null; confirmReset = false; cx = null; }
+  if(a==='cx-open') cx = id;
+  if(a==='cx-close') cx = null;
+  if(a==='cx-yes'){ const r = document.getElementById('cx-rsn'); if(J.adminCancel(DB.get('orders', id), r ? r.value : '')) J.toast('Sipariş iptal edildi.'); cx = null; }
+  if(a==='re-assign'){ if(J.adminReassign(DB.get('orders', id))) J.toast('Yeniden kurye aranıyor.'); else J.toast('Kurye paketi almış; bu aşamada değiştirilemez.'); }
+  if(a==='fin') fin = +id;
+  if(a==='fin-csv'){ finCsv(); return; }
   if(a==='relocate'){
     if(!navigator.geolocation){ J.toast('Bu cihaz konum desteklemiyor.'); return; }
     J.toast('Konum alınıyor…');
@@ -246,8 +285,9 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('input', () => readForm());
 
-DB.on(() => { const ae = document.activeElement; if(!edit && !(ae && (ae.id==='turn-txt' || /^rsn-/.test(ae.id)))) render(); else { drawMap(); document.getElementById('ahead').innerHTML = header(); } });
-setInterval(() => { J.strikeTick(); J.live(); if(tab==='genel') drawMap(); }, 2000);
+DB.on(() => { const ae = document.activeElement; if(!edit && !cx && !(ae && (ae.id==='turn-txt' || /^rsn-/.test(ae.id)))) render(); else { drawMap(); document.getElementById('ahead').innerHTML = header(); } });
+setInterval(() => { J.strikeTick(); J.live(); if(tab==='genel') drawMap();
+  const sig = J.orderAlerts().map(x => x.o.id + x.kind).join(); if(sig !== alertSig){ alertSig = sig; if(!edit && !cx) render(); } }, 2000);
 DB.init().then(() => { render(); if(J.businesses().length) map.fit(J.businesses()); });
 J.registerSW();
 </script>

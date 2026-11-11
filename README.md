@@ -99,6 +99,8 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Arama | İnternet üzerinden, numaralar gizli, yalnızca aktif sipariş varken. Her arama kayıt altındadır. |
 | İkaz | İşletme müşteri aramasını açmaz ve 5 dk içinde geri aramazsa ikaz alır; müşteriye siparişin %15'i işletme payından iade edilir. 3 ikazda askıya alma. İkazlar 90 günde silinir, itiraz hakkı vardır. Bir siparişte en fazla bir ikaz ve bir iade uygulanır (tekrarlanan aramalar cezayı katlamaz). |
 | Bildirim | Kurye ve işletme için zorunlu, müşteri için önerilir. |
+| Yönetim müdahalesi | Takılan siparişler Genel sekmesinde listelenir: 3 dk onaylanmayan, 5 dk kurye bulunamayan, hazırlık süresini 5 dk aşan, yolda beklenenden 10 dk uzun kalan, kapıda 12 dk bekleyen. Yönetim kuryeyi değiştirebilir (paket alınmadan önce) ya da siparişi iptal edebilir: para çekilmediyse blokaj kalkar, çekildiyse tamamı iade edilir, kupon bakiyesi geri döner. |
+| Finans | Yönetimde günlük/7/30 günlük tablo: müşteriden tahsil, işletme, kurye (bahşiş ve hızlı teslimat dahil), platform, indirim, iade. CSV olarak indirilebilir. |
 
 ## Dosyalar
 
