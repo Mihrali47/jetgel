@@ -99,7 +99,7 @@ function renderProfile(){
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
     <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
-    <button class="brand wide" style="margin-top:12px" data-a="create">Kaydol</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
+    <button class="brand wide" style="margin-top:12px" data-a="create">Kaydol</button><div class="tiny muted" style="text-align:center;margin-top:8px">Devam ederek <a href="yasal.html#sartlar" target="_blank">kullanım koşullarını</a> ve <a href="yasal.html#kvkk" target="_blank">aydınlatma metnini</a> kabul etmiş olursun.</div><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
   return top + J.loginForm({title:'Kurye girişi', sub:'', ph:'1test', hint:'1test … 9test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Kaydol</button></div>`;
 }
 function renderGate(){
@@ -243,15 +243,16 @@ document.addEventListener('click', async e => {
   if(a==='show-reg'){ showReg = true; regErr = ''; }
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
-    const r = J.login('couriers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
+    const r = await J.login('couriers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
     if(r.error) loginErr = r.error; else { loginErr = ''; cid = r.id; J.store.set('kurye_id', r.id); const cc = DB.get('couriers', r.id); if(cc && cc.lat) pos = {lat:cc.lat, lng:cc.lng}; if(locMode==='gps') startGps(); }
   }
   if(a==='create'){
     const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
     if(!name || !user || !pass){ regErr = 'Tüm alanları doldur.'; render(); return; }
+    if(pass.length < 6){ regErr = 'Şifre en az 6 karakter olmalı.'; render(); return; }
     if(J.userTaken(user)){ regErr = 'Bu kullanıcı adı alınmış.'; render(); return; }
     cid = J.uid('c'); J.store.set('kurye_id', cid); showReg = false;
-    DB.put('couriers', cid, {name, online:false, notif_ok:false, lat:pos.lat, lng:pos.lng, busy:null, earnings:0, jobs:[], seen_at:J.now(), login:{user, pass}});
+    DB.put('couriers', cid, {name, online:false, notif_ok:false, lat:pos.lat, lng:pos.lng, busy:null, earnings:0, jobs:[], seen_at:J.now(), login: await J.makeLogin(user, pass)});
     J.log(`Yeni kurye kaydoldu: ${name}.`);
   }
   if(a==='notif'){ const p = await J.askNotif(); if(p==='granted' && c) DB.patch('couriers', c.id, {notif_ok:true}); }

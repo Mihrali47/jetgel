@@ -98,7 +98,7 @@ function renderLogin(){
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
     <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
-    <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
+    <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><div class="tiny muted" style="text-align:center;margin-top:8px">Devam ederek <a href="yasal.html#sartlar" target="_blank">kullanım koşullarını</a> ve <a href="yasal.html#kvkk" target="_blank">aydınlatma metnini</a> kabul etmiş olursun.</div><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
   return top + `<div class="m-body">` + J.loginForm({title:'Hoş geldin', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button></div>`;
 }
 
@@ -464,17 +464,25 @@ document.addEventListener('click', e => {
   if(a==='show-reg'){ showReg = true; regErr = ''; }
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){
-    const r = J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value);
-    if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); loadProf(); openPendingBiz(); setTimeout(() => { loadProf(); applyDraftAddr(); autoLocate(); }, 300); }
+    J.login('customers', document.getElementById('l-user').value, document.getElementById('l-pass').value).then(r => {
+      if(r.error) loginErr = r.error; else { loginErr = ''; cuid = r.id; J.store.set('musteri_id', r.id); go('liste'); loadProf(); openPendingBiz(); setTimeout(() => { loadProf(); applyDraftAddr(); autoLocate(); }, 300); }
+      render();
+    });
+    return;
   }
   if(a==='register'){
     const name = document.getElementById('r-name').value.trim(), user = document.getElementById('r-user').value.trim(), pass = document.getElementById('r-pass').value;
     if(!name || !user || !pass){ regErr = 'Tüm alanları doldur.'; render(); return; }
+    if(pass.length < 6){ regErr = 'Şifre en az 6 karakter olmalı.'; render(); return; }
     if(J.userTaken(user)){ regErr = 'Bu kullanıcı adı alınmış.'; render(); return; }
-    cuid = J.uid('m'); J.store.set('musteri_id', cuid); showReg = false;
-    DB.put('customers', cuid, {name, note:'', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login:{user, pass}});
-    draft = null; go('profil');
+    J.makeLogin(user, pass).then(login => {
+      cuid = J.uid('m'); J.store.set('musteri_id', cuid); showReg = false;
+      DB.put('customers', cuid, {name, note:'', lat:J.DEFAULT_POS.lat, lng:J.DEFAULT_POS.lng, login, terms_t:J.now()});
+      draft = null; go('profil'); render();
+    });
+    return;
   }
+
   if(a==='logout'){ cuid = null; prof = null; draft = null; J.store.set('musteri_id', null); go('giris'); }
   if(a==='edit-prof'){ draft = Object.assign({}, prof); go('profil'); }
   if(a==='tab'){ go(id); }

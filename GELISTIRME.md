@@ -64,7 +64,7 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 
 ## Test hesapları
 
-Dükkân `test1`…`test9`, kurye `1test`…`9test`, müşteri `test`; hepsinin şifresi `test`. `J.ensureTestAccounts()` (app/core.js) eksik olanları her açılışta oluşturur. Giriş `J.login()` ile yapılır ve **prototip düzeyindedir** (düz metin şifre, açık veritabanı). Sahip istemeden test hesaplarını kaldırma.
+Dükkân `test1`…`test9`, kurye `1test`…`9test`, müşteri `test`; hepsinin şifresi `test`. `J.ensureTestAccounts()` (app/core.js) eksik olanları her açılışta oluşturur. Giriş `J.login()` (async) ile yapılır. Şifreler SHA-256 özetiyle (`J.hashPass`) saklanır; test hesaplarının düz metin şifresi ilk girişte özete çevrilir. Yine de **prototip düzeyindedir** (veritabanı herkese açık); gerçek kullanımdan önce Supabase Auth + RLS gerekir. Sahip istemeden test hesaplarını kaldırma.
 
 ## Mimari notlar
 

@@ -49,7 +49,7 @@ J.store = {
 /* ===================== VERİ KATMANI =====================
    Demo modu: localStorage + BroadcastChannel (aynı cihazdaki sekmeler).
    Canlı mod: Supabase "kayitlar" tablosu + realtime (tüm cihazlar). */
-const TABLES = ['businesses','couriers','customers','orders','calls','events','settings'];
+const TABLES = ['businesses','couriers','customers','orders','calls','events','settings','applications'];
 const DB = J.DB = {mode:'demo', status:'baglaniyor', cache:{}, listeners:[]};
 TABLES.forEach(t => DB.cache[t] = new Map());
 DB.rows = t => Array.from(DB.cache[t].values());
@@ -421,7 +421,9 @@ J.CLAIM_REASONS = {eksik:'Eksik ürün', yanlis:'Yanlış ürün', bozuk:'Bozuk 
 J.canClaim = o => o && o.state === 'teslim' && !o.claim && J.now() - (o.delivered_at || o.created_at || 0) < J.CLAIM_HOURS*3600e3;
 J.claimAmount = function(o, picks){
   const sum = (picks||[]).reduce((t,p) => { const it = o.items[p.i]; return t + (it ? it.price * Math.min(p.qty, it.qty) : 0); }, 0);
-  return Math.round(Math.min(sum, o.subtotal - (o.discount||0)) * 100) / 100;
+  // İade, işletmenin bu siparişten alacağı tutarı geçemez (teslimat ve hizmet ücretleri kurye ve platforma ait)
+  const cap = Math.max(0, o.subtotal - (o.fees ? o.fees.biz : 0) - (o.discount||0) - (o.loyalty_disc||0) - (o.refund||0));
+  return Math.round(Math.min(sum, cap) * 100) / 100;
 };
 J.openClaim = async function(o, c){
   if(!J.canClaim(o) || !(c.picks||[]).length) return false;
@@ -998,11 +1000,26 @@ document.addEventListener('click', e => {
    Gerçek kullanımdan önce Supabase Auth + satır güvenlik kuralları ile değiştirilmelidir. */
 J.norm = u => String(u||'').trim().toLocaleLowerCase('tr');
 J.findLogin = (tbl, user) => DB.rows(tbl).find(r => r.login && J.norm(r.login.user) === J.norm(user));
-J.userTaken = user => ['businesses','couriers','customers'].some(t => J.findLogin(t, user));
-J.login = function(tbl, user, pass){
+J.userTaken = user => ['businesses','couriers','customers'].some(t => J.findLogin(t, user)) || DB.rows('applications').some(a => a.state === 'beklemede' && a.login && J.norm(a.login.user) === J.norm(user));
+J.findApplication = user => DB.rows('applications').filter(a => a.login && J.norm(a.login.user) === J.norm(user)).sort((a,b) => (b.t||0)-(a.t||0))[0] || null;
+/* Şifreler veritabanında düz metin değil, SHA-256 özetiyle (kullanıcı adına bağlı tuzla) durur.
+   Not: Bu, sunucu taraflı gerçek kimlik doğrulamanın yerini tutmaz; gerçek kullanımdan önce Supabase Auth + RLS gerekir.
+   Eski düz metin kayıtlar (test hesapları) ilk başarılı girişte özete çevrilir. */
+J.hashPass = async function(user, pass){
+  const data = new TextEncoder().encode('jetgel:v1:' + J.norm(user) + ':' + String(pass||''));
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+};
+J.makeLogin = async (user, pass) => ({user: String(user).trim(), hash: await J.hashPass(user, pass)});
+J.login = async function(tbl, user, pass){
   const r = J.findLogin(tbl, user);
   if(!r) return {error:'Bu kullanıcı adı bulunamadı.'};
-  if(String(r.login.pass) !== String(pass||'')) return {error:'Şifre yanlış.'};
+  if(r.login.hash){
+    if(r.login.hash !== await J.hashPass(r.login.user, pass)) return {error:'Şifre yanlış.'};
+  } else {
+    if(String(r.login.pass) !== String(pass||'')) return {error:'Şifre yanlış.'};
+    DB.patch(tbl, r.id, {login: await J.makeLogin(r.login.user, pass)});   // düz metni özete çevir
+  }
   return {id:r.id};
 };
 // [tür, simge, ücretsiz teslimat, [[ürün, fiyat, açıklama, kategori], ...]]

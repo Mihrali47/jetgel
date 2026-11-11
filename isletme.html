@@ -39,9 +39,29 @@ let loginErr = '';
 let nf = {name:'', price:'', cat:'', desc:'', opts:''};
 let ed = null;   // düzenlenen ürün: {id, name, price, cat, desc, opts}
 let imp = null;   // Excel'den okunan, onay bekleyen ürünler   // ürün ekleme formu (yeniden çizimde kaybolmasın)
+let apply = null, applyErr = '', applyDone = false;   // işletme başvurusu
+if(location.hash === '#basvuru' && !J.store.get('isletme_id', null)) apply = {name:'', kind:'', owner:'', phone:'', addr:'', user:'', pass:'', lat:null, lng:null, kvkk:false};
+function renderApply(){
+  if(applyDone) return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div></div><div class="p-body"><div class="p-card p-wait"><div class="rd">${J.ic('circle-check',34)}</div><b>Başvurunuz alındı</b><div class="small muted">Ekibimiz başvurunuzu inceleyip onaylayınca, seçtiğiniz kullanıcı adı ve şifreyle giriş yapabilirsiniz. Giriş ekranından durumunu görebilirsiniz.</div><button class="brand wide" style="margin-top:14px" data-a="apply-back">Girişe dön</button></div></div>`;
+  const A = apply;
+  return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div><div class="small muted">Başvuru · komisyon yok, sipariş başına sabit ${J.tl(J.FEE.bizDel+J.FEE.bizPlat)}</div></div><div class="p-body"><div class="card"><h3>İşletmenizi ekleyin</h3>
+    <label class="f" for="ap-name">İşletme adı</label><input id="ap-name" value="${J.esc(A.name)}" placeholder="Örn. Ahmet Usta Pide">
+    <label class="f" for="ap-kind">Tür</label><select id="ap-kind">${Object.keys(J.KIND_GROUP).map(k => `<option ${A.kind===k?'selected':''}>${J.esc(k)}</option>`).join('')}<option value="" ${!A.kind?'selected':''}>Diğer</option></select>
+    <label class="f" for="ap-owner">Yetkili adı soyadı</label><input id="ap-owner" value="${J.esc(A.owner)}" autocomplete="name">
+    <label class="f" for="ap-phone">İletişim telefonu</label><input id="ap-phone" value="${J.esc(A.phone)}" inputmode="tel" autocomplete="tel" placeholder="05xx xxx xx xx"><div class="tiny muted">Sadece başvurunuz hakkında size ulaşmak için; müşterilere gösterilmez.</div>
+    <label class="f" for="ap-addr">Adres</label><input id="ap-addr" value="${J.esc(A.addr)}" placeholder="Mahalle, cadde, no">
+    <button class="sec wide" style="margin-top:8px" data-a="ap-gps">${J.ic('locate-fixed',16)} ${A.lat?'Konum alındı ✓ (yeniden al)':'Dükkânın konumunu al'}</button><div class="tiny muted" style="margin-top:4px">Dükkândayken basın; kurye bu noktaya gelir.</div>
+    <label class="f" for="ap-user">Giriş kullanıcı adı</label><input id="ap-user" value="${J.esc(A.user)}" autocapitalize="none">
+    <label class="f" for="ap-pass">Şifre</label><input id="ap-pass" type="password" value="${J.esc(A.pass)}" placeholder="En az 6 karakter">
+    <label class="row small" style="margin-top:12px;gap:8px;justify-content:flex-start"><input type="checkbox" id="ap-kvkk" style="width:auto" ${A.kvkk?'checked':''}><span><a href="yasal.html#kvkk" target="_blank">Aydınlatma metnini</a> ve <a href="yasal.html#isletme" target="_blank">işletme sözleşmesini</a> okudum, kabul ediyorum.</span></label>
+    ${applyErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(applyErr)}</div>`:''}
+    <button class="brand wide" style="margin-top:12px" data-a="apply-send">Başvuruyu gönder</button><button class="ghost wide" data-a="apply-back">‹ Girişe dön</button></div></div>`;
+}
 function renderPick(){
+  if(apply) return renderApply();
   return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div><div class="small muted">Komisyonsuz sipariş paneli</div></div><div class="p-body">` +
-    J.loginForm({title:'İşletme girişi', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr}) + `</div>`;
+    J.loginForm({title:'İşletme girişi', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr}) +
+    `<div class="p-card" style="text-align:center"><b>İşletmeniz henüz Jetgel'de değil mi?</b><div class="small muted" style="margin:4px 0 10px">Komisyon yok, aidat yok. Başvurun, onaylanınca hemen sipariş almaya başlayın.</div><button class="brand wide" data-a="apply-open">Başvuru yap</button></div></div>`;
 }
 
 function renderGate(b){
@@ -246,8 +266,11 @@ document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
   const a = el.dataset.a, id = el.dataset.id, b = biz();
   if(a==='login'){
-    const r = J.login('businesses', document.getElementById('l-user').value, document.getElementById('l-pass').value);
-    if(r.error){ loginErr = r.error; } else { loginErr = ''; bid = r.id; J.store.set('isletme_id', r.id); tab = 'siparis'; }
+    const r = await J.login('businesses', document.getElementById('l-user').value, document.getElementById('l-pass').value);
+    if(r.error){
+      const ap = J.findApplication(document.getElementById('l-user').value);
+      loginErr = ap && ap.state === 'beklemede' ? 'Başvurunuz inceleniyor. Onaylanınca bu bilgilerle giriş yapabilirsiniz.' : ap && ap.state === 'reddedildi' ? 'Başvurunuz onaylanmadı' + (ap.reason ? ': ' + ap.reason : '.') : r.error;
+    } else { loginErr = ''; bid = r.id; J.store.set('isletme_id', r.id); tab = 'siparis'; }
   }
   if(a==='switch'){ if(b && b.open) DB.patch('businesses', b.id, {open:false}); bid = null; J.store.set('isletme_id', null); J.keepAwake(false); J.nativeService(false); }
   if(a==='notif'){ const p = await J.askNotif(); if(p==='granted' && b) DB.patch('businesses', b.id, {notif_ok:true}); }
@@ -265,6 +288,28 @@ document.addEventListener('click', async e => {
   if(a==='accept') J.acceptOrder(DB.get('orders', id));
   if(a==='reject') J.rejectOrder(DB.get('orders', id));
   if(a==='ready') J.markReady(DB.get('orders', id));
+  if(a==='apply-open'){ apply = {name:'', kind:'', owner:'', phone:'', addr:'', user:'', pass:'', lat:null, lng:null, kvkk:false}; applyErr = ''; applyDone = false; }
+  if(a==='apply-back'){ apply = null; applyDone = false; }
+  if(a==='ap-gps' && apply){
+    if(!navigator.geolocation){ J.toast('Bu cihaz konum desteklemiyor.'); return; }
+    J.toast('Konum alınıyor…');
+    navigator.geolocation.getCurrentPosition(p => { apply.lat = p.coords.latitude; apply.lng = p.coords.longitude; render(); }, () => J.toast('Konum alınamadı; konum iznini kontrol edin.'), {enableHighAccuracy:true, timeout:15000});
+    return;
+  }
+  if(a==='apply-send' && apply){
+    const A = apply;
+    if(!A.name.trim() || !A.owner.trim() || !A.phone.trim() || !A.addr.trim()) applyErr = 'Lütfen tüm alanları doldurun.';
+    else if(!A.lat) applyErr = 'Dükkânın konumunu alın.';
+    else if(!A.user.trim() || A.pass.length < 6) applyErr = 'Kullanıcı adı ve en az 6 karakterli şifre girin.';
+    else if(J.userTaken(A.user)) applyErr = 'Bu kullanıcı adı alınmış.';
+    else if(!A.kvkk) applyErr = 'Devam etmek için metinleri onaylayın.';
+    else {
+      const id = J.uid('ap');
+      DB.put('applications', id, {id, name:A.name.trim(), kind:A.kind, owner:A.owner.trim(), phone:A.phone.trim(), addr:A.addr.trim(), lat:A.lat, lng:A.lng, login: await J.makeLogin(A.user, A.pass), state:'beklemede', t:J.now(), kvkk_t:J.now()});
+      J.log(`Yeni işletme başvurusu: ${A.name.trim()}.`, 'ok');
+      applyErr = ''; applyDone = true;
+    }
+  }
   if(a==='qm'){ const o = DB.get('orders', id); if(J.sendMsg(o, 'isletme', J.QUICK_MSGS.isletme[+el.dataset.i])) J.toast('Mesaj gönderildi.'); }
   if(a==='rp') rp = +id;
   if(a==='csv' && b){
@@ -330,6 +375,8 @@ setInterval(() => {
   J.strikeTick(); J.live(); renderCall();
 }, 1000);
 document.addEventListener('change', async e => {
+  if(apply && e.target.id === 'ap-kind'){ apply.kind = e.target.value; return; }
+  if(apply && e.target.id === 'ap-kvkk'){ apply.kvkk = e.target.checked; return; }
   const b0 = biz();
   if(/^ly-(on|every|amount)$/.test(e.target.id||'') && b0){
     const L = Object.assign({on:false, every:10, amount:100}, b0.loyalty);
@@ -357,6 +404,7 @@ document.addEventListener('change', async e => {
   render();
 });
 document.addEventListener('input', e => {
+  const ap = /^ap-(name|owner|phone|addr|user|pass)$/.exec(e.target.id||''); if(ap && apply){ apply[ap[1]] = e.target.value; return; }
   const m = /^new-(name|price|cat|desc|opts)$/.exec(e.target.id||''); if(m) nf[m[1]] = e.target.value;
   const k = /^ed-(name|price|cat|desc|opts)$/.exec(e.target.id||''); if(k && ed) ed[k[1]] = e.target.value;
 });

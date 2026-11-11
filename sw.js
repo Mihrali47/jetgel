@@ -1,8 +1,8 @@
 // Jetgel service worker: uygulamanın telefona yüklenebilmesi, hızlı açılması ve bildirimler için.
 // Kendi dosyalarımız için önce ağ, ağ yoksa önbellek. Dış servisler (harita, rota, veritabanı) hiç önbelleğe alınmaz.
-const CACHE = 'jetgel-v27';
+const CACHE = 'jetgel-v28';
 const SHELL = [
-  './', 'index.html', 'demo.html', 'musteri.html', 'isletme.html', 'kurye.html', 'yonetim.html', 'simulasyon.html',
+  './', 'index.html', 'demo.html', 'yasal.html', 'musteri.html', 'isletme.html', 'kurye.html', 'yonetim.html', 'simulasyon.html',
   'app/app.css', 'app/musteri.css', 'app/panel.css', 'app/core.js', 'app/ikon.js', 'app/excel.js', 'vendor/qrcode/qrcode.js', 'app/config.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/supabase/supabase.js',
   'ikonlar/ikon-192.png', 'ikonlar/ikon-512.png'

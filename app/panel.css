@@ -144,3 +144,12 @@ body.p #map{margin:12px 14px 0;border-radius:16px;height:260px}
 .m-sort::-webkit-scrollbar{display:none}
 .m-sort button{flex:none;background:#fff;color:var(--ink);border:1.5px solid #ece8e1;padding:7px 13px;border-radius:99px;font-size:13px}
 .m-sort button.on{background:var(--ink);border-color:var(--ink);color:#fff}
+/* Yönetim */
+body.adm .wrap.wide{max-width:1200px;padding:14px 16px 40px}
+body.adm .p-head .adm-in{max-width:1200px;margin:0 auto}
+.adm-stats{grid-template-columns:repeat(5,1fr)}
+.adm-tabs{position:sticky;top:0;z-index:900;background:#f3f2ef;padding:4px 0 10px;margin:0 0 6px}
+.adm-tabs .cnt{background:var(--brand);color:#fff;border-radius:99px;font-size:11px;padding:1px 6px;margin-left:2px}
+body.adm .card{border:0;border-radius:18px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+body.adm .kpi{border:0;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+@media (max-width:700px){ .adm-stats{grid-template-columns:repeat(3,1fr)} }
