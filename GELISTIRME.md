@@ -22,6 +22,7 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 
 - **Ücret:** Müşteri 50 + 5 TL, işletme 50 + 5 TL öder. Kuryeye 100 TL, platforma 10 TL. Yüzde komisyon yok. İşletme isterse müşterinin payını üstlenir.
 - **Bahşiş:** İsteğe bağlı, tamamı kuryeye.
+- **Mahalle Başkanı kuponu:** 1000 TL, siparişte en fazla 100 TL; indirimi kampanyaya gönüllü katılan işletme kendi payından karşılar.
 - **Hızlı teslimat:** İsteğe bağlı +25 TL (`J.FEE.priority`), tamamı kuryeye.
 - **Ödeme:** Para platformun hesabına uğramaz (alt üye işyeri modeli). Blokaj → onayda çekim → teslimata kadar bekletme → teslimde otomatik bölüştürme.
 - **SMS yok.** Teslimat onayı uygulama içi 4 haneli kod veya QR ile; kod yalnızca 100 m içinde geçerli. Serbest "teslim edildi" butonu yok.

@@ -64,8 +64,9 @@ const soft = b => `background:${J.bizColor(b)}22`;
 const cartCount = () => Object.values(cart).reduce((s,n) => s+n, 0);
 function cartSum(b){ return J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0); }
 const inCart = mid => Object.keys(cart).filter(k => k === mid || k.startsWith(mid+'|')).reduce((t,k) => t + cart[k], 0);
-let sheet = null, sort = 'onerilen', addrPick = false;
+let sheet = null, sort = 'onerilen', addrPick = false, useCoupon = true, mayorChecked = false;
 const SORTS = [['onerilen','Önerilen'],['yakin','En yakın'],['hizli','En hızlı'],['puan','Puan']];
+const cdisc = (b, sub) => { const cp = J.activeCoupon(prof); return cp && useCoupon && b && b.race_join ? Math.min(cp.per, cp.left, sub) : 0; };
 const favs = () => (prof && prof.favs) || [];
 const addrs = () => (prof && prof.addresses) || [];
 let rate = {id:null, biz:0, cour:0, note:''};   // değerlendirme taslağı
@@ -117,7 +118,7 @@ function restCard(x){
   const {b, d, open} = x;
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
-    <div class="m-cover" style="${cover(b)}"><div class="bdg">${b.id===starId?`<span class="tag star">${J.ic('award',13)} Mahallenin Yıldızı</span>`:''}${fee}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
+    <div class="m-cover" style="${cover(b)}"><div class="bdg">${b.id===starId?`<span class="tag star">${J.ic('award',13)} Mahallenin Yıldızı</span>`:''}${fee}${b.race_join && J.activeCoupon(prof)?'<span class="tag star">Kupon geçerli</span>':''}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
     <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
 }
 function raceCard(){
@@ -129,6 +130,7 @@ function raceCard(){
   return `<div class="m-race"><div class="rtop"><span class="ic">${J.ic('award',22)}</span><div><b>Mahalle yarışı · ${J.esc(label)}</b><small>Haftanın Mahalle Başkanı pazar gecesi belli olur</small></div></div>
     <ol>${board.slice(0,3).map((p,i) => `<li class="${p.id===prof.id?'me':''}"><span class="r">${i+1}</span><span class="n">${p.id===prof.id?'Sen':J.esc(J.maskName(p.name))}</span><b>${p.n} sipariş</b></li>`).join('') || '<li class="empty">Bu hafta henüz sıralama yok. İlk sen başla!</li>'}</ol>
     ${me >= 3 ? `<div class="mine">Sen ${me+1}. sıradasın · ${board[me].n} sipariş</div>` : me < 0 && board.length ? `<div class="mine">Henüz sıralamada değilsin</div>` : ''}
+    <div class="prize">${J.ic('gift',15)} Başkana ${J.tl(J.COUPON.total)} indirim kuponu · katılan işletmelerde siparişte ${J.tl(J.COUPON.per)}'ye kadar</div>
     <div class="ft">${last?`Geçen haftanın başkanı: <b>${last.id===prof.id?'Sen':J.esc(J.maskName(last.name))}</b> · `:''}${J.tl(J.RACE_MIN)} ve üzeri teslim edilen siparişler sayılır · bitiş ${end.toLocaleDateString('tr-TR',{day:'numeric',month:'long'})}</div></div>`;
 }
 // Mahalle adı: konum değişince bir kez sorgulanır; ulaşılamazsa yakın çevre bölgesi kullanılır
@@ -146,6 +148,7 @@ async function ensureMahalle(){
 }
 function renderList(){
   ensureMahalle();
+  if(!mayorChecked && prof && prof.mahalle){ mayorChecked = true; J.claimMayorCoupon(prof).then(cp => { if(cp) J.toast(`Tebrikler, haftanın Mahalle Başkanı sensin! ${J.tl(cp.total)} kupon hesabına tanımlandı.`); }); }
   showMap(false);
   let h = header() + `<div class="m-body">`;
   const act = activeOrders();
@@ -154,6 +157,8 @@ function renderList(){
   if(!qn){
     h += `<div class="m-chips">${GROUPS.map(([g,ic,l]) => `<button class="m-chip ${group===g?'on':''}" data-a="grp" data-id="${g}"><i>${J.ic(ic,24)}</i>${l}</button>`).join('')}</div>`;
     if(group==='Hepsi') h += `<div class="m-promo"><b>Komisyon yok, sürpriz ücret yok.</b><span>Teslimat ücretinin tamamı kuryeye gider. Ödeyeceğin her kuruşu sepette görürsün.</span></div>`;
+    const cpn = J.activeCoupon(prof);
+    if(cpn && group==='Hepsi') h += `<div class="m-coupon"><span class="ic">${J.ic('award',22)}</span><div><b>Başkan kuponun: ${J.tl(cpn.left)}</b><small>Kupon geçerli işletmelerde her siparişte ${J.tl(cpn.per)}'ye kadar · son gün ${new Date(cpn.exp).toLocaleDateString('tr-TR',{day:'numeric',month:'long'})}</small></div></div>`;
     if(group==='Hepsi') h += raceCard();
     const again = [], seen = new Set();
     myOrders().filter(o => o.state==='teslim').forEach(o => { if(!seen.has(o.rid) && again.length < 6){ seen.add(o.rid); again.push(o); } });
@@ -223,15 +228,18 @@ function renderCart(){
     <div class="m-box"><h3>${J.esc(b.name)}</h3>${lines.map(l => `<div class="m-line"><div class="tx">${J.esc(l.m.name)}${l.opts.length?`<div class="tiny" style="color:var(--brand)">${l.opts.map(o => J.esc(o.name)).join(', ')}</div>`:''}<div class="tiny muted">${J.tl(l.unit)}</div></div><div class="m-qty"><button data-a="dec" data-id="${l.key}">−</button><b>${l.qty}</b><button data-a="inc" data-id="${l.key}">+</button></div><b class="money" style="min-width:70px;text-align:right">${J.tl(l.unit*l.qty)}</b></div>`).join('')}
       <button class="ghost sm" data-a="to-menu">+ Ürün ekle</button></div>
     <div class="m-box"><h3>İşletmeye not</h3><textarea id="o-note" class="m-note" maxlength="200" placeholder="Örn. soğansız olsun, zile basmayın">${J.esc(orderNote)}</textarea></div>
+    ${(() => { const cp = J.activeCoupon(prof); if(!cp) return ''; if(!b.race_join) return `<div class="note" style="margin:0 0 12px">${J.ic('award',14)} Başkan kuponun bu işletmede geçerli değil (işletme kampanyaya katılmıyor).</div>`;
+      return `<button class="m-prio ${useCoupon?'on':''}" data-a="coupon"><span class="ic">${J.ic('award',20)}</span><span class="tx"><b>Başkan kuponu · −${J.tl(Math.min(cp.per, cp.left, sub))}</b><small>Kalan bakiye ${J.tl(cp.left)}. İndirimi işletme karşılar.</small></span><span class="sw"></span></button>`; })()}
     <button class="m-prio ${prio?'on':''}" data-a="prio"><span class="ic">${J.ic('timer',20)}</span><span class="tx"><b>Hızlı teslimat · +${J.tl(J.FEE.priority)}</b><small>İşletme siparişini öne alır, kurye daha hızlı atanır. Hedef: 5-10 dk daha erken. Ücretin tamamı kuryeye.</small></span><span class="sw"></span></button>
     <div class="m-box"><h3>${J.ic('heart-handshake',16)} Kuryeye bahşiş</h3><div class="tiny muted" style="margin:-4px 0 10px">İsteğe bağlı. Bahşişin tamamı kuryeye gider, kesinti yapılmaz.</div>${tipBox(tip, 'tip', tipCustom)}${tipCustom?`<input id="tip-in" inputmode="numeric" placeholder="Tutar (TL)" value="${tip||''}" style="margin-top:8px">`:''}</div>
     <div class="m-box m-sum"><h3>Ödeme özeti</h3>
       <div class="row"><span>Ürünler</span><span class="money">${J.tl(sub)}</span></div>
       <div class="row"><span>Teslimat ücreti<small>Tamamı kuryeye gider</small></span><span class="money">${f.del?J.tl(f.del):'<span style="color:var(--ok)">Ücretsiz</span>'}</span></div>
       <div class="row"><span>Hizmet bedeli<small>Platformun sipariş başına sabit payı</small></span><span class="money">${f.plat?J.tl(f.plat):'—'}</span></div>
+      ${cdisc(b, sub)?`<div class="row" style="color:var(--ok)"><span>Başkan kuponu<small>İşletmenin katkısı</small></span><span class="money">−${J.tl(cdisc(b, sub))}</span></div>`:''}
       ${prio?`<div class="row"><span>Hızlı teslimat<small>Tamamı kuryeye gider</small></span><span class="money">${J.tl(J.FEE.priority)}</span></div>`:''}
       ${tip?`<div class="row"><span>Kurye bahşişi<small>Tamamı kuryeye gider</small></span><span class="money">${J.tl(tip)}</span></div>`:''}
-      <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat+tip+(prio?J.FEE.priority:0))}</b></div></div>
+      <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, sub))}</b></div></div>
     <div class="m-fair"><i>${J.ic('handshake',22)}</i><div><b>Komisyon yok.</b> ${b.free_delivery?'Bu işletme teslimat ücretini senin yerine ödüyor.':'İşletme de bu sipariş için sabit ücret öder; ürün fiyatlarına yüzde eklenmez.'}</div></div>
     <div class="note" style="margin-bottom:12px">Ödeme simülasyonu: gerçek para çekilmez. Gerçek sistemde önce kartında yalnızca blokaj olur; işletme onaylarsa çekilir, reddederse kalkar.</div></div>`;
 }
@@ -279,10 +287,11 @@ function renderTrack(){
   if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
   h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.itemLabel(i)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
+    ${o.discount?`<div class="row" style="color:var(--ok)"><span>Başkan kuponu</span><span class="money">−${J.tl(o.discount)}</span></div>`:''}
     ${o.priority?`<div class="row"><span>Hızlı teslimat</span><span class="money">${J.tl(o.prio_fee)}</span></div>`:''}
     ${o.tip||o.tip_after?`<div class="row"><span>Kurye bahşişi</span><span class="money">${J.tl((o.tip||0)+(o.tip_after||0))}</span></div>`:''}
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
-    <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.refund||0))}</b></div>
+    <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.refund||0))}</b></div>
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
   if(o.state==='teslim' && !o.rated){
     if(rate.id !== o.id) rate = {id:o.id, biz:0, cour:0, note:''};
@@ -343,7 +352,7 @@ function renderBar(){
     if(b) h = `<div class="m-bar"><button data-a="cart"><span class="cnt">${cartCount()}</span><span>Sepete git</span><span class="money">${J.tl(cartSum(b))}</span></button></div>`;
   } else if(view==='sepet'){
     const b = DB.get('businesses', curBiz);
-    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>Siparişi onayla</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0))}</span></button></div>`; }
+    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>Siparişi onayla</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b)))}</span></button></div>`; }
   } else if(TABS.includes(view) || view==='takip'){
     const t = view==='takip' ? 'siparisler' : view, act = activeOrders().length;
     h = `<nav class="m-tabs">${[['liste','house','Keşfet'],['siparisler','receipt','Siparişlerim'],['hesap','user','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${J.ic(ic,22)}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;
@@ -453,10 +462,11 @@ document.addEventListener('click', e => {
   }
   if(a==='order'){
     const b = DB.get('businesses', curBiz);
-    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio});
+    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
   }
   if(a==='prio'){ prio = !prio; }
+  if(a==='coupon'){ useCoupon = !useCoupon; }
   if(a==='sort') sort = id;
   if(a==='fav' && prof){ const f = favs(); DB.patch('customers', prof.id, {favs: f.includes(id) ? f.filter(x => x !== id) : f.concat([id])}); J.toast(f.includes(id) ? 'Favorilerden çıkarıldı.' : 'Favorilere eklendi.'); }
   if(a==='addr-pick'){ addrPick = true; }

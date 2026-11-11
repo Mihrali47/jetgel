@@ -167,7 +167,8 @@ J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?
 function payout(o){
   const tip = o.tip || 0;   // bahşişin tamamı kuryeye
   const prio = o.priority ? (o.prio_fee || 0) : 0;   // hızlı teslimat ücreti de kuryeye
-  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0), courier: J.FEE.courier + tip + prio, tip, priority: prio, platform: J.FEE.platform, refund: o.refund||0};
+  const disc = o.discount || 0;   // Başkan kuponu indirimi: kampanyaya katılan işletmenin payından
+  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0) - disc, discount: disc, courier: J.FEE.courier + tip + prio, tip, priority: prio, platform: J.FEE.platform, refund: o.refund||0};
   DB.patch('orders', o.id, {pay:'dagitildi', shares});
   J.log(`#${o.no} ödeme dağıtıldı: işletme ${J.tl(shares.business)}, kurye ${J.tl(shares.courier)}, platform ${J.tl(shares.platform)}${shares.refund?`, iade ${J.tl(shares.refund)}`:''}.`, 'pay', o.id);
 }
@@ -213,11 +214,20 @@ J.placeOrder = function(b, cart, cust, extra){
     note: String((extra && extra.note) || '').slice(0, 200),
     tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
     priority: !!(extra && extra.priority), prio_fee: (extra && extra.priority) ? J.FEE.priority : 0,
+    discount: 0, coupon_id: null,
     pin: String(Math.floor(1000+Math.random()*9000)), courier_id:null, offer:null, tried:[],
     created_at: J.now()
   };
+  // Başkan kuponu: sadece kampanyaya katılan işletmede, siparişte en fazla J.COUPON.per TL
+  if(extra && extra.coupon && b.race_join){
+    const cp = (cust.coupons||[]).find(c => c.id === extra.coupon && c.left > 0 && c.exp > J.now());
+    if(cp){
+      o.discount = Math.min(J.COUPON.per, cp.left, subtotal); o.coupon_id = cp.id;
+      DB.patch('customers', cust.id, {coupons: cust.coupons.map(c => c.id === cp.id ? Object.assign({}, c, {left: c.left - o.discount}) : c)});
+    }
+  }
   DB.put('orders', id, o);
-  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip+o.prio_fee)} bloke.${o.priority?' Hızlı teslimat.':''}${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
+  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip+o.prio_fee-o.discount)} bloke.${o.discount?` Başkan kuponu −${J.tl(o.discount)}.`:''}${o.priority?' Hızlı teslimat.':''}${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
   return o;
 };
 /* Hazırlık süresi işletmeye sorulmaz; sistem hesaplar:
@@ -244,6 +254,7 @@ J.acceptOrder = function(o, prepMin){
 };
 J.rejectOrder = function(o){
   DB.patch('orders', o.id, {state:'red', pay:'kalkti'});
+  if(o.discount && o.coupon_id) J.couponReturn(o);
   J.log(`#${o.no} işletme reddetti. Blokaj kaldırıldı.`, 'bad', o.id);
 };
 J.markReady = function(o){ DB.patch('orders', o.id, {prep:'hazir', ready_at:J.now()}); J.log(`#${o.no} hazır.`, '', o.id); };
@@ -339,6 +350,36 @@ J.raceBoard = function(mahalle, from, to){
     p.n++; p.last = Math.max(p.last, o.created_at);
   });
   return Object.values(per).sort((a,b) => b.n - a.n || a.last - b.last);   // eşitlikte önce ulaşan önde
+};
+/* Mahalle Başkanı kuponu: haftanın birincisine 1000 TL; siparişte en fazla 100 TL, 30 gün geçerli.
+   İndirimi, kampanyaya kendi isteğiyle katılan işletme kendi payından karşılar (zorunlu kampanya yok).
+   Aynı kişi 28 gün içinde ikinci kez başkan olamaz; sıra bir sonrakine geçer. */
+J.COUPON = {total:1000, per:100, days:30, cooldown:28};
+J.raceWinner = function(mahalle, ws){
+  const board = J.raceBoard(mahalle, ws - 7*864e5, ws);
+  for(const p of board){
+    const c = DB.get('customers', p.id);
+    const recent = ((c && c.coupons) || []).some(k => k.week !== ws && ws - k.week < J.COUPON.cooldown*864e5);
+    if(!recent) return p;
+  }
+  return null;
+};
+// Kazananın cihazı kendi kuponunu bir kez alır (claim ile)
+J.claimMayorCoupon = async function(cust){
+  if(!cust || !cust.mahalle) return null;
+  const ws = J.weekStart(), w = J.raceWinner(cust.mahalle, ws);
+  if(!w || w.id !== cust.id) return null;
+  if(!(await DB.claim('customers', cust.id, 'baskan_' + ws))) return null;
+  const cp = {id:J.uid('k'), week:ws, total:J.COUPON.total, left:J.COUPON.total, per:J.COUPON.per, exp: J.now() + J.COUPON.days*864e5, mahalle:cust.mahalle};
+  DB.patch('customers', cust.id, {coupons: (cust.coupons||[]).concat([cp])});
+  J.log(`${cust.mahalle} haftanın Mahalle Başkanı: ${J.maskName(cust.name)} (${J.tl(cp.total)} kupon).`, 'ok');
+  return cp;
+};
+J.activeCoupon = c => ((c && c.coupons) || []).find(k => k.left > 0 && k.exp > J.now()) || null;
+J.couponReturn = function(o){
+  const c = DB.get('customers', o.customer.id); if(!c) return;
+  DB.patch('customers', c.id, {coupons: (c.coupons||[]).map(k => k.id === o.coupon_id ? Object.assign({}, k, {left: Math.min(k.total, k.left + o.discount)}) : k)});
+  J.log(`#${o.no} reddedildi, ${J.tl(o.discount)} kupon bakiyesi geri yüklendi.`, '', o.id);
 };
 J.maskName = n => { const f = String(n||'').trim().split(/\s+/)[0] || 'Komşu'; return f.charAt(0).toLocaleUpperCase('tr') + '***'; };
 // Konumdan mahalle adı (OpenStreetMap Nominatim). Ulaşılamazsa boş döner; uygulama çalışmaya devam eder.
