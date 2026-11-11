@@ -66,6 +66,7 @@ function orderCard(o){
   const st = o.prep==='bekliyor' ? '<span class="pill brand">Yeni</span>' : o.prep==='hazirlaniyor' ? '<span class="pill blue">Hazırlanıyor</span>' : '<span class="pill ok">Hazır</span>';
   const net = o.subtotal-o.fees.biz-(o.refund||0)-(o.discount||0)-(o.loyalty_disc||0);
   let h = `<div class="p-ord ${o.prep==='bekliyor'?'new':''} ${o.priority?'prio':''}"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${ago(o.created_at)}${o.customer.note?` · ${J.fmtDist(J.dist(b,o.customer))}`:''}</div>${o.priority?`<span class="pill bad">${J.ic('timer',11)} Hızlı</span>`:''}${st}</div><div class="bd">
+    ${o.sched_at?`<div class="p-note" style="background:var(--blue-soft);margin:0 0 8px">${J.ic('clock',15)} <b>Planlı sipariş:</b> ${J.esc(J.fmtSched(o.sched_at))} teslim edilecek.</div>`:''}
     ${o.priority?`<div class="p-note" style="background:var(--bad-soft);margin:0 0 8px">${J.ic('timer',15)} <b>Hızlı teslimat:</b> müşteri ek ücret ödedi, lütfen öne alın.</div>`:''}
     <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}${i.opts&&i.opts.length?`<span class="p-opts">${i.opts.map(J.esc).join(' · ')}</span>`:''}</span></li>`).join('')}</ul>
     ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
@@ -77,6 +78,7 @@ function orderCard(o){
   let ct = o.prep==='bekliyor' ? 'Onaydan sonra kurye aranır' : 'Kurye aranıyor…';
   if(o.offer && !c){ const oc = DB.get('couriers', o.offer.cid); ct = `${J.esc(oc?oc.name:'Kurye')}'e teklif gönderildi (<span data-live="down" data-end="${o.offer.exp}">…</span> sn)`; }
   if(c) ct = `<b>${J.esc(c.name)}</b> · ${o.del==='isletmeye' ? `size ${J.fmtDist(J.dist(c,b))} uzakta` : o.del==='isletmede' ? 'işletmede, paketi bekliyor' : o.del==='yolda' ? 'paketi aldı, yolda' : 'müşterinin kapısında'}`;
+  h += `<div style="margin-top:10px">${J.msgBox(o, 'isletme', 'qm').replace(/data-a="qm"/g, `data-a="qm" data-id="${o.id}"`)}</div>`;
   h += `<div class="p-cour"><span>${J.ic('bike',18)}</span><div class="tx">${ct}</div>${c?`<button class="p-ic" data-a="call" data-to="kurye" data-id="${o.id}" aria-label="Kuryeyi ara">${J.ic('phone',17)}</button>`:''}<button class="p-ic" data-a="call" data-to="musteri" data-id="${o.id}" aria-label="Müşteriyi ara">${J.ic('user',17)}</button></div></div></div>`;
   return h;
 }
@@ -99,12 +101,14 @@ function tabOrders(b){
         <div class="tiny muted" style="margin-top:6px">Reddederseniz müşteri yönetime itiraz edebilir; son kararı yönetim verir.</div>
         <div class="p-act"><button class="ok" data-a="clm-ok" data-id="${o.id}">İade et</button><button class="sec" data-a="clm-no" data-id="${o.id}">Reddet</button></div></div></div>`; });
   }
-  const act = J.orders().filter(o => o.rid===b.id && o.state==='aktif');
+  const held = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && J.isHeld(o));
+  const act = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && !J.isHeld(o));
   act.sort((x,y) => (!!y.priority - !!x.priority) || (x.created_at - y.created_at));   // hızlı teslimatlar önce
   const groups = [['Yeni siparişler', act.filter(o => o.prep==='bekliyor'), true], ['Hazırlanıyor', act.filter(o => o.prep==='hazirlaniyor'), false], ['Hazır · kurye bekleniyor', act.filter(o => o.prep==='hazir'), false]];
   if(!act.length) h += b.open ? `<div class="p-empty" style="margin-top:14px"><div>${J.ic('hourglass',34)}</div><b>Yeni sipariş bekleniyor</b><div class="small">Sipariş gelince sesli uyarı çalar ve bildirim gelir.</div></div>`
     : `<div class="p-empty" style="margin-top:14px"><div>${J.ic('moon',34)}</div><b>Şu an kapalısınız</b><div class="small">Sipariş almak için yukarıdaki anahtarı açın.</div></div>`;
   groups.forEach(([t, list, hot]) => { if(list.length){ h += `<div class="p-sec">${t}<span class="n ${hot?'hot':''}">${list.length}</span></div>`; list.forEach(o => h += orderCard(o)); } });
+  if(held.length){ h += `<div class="p-sec">Planlı siparişler<span class="n">${held.length}</span></div>`; held.sort((x,y) => x.sched_at - y.sched_at).forEach(o => h += `<div class="p-mini"><span>${J.ic('clock',14)} <b>${J.esc(J.fmtSched(o.sched_at))}</b> · #${J.esc(o.no)} · ${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</span><span class="tiny muted">${J.SCHED_LEAD} dk önce düşer</span></div>`); }
   const done = J.orders().filter(o => o.rid===b.id && o.state!=='aktif').slice(0,8);
   if(done.length){ h += `<div class="p-sec">Son siparişler</div>`; done.forEach(o => h += `<div class="p-mini"><span>#${J.esc(o.no)} · ${J.esc(o.customer.name)} · <b>${J.tl(o.subtotal)}</b></span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim':o.state==='red'?'Reddedildi':'Ulaşılamadı'}</span></div>`); }
   return h;
@@ -215,7 +219,8 @@ function renderMain(){
   if(b.suspended) h += `<div class="card bad"><h3>${J.ic('ban',16)} Hesap askıya alındı</h3><div class="small">Son 90 günde 3 ikaz alındı. Sözleşme gereği sipariş alamazsınız. İtirazlarınız yönetim tarafından incelenir.</div></div>`;
   h += ({siparis:tabOrders, menu:tabMenu, kazanc:tabEarn, ayar:tabSettings}[tab] || tabOrders)(b);
   // Uyarılar
-  const waiting = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor');
+  const waiting = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor' && !J.isHeld(o));
+  J.orders().filter(o => o.rid===b.id && o.state==='aktif').forEach(o => J.msgNotify(o, 'isletme'));
   J.alarm('yeni', waiting.length > 0, 'order', 3000);
   waiting.forEach(o => J.notify('yeni-'+o.id, (o.priority?'Hızlı sipariş #':'Yeni sipariş #')+o.no, o.items.map(i => i.qty+'× '+i.name).join(', ')));
   return h + `</div>`;
@@ -260,6 +265,7 @@ document.addEventListener('click', async e => {
   if(a==='accept') J.acceptOrder(DB.get('orders', id));
   if(a==='reject') J.rejectOrder(DB.get('orders', id));
   if(a==='ready') J.markReady(DB.get('orders', id));
+  if(a==='qm'){ const o = DB.get('orders', id); if(J.sendMsg(o, 'isletme', J.QUICK_MSGS.isletme[+el.dataset.i])) J.toast('Mesaj gönderildi.'); }
   if(a==='rp') rp = +id;
   if(a==='csv' && b){
     const r = reportData(b, rp), q = v => '"' + String(v).replace(/"/g,'""') + '"';

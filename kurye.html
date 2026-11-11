@@ -156,10 +156,12 @@ function tabTask(c){
         <div class="btns"><label class="btnlink" style="cursor:pointer">${J.ic('camera',15)} Teslimat fotoğrafı${o.photo?' ✓':''}<input type="file" accept="image/*" capture="environment" id="photo" style="display:none"></label></div>
         <div class="card soft small" style="margin-top:12px"><b>Müşteri kapıyı açmıyor mu?</b><div class="muted">Önce uygulamadan ara${called?' ✓':''}, sonra bekle (<span data-live="mmss" data-end="${waitEnd}">…</span> kaldı). Konumun kayıtlı; ücretini her durumda alırsın.</div><div class="btns"><button class="sm bad" data-a="unreach" data-end="${waitEnd}" ${called?'':'disabled'}>Müşteriye ulaşılamadı</button></div></div>`;
     }
+    h += `<div style="margin-top:12px">${J.msgBox(o, 'kurye', 'qm')}</div>`;
+    J.msgNotify(o, 'kurye');
     h += `</div>`;
   }
   if(!o && !offer) h += c.online
-    ? `<div class="p-card p-wait"><div class="rd">${J.ic('radio',34)}</div><b>Teklif bekleniyor</b><div class="small muted">İşletmelere yakın durursan teklif gelme ihtimalin artar. Ekran açık tutulur.</div></div>`
+    ? `<div class="p-card p-wait"><div class="rd">${J.ic('radio',34)}</div><b>Teklif bekleniyor</b><div class="small muted">Haritadaki turuncu daireler son 2 saatte sipariş çıkan dükkânlar; daire büyüdükçe yoğunluk artar. Oralara yakın durursan teklif gelme ihtimalin artar.</div></div>`
     : `<div class="p-card p-off"><div class="rd">${J.ic('moon',34)}</div><b>Çevrimdışısın</b><div class="small muted">Teklif almak için yukarıdaki anahtarı aç.</div>${notifOk()?`<button class="ok p-big" data-a="online">Çevrimiçi ol</button>`:''}</div>`;
   if(locMode==='gps' && gpsErr) h += `<div class="card warn small">${J.ic('locate-fixed',15)} ${J.esc(gpsErr)}</div>`;
   return h;
@@ -190,7 +192,18 @@ function renderMain(){
   return h + `</div>`;
 }
 function drawMap(){
-  const o = myJob(), offer = myOffer();
+  const o = myJob(), offer = myOffer(), c = cour();
+  // Boştayken: yoğunluk haritası (son 2 saatte sipariş çıkan dükkânlar)
+  if(!o && !offer && c && c.online && tab==='gorev'){
+    showMap(true); if(!map.ok) return;
+    map.set('ben', pos, J.ic('bike',16), 'cour me', 'Sen'); map.keep(['ben']); map.clearLine('rota');
+    const pts = J.heatPoints(); const keys = [];
+    pts.forEach(p => { const k = 'h'+p.b.id; keys.push(k); map.circle(k, p.b, Math.min(400, 60 + p.n*35), '#e8590c'); });
+    map.keepCircles(keys);
+    const hk = 'isi' + pts.length; if(map._k !== hk){ map._k = hk; map.fit([pos].concat(pts.map(p => p.b)), 16); }
+    return;
+  }
+  if(map && map.keepCircles) map.keepCircles([]);
   // Kapıda ve işletmede harita gerekmez; kod ve buton ekranda kalsın
   const on = !!(offer || (o && ['isletmeye','yolda'].includes(o.del))) && tab==='gorev';
   showMap(on);
@@ -226,6 +239,7 @@ document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
   const a = el.dataset.a, c = cour();
   if(a==='tab'){ tab = el.dataset.id; window.scrollTo(0,0); }
+  if(a==='qm'){ const o = myJob(); if(o && J.sendMsg(o, 'kurye', J.QUICK_MSGS.kurye[+el.dataset.i])) J.toast('Mesaj gönderildi.'); render(); return; }
   if(a==='show-reg'){ showReg = true; regErr = ''; }
   if(a==='show-login'){ showReg = false; }
   if(a==='login'){

@@ -44,7 +44,7 @@ let prof = null;                       // giriş yapan müşterinin kaydı (DB '
 const loadProf = () => { prof = cuid ? (DB.get('customers', cuid) || null) : null; return prof; };
 let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
-let q = '', group = 'Hepsi', orderNote = '', tip = 0, tipCustom = false, prio = false;
+let q = '', group = 'Hepsi', orderNote = '', tip = 0, tipCustom = false, prio = false, sched = null;
 const TIPS = [0, 10, 20, 30, 50];
 const tipBox = (sel, act, custom) => `<div class="m-tips">${TIPS.map(v => `<button class="${sel===v && !custom?'on':''}" data-a="${act}" data-v="${v}">${v?J.tl(v):'Yok'}</button>`).join('')}<button class="${custom?'on':''}" data-a="${act}" data-v="diger">Diğer</button></div>`;
 let map = null, wantMap = false, pendingFit = null;
@@ -246,6 +246,8 @@ function renderCart(){
     <div class="m-box"><h3>İşletmeye not</h3><textarea id="o-note" class="m-note" maxlength="200" placeholder="Örn. soğansız olsun, zile basmayın">${J.esc(orderNote)}</textarea></div>
     ${(() => { const cp = J.activeCoupon(prof); if(!cp) return ''; if(!b.race_join) return `<div class="note" style="margin:0 0 12px">${J.ic('award',14)} Başkan kuponun bu işletmede geçerli değil (işletme kampanyaya katılmıyor).</div>`;
       return `<button class="m-prio ${useCoupon?'on':''}" data-a="coupon"><span class="ic">${J.ic('award',20)}</span><span class="tx"><b>Başkan kuponu · −${J.tl(Math.min(cp.per, cp.left, sub))}</b><small>Kalan bakiye ${J.tl(cp.left)}. İndirimi işletme karşılar.</small></span><span class="sw"></span></button>`; })()}
+    <div class="m-box"><h3>${J.ic('clock',16)} Ne zaman gelsin?</h3><div class="m-sort" style="margin:0"><button class="${sched?'':'on'}" data-a="sched-now">Hemen</button><button class="${sched?'on':''}" data-a="sched-later">İleri bir saat</button></div>
+      ${sched?`<select id="sched-sel" style="margin-top:10px">${J.schedSlots(b).map(t => `<option value="${t}" ${t===sched?'selected':''}>${J.fmtSched(t)}</option>`).join('')}</select><div class="tiny muted" style="margin-top:6px">Siparişin teslim saatinden ${J.SCHED_LEAD} dk önce işletmeye iletilir. Ödeme o zamana kadar sadece bloke edilir.</div>`:''}</div>
     <button class="m-prio ${prio?'on':''}" data-a="prio"><span class="ic">${J.ic('timer',20)}</span><span class="tx"><b>Hızlı teslimat · +${J.tl(J.FEE.priority)}</b><small>İşletme siparişini öne alır, kurye daha hızlı atanır. Hedef: 5-10 dk daha erken. Ücretin tamamı kuryeye.</small></span><span class="sw"></span></button>
     <div class="m-box"><h3>${J.ic('heart-handshake',16)} Kuryeye bahşiş</h3><div class="tiny muted" style="margin:-4px 0 10px">İsteğe bağlı. Bahşişin tamamı kuryeye gider, kesinti yapılmaz.</div>${tipBox(tip, 'tip', tipCustom)}${tipCustom?`<input id="tip-in" inputmode="numeric" placeholder="Tutar (TL)" value="${tip||''}" style="margin-top:8px">`:''}</div>
     <div class="m-box m-sum"><h3>Ödeme özeti</h3>
@@ -283,6 +285,7 @@ function renderTrack(){
     let mins = null;
     if(o.del==='kapida'){ v = 'Kuryen kapında'; sub = 'Teslimat kodunu kuryeye söyle'; }
     else if(o.del==='yolda' && c){ mins = ride(c); sub = 'Kuryen siparişini getiriyor'; }
+    else if(J.isHeld(o)){ v = 'Planlı sipariş'; sub = J.fmtSched(o.sched_at) + ' teslim edilecek'; }
     else if(o.prep==='bekliyor'){ v = 'Onay bekleniyor'; sub = 'İşletme siparişini birazdan onaylayacak'; }
     else { const left = o.prep==='hazirlaniyor' ? Math.max(0, Math.ceil((o.prep_until - J.now())/J.minMs())) : 0; mins = left + (b ? ride(b) : 10); sub = o.prep==='hazir' ? 'Siparişin hazır, kurye alacak' : o.del==='araniyor' ? 'Hazırlanıyor · yakındaki kuryeler aranıyor' : 'Siparişin hazırlanıyor'; }
     if(mins != null){ k = 'Tahmini varış'; v = `${mins}-${mins+5} dk`; }
@@ -299,6 +302,8 @@ function renderTrack(){
     else if(o.del==='araniyor') h += `<div class="m-person"><div class="av">${J.ic('search',20)}</div><div class="tx"><b>Kurye aranıyor</b><span class="small muted">Yakındaki kuryelere teklif gidiyor</span></div></div><div style="height:12px"></div>`;
     h += `<div class="m-person"><div class="av" style="${b?soft(b):''}">${J.bizIcon(b,20)}</div><div class="tx"><b>${J.esc(o.rname)}</b><span class="small muted">İşletme</span></div><button class="m-call" data-a="call" data-to="isletme:${o.rid}" aria-label="İşletmeyi ara">${J.ic('phone',18)}</button></div>
       <div class="note">Arama internet üzerinden yapılır, numaralar gizli kalır. İşletmeler müşteri aramalarına dönmekle yükümlüdür.</div></div>`;
+    h += `<div class="m-box"><h3>${J.ic('message-square',16)} Mesajlar</h3>${J.msgBox(o, 'musteri', 'qm')}</div>`;
+    J.msgNotify(o, 'musteri');
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
   if(o.state==='red') h += `<div class="card bad small">İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
@@ -391,7 +396,7 @@ function renderBar(){
     if(b) h = `<div class="m-bar"><button data-a="cart"><span class="cnt">${cartCount()}</span><span>Sepete git</span><span class="money">${J.tl(cartSum(b))}</span></button></div>`;
   } else if(view==='sepet'){
     const b = DB.get('businesses', curBiz);
-    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>Siparişi onayla</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b))-ldisc(b, cartSum(b)))}</span></button></div>`; }
+    if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>${sched?'Siparişi planla':'Siparişi onayla'}</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b))-ldisc(b, cartSum(b)))}</span></button></div>`; }
   } else if(TABS.includes(view) || view==='takip'){
     const t = view==='takip' ? 'siparisler' : view, act = activeOrders().length;
     h = `<nav class="m-tabs">${[['liste','house','Keşfet'],['siparisler','receipt','Siparişlerim'],['hesap','user','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${J.ic(ic,22)}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;
@@ -501,10 +506,13 @@ document.addEventListener('click', e => {
   }
   if(a==='order'){
     const b = DB.get('businesses', curBiz);
-    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
-    if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
+    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
+    if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; sched = null; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
   }
   if(a==='prio'){ prio = !prio; }
+  if(a==='sched-now'){ sched = null; }
+  if(a==='sched-later'){ const sl = J.schedSlots(DB.get('businesses', curBiz)); sched = sl[0] || null; if(!sched) J.toast('Uygun saat bulunamadı.'); }
+  if(a==='qm'){ const o = DB.get('orders', trackId); if(J.sendMsg(o, 'musteri', J.QUICK_MSGS.musteri[+el.dataset.i])) J.toast('Mesaj gönderildi.'); }
   if(a==='coupon'){ useCoupon = !useCoupon; }
   if(a==='sort') sort = id;
   if(a==='fav' && prof){ const f = favs(); DB.patch('customers', prof.id, {favs: f.includes(id) ? f.filter(x => x !== id) : f.concat([id])}); J.toast(f.includes(id) ? 'Favorilerden çıkarıldı.' : 'Favorilere eklendi.'); }
@@ -558,6 +566,7 @@ function autoLocate(){
   }, () => {}, {enableHighAccuracy:true, timeout:20000, maximumAge:60000});
 }
 document.addEventListener('change', e => {
+  if(e.target.id === 'sched-sel'){ sched = +e.target.value; render(); return; }
   if(e.target.id === 'clm-photo' && e.target.files && e.target.files[0]){
     J.compressImage(e.target.files[0], 720, 0.6).then(d => { clm.photo = d; render(); }).catch(err => J.toast(err.message));
   }

@@ -213,6 +213,7 @@ J.placeOrder = function(b, cart, cust, extra){
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||'', mahalle:cust.mahalle||''},
     note: String((extra && extra.note) || '').slice(0, 200),
     tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
+    sched_at: extra && extra.sched_at && extra.sched_at > J.now() + 30*60000 ? extra.sched_at : null,
     priority: !!(extra && extra.priority), prio_fee: (extra && extra.priority) ? J.FEE.priority : 0,
     discount: 0, coupon_id: null,
     pin: String(Math.floor(1000+Math.random()*9000)), courier_id:null, offer:null, tried:[],
@@ -322,6 +323,55 @@ J.complete = function(c, o, how){
   finishCourier(c, o);
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
+};
+/* ===================== HAZIR MESAJLAR =====================
+   Sipariş içinde sadece hazır mesajlar (serbest metin yok: kötüye kullanım ve kişisel veri riski olmasın). */
+J.QUICK_MSGS = {
+  musteri: ['Siparişim ne durumda?', 'Kapıya bırakabilirsiniz', 'Lütfen zili çalmayın', 'Adresi bulamazsanız arayın', 'Aşağı iniyorum'],
+  isletme: ['Siparişiniz hazırlanıyor', 'Birkaç dakika gecikme olacak, kusura bakmayın', 'Siparişiniz hazır, kurye bekleniyor'],
+  kurye: ['Yoldayım, birazdan oradayım', 'Binanın önündeyim', 'Kapıdayım', 'Trafik var, birkaç dakika gecikebilirim']
+};
+J.ROLE_TXT = {musteri:'Müşteri', isletme:'İşletme', kurye:'Kurye'};
+J.sendMsg = function(o, from, text){
+  if(!o || o.state !== 'aktif' || !(J.QUICK_MSGS[from]||[]).includes(text)) return false;
+  const msgs = (o.msgs||[]).concat([{from, text, t:J.now()}]).slice(-30);
+  DB.patch('orders', o.id, {msgs});
+  return true;
+};
+J.msgList = (o, me) => (o.msgs||[]).slice(-6).map(m => `<div class="msg ${m.from===me?'me':''}"><b>${J.ROLE_TXT[m.from]}</b> ${J.esc(m.text)} <span>${new Date(m.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})}</span></div>`).join('');
+J.msgBox = function(o, me, act){
+  return `<div class="qmsg">${(o.msgs||[]).length?`<div class="msgs">${J.msgList(o, me)}</div>`:''}<div class="chips">${J.QUICK_MSGS[me].map((m,i) => `<button data-a="${act}" data-i="${i}">${J.esc(m)}</button>`).join('')}</div></div>`;
+};
+// Yeni mesaj bildirimi (karşı taraftan gelen son mesaj)
+J.msgNotify = function(o, me){
+  const m = (o.msgs||[]).slice(-1)[0];
+  if(m && m.from !== me && J.now() - m.t < 60000) J.notify('msg-'+o.id+'-'+m.t, `${J.ROLE_TXT[m.from]} · #${o.no}`, m.text);
+};
+
+/* ===================== İLERİ SAATLİ SİPARİŞ =====================
+   Planlı sipariş, teslim saatinden J.SCHED_LEAD dk önce işletmeye düşer. O zamana kadar işletme listesinde "Planlı" görünür. */
+J.SCHED_LEAD = 45;
+J.isHeld = o => !!(o && o.sched_at && o.prep === 'bekliyor' && J.now() < o.sched_at - J.SCHED_LEAD*60000);
+J.schedSlots = function(b){
+  const out = [], start = J.now() + 60*60000;
+  for(let k = 0; k < 48; k++){
+    const t = new Date(Math.ceil(start / (30*60000)) * 30*60000 + k*30*60000);
+    if(t.getTime() - J.now() > 2*864e5) break;
+    const st = b && b.hours ? J.hoursState(b, t.getTime()) : null;
+    if(st && !st.open) continue;
+    out.push(t.getTime());
+  }
+  return out;
+};
+J.fmtSched = t => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(), tm = new Date(J.now()+864e5).toDateString() === d.toDateString();
+  return (today ? 'Bugün ' : tm ? 'Yarın ' : d.toLocaleDateString('tr-TR',{day:'numeric',month:'long'}) + ' ') + d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); };
+
+/* ===================== KURYE YOĞUNLUK HARİTASI =====================
+   Son 2 saatte sipariş çıkan işletmeler; daire büyüklüğü sipariş sayısına göre. */
+J.heatPoints = function(){
+  const since = J.now() - 2*3600e3, per = {};
+  J.orders().forEach(o => { if((o.created_at||0) < since) return; const b = DB.get('businesses', o.rid); if(!b) return; const p = per[b.id] = per[b.id] || {b, n:0}; p.n++; });
+  return Object.values(per);
 };
 /* ===================== ÇALIŞMA SAATLERİ =====================
    b.hours = {auto:true, days:[{open:'10:00', close:'23:00', off:false} ×7]} (pazartesi ilk). Kapanış açılıştan küçükse gece yarısını geçer.
@@ -723,7 +773,7 @@ J.toast = function(txt){
 /* ===================== HARİTA (Leaflet) ===================== */
 J.Map = function(el, opts){
   opts = opts || {};
-  const api = {ok:false, markers:{}, lines:{}, set(){}, remove(){}, line(){}, clearLine(){}, fit(){}, center(){}, invalidate(){}, onClick(){}};
+  const api = {ok:false, markers:{}, lines:{}, circles:{}, set(){}, remove(){}, line(){}, clearLine(){}, fit(){}, center(){}, invalidate(){}, onClick(){}, circle(){}, keepCircles(){}};
   if(!window.L){ el.innerHTML = '<div class="nomap">Harita yüklenemedi</div>'; return api; }
   const map = L.map(el, {zoomControl:true, attributionControl:true, scrollWheelZoom:!!opts.wheel});
   map.fitBounds(J.homeBox ? J.homeBox() : [[J.BOX.minLat,J.BOX.minLng],[J.BOX.maxLat,J.BOX.maxLng]]);
@@ -751,6 +801,13 @@ J.Map = function(el, opts){
   api.center = (p, z) => { if(p && p.lat != null) map.setView([p.lat,p.lng], z || map.getZoom(), {animate:false}); };
   api.invalidate = () => map.invalidateSize(false);
   api.onClick = cb => map.on('click', e => cb({lat:e.latlng.lat, lng:e.latlng.lng}));
+  api.circles = {};
+  api.circle = function(key, p, radius, color){
+    const c = api.circles[key];
+    if(c){ c.setLatLng([p.lat,p.lng]); c.setRadius(radius); return; }
+    api.circles[key] = L.circle([p.lat,p.lng], {radius, color, weight:1, fillColor:color, fillOpacity:.28}).addTo(map);
+  };
+  api.keepCircles = keys => Object.keys(api.circles).forEach(k => { if(!keys.includes(k)){ map.removeLayer(api.circles[k]); delete api.circles[k]; } });
   return api;
 };
 

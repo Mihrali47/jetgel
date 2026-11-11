@@ -104,3 +104,11 @@ th{color:var(--muted);font-weight:600}
 .rt svg.ic.fill{fill:#f5a524;stroke:#f5a524}
 .rt .rt-n{color:var(--muted);font-weight:500}
 .rt.new{background:var(--ok-soft);color:var(--ok);font-size:11.5px;padding:2px 7px;border-radius:99px}
+.qmsg .msgs{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.qmsg .msg{background:#f6f5f2;border-radius:12px 12px 12px 4px;padding:7px 10px;font-size:13.5px;max-width:88%}
+.qmsg .msg.me{align-self:flex-end;background:var(--brand-soft);border-radius:12px 12px 4px 12px}
+.qmsg .msg b{display:block;font-size:11px;color:var(--muted)}
+.qmsg .msg span{font-size:10.5px;color:var(--muted)}
+.qmsg .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.qmsg .chips::-webkit-scrollbar{display:none}
+.qmsg .chips button{flex:none;background:#fff;color:var(--ink);border:1.5px solid #ece8e1;border-radius:99px;padding:7px 11px;font-size:12.5px;font-weight:600}
