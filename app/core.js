@@ -4,7 +4,7 @@
 (function(){
 'use strict';
 const CFG = window.JETGEL_CONFIG || {};
-const J = window.J = {};
+const J = window.J = window.J || {};
 
 /* ===================== AYARLAR (iş kuralları) ===================== */
 J.FEE = {custDel:50, custPlat:5, bizDel:50, bizPlat:5, courier:100, platform:10};
@@ -127,7 +127,7 @@ DB.init = async function(){
   await J.refreshNative();
   emit({status:true});
 };
-function fail(e){ console.error(e); J.toast('⚠️ Kaydedilemedi: ' + (e.message || e)); }
+function fail(e){ console.error(e); J.toast('Kaydedilemedi: ' + (e.message || e)); }
 DB.put = (t,id,data) => { setLocal(t,id,data); emit({}); return ADP.put(t,id,data).catch(fail); };
 DB.patch = (t,id,p) => { const cur = DB.get(t,id); if(cur) setLocal(t,id,Object.assign({},cur,p)); emit({}); return ADP.patch(t,id,p).catch(fail); };
 DB.claim = (t,id,f) => ADP.claim(t,id,f).catch(e => { fail(e); return false; });
@@ -162,11 +162,11 @@ J.partyName = function(p){
    Para platformun hesabına uğramaz (alt üye işyeri modeli varsayımı).
    blokaj → işletme onayında çekim (bekletiliyor) → teslimde dağıtım. Red → blokaj kalkar. */
 J.PAY_TXT = {blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi'};
-J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">💳 ${J.PAY_TXT[o.pay]||o.pay}</span>`;
+J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic('credit-card',12)} ${J.PAY_TXT[o.pay]||o.pay}</span>`;
 function payout(o){
   const shares = {business: o.subtotal - o.fees.biz - (o.refund||0), courier: J.FEE.courier, platform: J.FEE.platform, refund: o.refund||0};
   DB.patch('orders', o.id, {pay:'dagitildi', shares});
-  J.log(`💳 #${o.no} ödeme dağıtıldı: işletme ${J.tl(shares.business)}, kurye ${J.tl(shares.courier)}, platform ${J.tl(shares.platform)}${shares.refund?`, iade ${J.tl(shares.refund)}`:''}.`, 'pay', o.id);
+  J.log(`#${o.no} ödeme dağıtıldı: işletme ${J.tl(shares.business)}, kurye ${J.tl(shares.courier)}, platform ${J.tl(shares.platform)}${shares.refund?`, iade ${J.tl(shares.refund)}`:''}.`, 'pay', o.id);
 }
 
 /* ===================== SİPARİŞ ===================== */
@@ -186,16 +186,16 @@ J.placeOrder = function(b, cart, cust, extra){
     created_at: J.now()
   };
   DB.put('orders', id, o);
-  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). 💳 Kartta ${J.tl(subtotal+fees.cust)} bloke.`, 'order', id);
+  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust)} bloke.`, 'order', id);
   return o;
 };
 J.acceptOrder = function(o, prepMin){
   DB.patch('orders', o.id, {prep:'hazirlaniyor', prep_until: J.now() + prepMin*J.minMs(), prep_min:prepMin, pay:'bekletiliyor', del:'araniyor', accepted_at:J.now()});
-  J.log(`#${o.no} işletme onayladı (${prepMin} dk). 💳 Ödeme çekildi, teslimata kadar bekletiliyor.`, 'order', o.id);
+  J.log(`#${o.no} işletme onayladı (${prepMin} dk). Ödeme çekildi, teslimata kadar bekletiliyor.`, 'order', o.id);
 };
 J.rejectOrder = function(o){
   DB.patch('orders', o.id, {state:'red', pay:'kalkti'});
-  J.log(`#${o.no} işletme reddetti. 💳 Blokaj kaldırıldı.`, 'bad', o.id);
+  J.log(`#${o.no} işletme reddetti. Blokaj kaldırıldı.`, 'bad', o.id);
 };
 J.markReady = function(o){ DB.patch('orders', o.id, {prep:'hazir'}); J.log(`#${o.no} hazır.`, '', o.id); };
 
@@ -285,7 +285,7 @@ J.strikeTick = async function(){
     const patch = {strikes};
     if(n >= 3){ patch.suspended = true; patch.open = false; }
     DB.patch('businesses', b.id, patch);
-    J.log(`⚠️ ${b.name} ${n}. ikazı aldı. Müşteriye ${J.tl(refund)} iade.${n>=3?' 3. ikaz: askıya alındı.':''}`, 'bad', o.id);
+    J.log(`${b.name} ${n}. ikazı aldı. Müşteriye ${J.tl(refund)} iade.${n>=3?' 3. ikaz: askıya alındı.':''}`, 'bad', o.id);
   }
 };
 
@@ -294,7 +294,8 @@ function cumul(pts){ const c=[0]; for(let i=1;i<pts.length;i++) c.push(c[i-1]+J.
 function nearestIdx(pts, p){ let bi=0, bd=Infinity; for(let i=0;i<pts.length;i++){ const d=J.dist(pts[i],p); if(d<bd){bd=d;bi=i;} } return bi; }
 J.nearestIdx = nearestIdx;
 const MOD_TR = {left:'sola', right:'sağa', 'slight left':'hafif sola', 'slight right':'hafif sağa', 'sharp left':'keskin sola', 'sharp right':'keskin sağa', straight:'düz', uturn:'U dönüşü'};
-const ARROW = {left:'⬅️', right:'➡️', 'slight left':'↖️', 'slight right':'↗️', 'sharp left':'↩️', 'sharp right':'↪️', straight:'⬆️', uturn:'🔄'};
+// Dönüş oklarının ikon adları (app/ikon.js)
+const ARROW = {left:'corner-up-left', right:'corner-up-right', 'slight left':'arrow-up-left', 'slight right':'arrow-up-right', 'sharp left':'corner-up-left', 'sharp right':'corner-up-right', straight:'arrow-up', uturn:'rotate-ccw'};
 const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : s;
 function maneuverText(s){
   const m = s.maneuver || {}, mod = m.modifier, name = s.name ? ` · ${s.name}` : '', yon = MOD_TR[mod] || '';
@@ -325,7 +326,7 @@ J.fetchRoute = async function(a, b){
     const cum = cumul(pts), steps = [];
     (rt.legs||[]).forEach(leg => (leg.steps||[]).forEach(s => {
       const loc = {lat:s.maneuver.location[1], lng:s.maneuver.location[0]};
-      steps.push({text:maneuverText(s), arrow: s.maneuver.type==='arrive' ? '🏁' : (ARROW[s.maneuver.modifier]||'⬆️'), at:cum[nearestIdx(pts,loc)], type:s.maneuver.type});
+      steps.push({text:maneuverText(s), arrow: s.maneuver.type==='arrive' ? 'flag' : (ARROW[s.maneuver.modifier]||'arrow-up'), at:cum[nearestIdx(pts,loc)], type:s.maneuver.type});
     }));
     steps.sort((x,y) => x.at-y.at);
     return {pts, cum, total:cum[cum.length-1], steps, source:'osrm', dest:{lat:b.lat,lng:b.lng}};
@@ -333,8 +334,8 @@ J.fetchRoute = async function(a, b){
     clearTimeout(tm);
     const pts = [{lat:a.lat,lng:a.lng},{lat:b.lat,lng:b.lng}], cum = cumul(pts);
     return {pts, cum, total:cum[1], source:'duz', dest:{lat:b.lat,lng:b.lng}, steps:[
-      {text:'Hedefe doğru ilerle (yol rotası alınamadı)', arrow:'⬆️', at:0, type:'depart'},
-      {text:'Varış noktası', arrow:'🏁', at:cum[1], type:'arrive'}]};
+      {text:'Hedefe doğru ilerle (yol rotası alınamadı)', arrow:'arrow-up', at:0, type:'depart'},
+      {text:'Varış noktası', arrow:'flag', at:cum[1], type:'arrive'}]};
   }
 };
 // Mevcut konuma göre rota üzerindeki ilerleme ve sıradaki manevra
@@ -390,7 +391,7 @@ J.nativeService = async function(on, opts){
 };
 J.batteryCard = function(){
   if(!J.native || J.nativeInfo.pilMuaf !== false) return '';
-  return `<div class="card warn small"><b>🔋 Pil kısıtlamasını kaldır</b><div class="muted">Telefon pil tasarrufu için uygulamayı arka planda durdurabilir; sipariş, teklif ve aramaları kaçırırsın. "İzin ver"e bas ve açılan pencerede onayla.</div><div class="btns"><button class="sm brand" data-native="pil">İzin ver</button></div></div>`;
+  return `<div class="card warn small"><b>${J.ic('battery-medium',15)} Pil kısıtlamasını kaldır</b><div class="muted">Telefon pil tasarrufu için uygulamayı arka planda durdurabilir; sipariş, teklif ve aramaları kaçırırsın. "İzin ver"e bas ve açılan pencerede onayla.</div><div class="btns"><button class="sm brand" data-native="pil">İzin ver</button></div></div>`;
 };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-native]'); if(!b || !J.native) return;
@@ -568,7 +569,7 @@ J.startCall = async function(from, to, orderId){
   const call = {id, order_id:orderId, no:o.no, from, to, start:J.now(), state:'caliyor'};
   if(from.type==='isletme' && to.type==='musteri') J.pendingCallbacks(from.id).filter(k => k.order_id===orderId).forEach(k => DB.patch('calls', k.id, {cb_done:true}));
   DB.put('calls', id, call);
-  J.log(`📞 ${J.partyName(from)} → ${J.partyName(to)} arıyor (#${o.no}).`, 'call', orderId);
+  J.log(`${J.partyName(from)} → ${J.partyName(to)} arıyor (#${o.no}).`, 'call', orderId);
   if(await rtcSetup(id, 'caller')){
     const pc = RTC.pc;
     await pc.setLocalDescription(await pc.createOffer());
@@ -579,18 +580,18 @@ J.startCall = async function(from, to, orderId){
 J.answerCall = async function(call){
   unlockAudio(); J.cancelNotify('call-'+call.id);
   DB.patch('calls', call.id, {state:'gorusme', answered_at:J.now()});
-  J.log(`📞 ${J.partyName(call.to)} aramayı açtı.`, 'call', call.order_id);
+  J.log(`${J.partyName(call.to)} aramayı açtı.`, 'call', call.order_id);
   if(await rtcSetup(call.id, 'callee')) J.rtcTick();
 };
 J.declineCall = call => { J.cancelNotify('call-'+call.id); DB.patch('calls', call.id, {state:'reddedildi', end:J.now()}); afterMiss(Object.assign({}, call, {state:'reddedildi'})); rtcClose(); };
 J.endCall = call => {
   const st = call.state === 'caliyor' ? 'iptal' : 'bitti';
   DB.patch('calls', call.id, {state:st, end:J.now()});
-  J.log(st==='iptal' ? '📞 Arayan aramayı iptal etti.' : '📞 Görüşme bitti.', 'call', call.order_id);
+  J.log(st==='iptal' ? 'Arayan aramayı iptal etti.' : 'Görüşme bitti.', 'call', call.order_id);
   rtcClose();
 };
 function afterMiss(call){
-  J.log(`📞 ${J.partyName(call.to)} aramayı ${call.state==='cevapsiz'?'açmadı':'reddetti'}.`, 'bad', call.order_id);
+  J.log(`${J.partyName(call.to)} aramayı ${call.state==='cevapsiz'?'açmadı':'reddetti'}.`, 'bad', call.order_id);
   if(call.to.type==='isletme' && call.from.type==='musteri'){
     DB.patch('calls', call.id, {cb_deadline: J.now() + J.D(J.CALLBACK_MS)});
     J.log(`${J.partyName(call.to)}: süre içinde müşteriyi geri aramazsa ikaz alacak.`, 'warn', call.order_id);
@@ -627,8 +628,8 @@ J.callOverlay = function(me){
   const inc = J.calls().find(k => k.state==='caliyor' && isMe(k.to, me) && t - k.start < J.RING_MS);
   if(inc){
     J.alarm('ring', true, 'ring', 2000);
-    J.notify('call-'+inc.id, '📞 Gelen arama', J.partyName(inc.from));
-    return `<div class="overlay"><div class="callbox"><div class="ring" style="font-size:34px">📞</div><div class="small dim">Uygulama içi sesli arama · Sipariş #${J.esc(inc.no)}</div><div class="who">${J.esc(J.partyName(inc.from))}</div><div class="small dim">Çalıyor · <span data-live="down" data-end="${inc.start+J.RING_MS}">${J.secs(inc.start+J.RING_MS-t)}</span> sn</div><div class="btns center"><button class="bad" data-call="decline" data-id="${inc.id}">Reddet</button><button class="ok" data-call="answer" data-id="${inc.id}">Aç</button></div></div></div>`;
+    J.notify('call-'+inc.id, 'Gelen arama', J.partyName(inc.from));
+    return `<div class="overlay"><div class="callbox"><div class="ring call-ic">${J.ic('phone-call',30)}</div><div class="small dim">Uygulama içi sesli arama · Sipariş #${J.esc(inc.no)}</div><div class="who">${J.esc(J.partyName(inc.from))}</div><div class="small dim">Çalıyor · <span data-live="down" data-end="${inc.start+J.RING_MS}">${J.secs(inc.start+J.RING_MS-t)}</span> sn</div><div class="btns center"><button class="bad" data-call="decline" data-id="${inc.id}">Reddet</button><button class="ok" data-call="answer" data-id="${inc.id}">Aç</button></div></div></div>`;
   }
   J.alarm('ring', false);
   J.calls().forEach(k => { if(k.state !== 'caliyor' && isMe(k.to, me) && notified.has('call-'+k.id) && !k._iptalEdildi){ k._iptalEdildi = true; J.cancelNotify('call-'+k.id); } });
@@ -636,7 +637,7 @@ J.callOverlay = function(me){
   if(act){
     const other = isMe(act.from, me) ? act.to : act.from;
     const txt = act.state==='caliyor' ? `Aranıyor… <span data-live="up" data-start="${act.start}">0</span> sn` : `Görüşmede · <span data-live="up" data-start="${act.answered_at}">0</span> sn`;
-    return `<div class="overlay"><div class="callbox"><div style="font-size:30px">🎧</div><div class="small dim">İnternet üzerinden · numaralar gizli</div><div class="who">${J.esc(J.partyName(other))}</div><div class="small">${txt}</div><div class="small dim" style="margin-top:4px">${J.esc(J.rtcStateText())}</div><div class="btns center">${RTC.needTap?`<button class="ok" data-call="unmute" data-id="${act.id}">🔊 Sesi aç</button>`:''}${J.native && RTC.nativeAudio?`<button class="sec" data-call="speaker" data-id="${act.id}">${RTC.speaker?'📱 Ahizeye al':'🔊 Hoparlör'}</button>`:''}<button class="bad" data-call="end" data-id="${act.id}">Kapat</button></div></div></div>`;
+    return `<div class="overlay"><div class="callbox"><div class="call-ic">${J.ic('headphones',28)}</div><div class="small dim">İnternet üzerinden · numaralar gizli</div><div class="who">${J.esc(J.partyName(other))}</div><div class="small">${txt}</div><div class="small dim" style="margin-top:4px">${J.esc(J.rtcStateText())}</div><div class="btns center">${RTC.needTap?`<button class="ok" data-call="unmute" data-id="${act.id}">${J.ic('volume-2',16)} Sesi aç</button>`:''}${J.native && RTC.nativeAudio?`<button class="sec" data-call="speaker" data-id="${act.id}">${RTC.speaker?J.ic('smartphone',16)+' Ahizeye al':J.ic('volume-2',16)+' Hoparlör'}</button>`:''}<button class="bad" data-call="end" data-id="${act.id}">Kapat</button></div></div></div>`;
   }
   return '';
 };
@@ -682,6 +683,9 @@ const testMenu = (id, menu, old) => menu.map((m,k) => {
 // Tür → kategori grubu (müşteri uygulamasındaki filtreler)
 J.KIND_GROUP = {Pideci:'Yemek', 'Kebapçı':'Yemek', 'Çorbacı':'Yemek', Burgerci:'Yemek', 'Dönerci':'Yemek', Market:'Market', Manav:'Market', Kahveci:'Kahve & Tatlı', 'Tatlıcı':'Kahve & Tatlı'};
 J.KIND_COLOR = {Pideci:'#f4a261', 'Kebapçı':'#e76f51', 'Çorbacı':'#e9b949', Market:'#2a9d8f', Burgerci:'#f77f00', Kahveci:'#8d6e63', 'Tatlıcı':'#e88aa3', 'Dönerci':'#c8553d', Manav:'#52b788'};
+J.KIND_ICON = {Pideci:'pizza', 'Kebapçı':'beef', 'Çorbacı':'soup', Market:'shopping-cart', Burgerci:'sandwich', Kahveci:'coffee', 'Tatlıcı':'cake-slice', 'Dönerci':'drumstick', Manav:'carrot'};
+J.GROUP_ICON = {Yemek:'utensils', Market:'shopping-cart', 'Kahve & Tatlı':'coffee'};
+J.bizIcon = (b, size) => J.ic(J.KIND_ICON[b && b.kind] || J.GROUP_ICON[J.bizGroup(b||{})] || 'store', size);
 J.bizGroup = b => J.KIND_GROUP[b.kind] || 'Yemek';
 J.bizColor = b => J.KIND_COLOR[b.kind] || '#e8590c';
 // Tahmini teslim süresi (dk): ortalama hazırlık + yol
@@ -744,7 +748,7 @@ J.autoRelocate = function(pos){
   if(!tests.length || tests.some(b => J.dist(b, pos) < 5000)) return false;
   J._autoRel = true;
   J.relocateTests({lat:pos.lat, lng:pos.lng});
-  J.toast('📍 Test dükkânları senin çevrene taşındı.');
+  J.toast('Test dükkânları senin çevrene taşındı.');
   return true;
 };
 // Haritanın ilk açılışta göstereceği bölge: test hesapları taşındıysa orası, değilse Moda
@@ -761,12 +765,12 @@ J.loginForm = function(o){
     <label class="f" for="l-pass">Şifre</label><input id="l-pass" type="password" autocomplete="current-password">
     ${o.err?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(o.err)}</div>`:''}
     <button class="brand wide" style="margin-top:12px" data-a="login">Giriş yap</button>
-    <div class="note">🧪 Test hesapları: ${o.hint} · şifre: <b>test</b></div></div>`;
+    <div class="note">Test hesapları: ${o.hint} · şifre: <b>test</b></div></div>`;
 };
 
 /* ===================== ORTAK SAYFA İSKELETİ ===================== */
 J.modeBadge = function(){
-  return (J.native ? '<span class="pill blue" title="Android uygulaması: ahize, kilitli ekranda bildirim, arka plan GPS">📱 Uygulama</span> ' : '') + modeBadge2();
+  return (J.native ? '<span class="pill blue" title="Android uygulaması: ahize, kilitli ekranda bildirim, arka plan GPS">' + J.ic('smartphone',12) + ' Uygulama</span> ' : '') + modeBadge2();
 };
 function modeBadge2(){
   if(DB.mode === 'demo') return `<span class="pill warn" title="Veriler sadece bu cihazda">Demo modu · bu cihaz</span>`;

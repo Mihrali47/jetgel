@@ -17,6 +17,7 @@
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
+<script src="app/ikon.js"></script>
 <script src="app/excel.js"></script>
 </head>
 <body class="p">
@@ -38,12 +39,12 @@ let nf = {name:'', price:'', cat:'', desc:''};
 let imp = null;   // Excel'den okunan, onay bekleyen ürünler   // ürün ekleme formu (yeniden çizimde kaybolmasın)
 function renderPick(){
   return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div><div class="small muted">Komisyonsuz sipariş paneli</div></div><div class="p-body">` +
-    J.loginForm({title:'İşletme girişi 🏪', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr}) + `</div>`;
+    J.loginForm({title:'İşletme girişi', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr}) + `</div>`;
 }
 
 function renderGate(b){
   const p = J.notifPermission();
-  return `<div class="card warn gate"><div class="ic">🔔</div><h3>Bildirim izni zorunlu</h3><div class="small">Yeni siparişleri ve müşteri aramalarını kaçırmamanız için bildirimlerin açık olması gerekir. İzin verilmeden sipariş almaya açılamazsınız.</div>
+  return `<div class="card warn gate"><div class="ic">${J.ic('bell',40)}</div><h3>Bildirim izni zorunlu</h3><div class="small">Yeni siparişleri ve müşteri aramalarını kaçırmamanız için bildirimlerin açık olması gerekir. İzin verilmeden sipariş almaya açılamazsınız.</div>
     ${p==='denied' ? `<div class="note" style="text-align:left"><b>Bildirimler engellenmiş.</b> Adres çubuğundaki kilit simgesine dokunun → Bildirimler → İzin ver. Sonra sayfayı yenileyin.</div>` : `<div class="btns center"><button class="brand" data-a="notif">Bildirim izni ver</button></div>`}
     <div class="note" style="text-align:left">Sayfa açık kaldığı sürece yeni siparişte sesli uyarı da çalar. Bazı telefonlarda pil tasarrufu bildirimleri engelleyebilir; uygulamayı pil kısıtlamasından muaf tutun.</div></div>`;
 }
@@ -53,7 +54,7 @@ function header(b){
   const td = mine.filter(o => o.state==='teslim' && today(o.created_at));
   const earn = td.reduce((s,o) => s + (o.shares ? o.shares.business : 0), 0);
   const act = mine.filter(o => o.state==='aktif').length;
-  return `<div class="p-head"><div class="r1"><div class="av">${J.esc(b.emoji||'🏪')}</div><div class="tx"><div class="nm">${J.esc(b.name)}</div><div class="sb">${b.open?'Sipariş alıyor':'Kapalı'} ${J.modeBadge()}</div></div>
+  return `<div class="p-head"><div class="r1"><div class="av">${J.bizIcon(b,24)}</div><div class="tx"><div class="nm">${J.esc(b.name)}</div><div class="sb">${b.open?'Sipariş alıyor':'Kapalı'} ${J.modeBadge()}</div></div>
     <button class="p-sw ${b.open?'on':''}" data-a="toggle-open" ${(!notifOk()||b.suspended)?'disabled':''}><span class="k"></span>${b.open?'Açık':'Kapalı'}</button></div>
     <div class="p-stats"><div><b>${td.length}</b><span>Bugün teslim</span></div><div><b>${act}</b><span>Aktif sipariş</span></div><div><b>${J.tl(earn)}</b><span>Bugün hesaba</span></div></div></div>`;
 }
@@ -64,26 +65,26 @@ function orderCard(o){
   const net = o.subtotal-o.fees.biz-(o.refund||0);
   let h = `<div class="p-ord ${o.prep==='bekliyor'?'new':''}"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${ago(o.created_at)}${o.customer.note?` · ${J.fmtDist(J.dist(b,o.customer))}`:''}</div>${st}</div><div class="bd">
     <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}</span></li>`).join('')}</ul>
-    ${o.note?`<div class="p-note">📝 <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
+    ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
     <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
   if(o.prep==='bekliyor') h += `<div class="small" style="margin-top:12px"><b>Hazırlık süresini seçip onaylayın</b></div><div class="p-prep">${[5,10,15,20].map(m => `<button data-a="accept" data-id="${o.id}" data-min="${m}">${m}<small>dakika</small></button>`).join('')}</div><button class="ghost wide" style="color:var(--bad);margin-top:6px" data-a="reject" data-id="${o.id}">Siparişi reddet</button>`;
-  if(o.prep==='hazirlaniyor') h += `<div class="p-timer"><span>⏱ Kalan hazırlık süresi</span><span><b data-live="mdown" data-end="${o.prep_until}">…</b> dk</span></div><button class="ok p-big" data-a="ready" data-id="${o.id}">✅ Sipariş hazır</button>`;
+  if(o.prep==='hazirlaniyor') h += `<div class="p-timer"><span>${J.ic('timer',16)} Kalan hazırlık süresi</span><span><b data-live="mdown" data-end="${o.prep_until}">…</b> dk</span></div><button class="ok p-big" data-a="ready" data-id="${o.id}">${J.ic('circle-check',18)} Sipariş hazır</button>`;
   let ct = o.prep==='bekliyor' ? 'Onaydan sonra kurye aranır' : 'Kurye aranıyor…';
   if(o.offer && !c){ const oc = DB.get('couriers', o.offer.cid); ct = `${J.esc(oc?oc.name:'Kurye')}'e teklif gönderildi (<span data-live="down" data-end="${o.offer.exp}">…</span> sn)`; }
   if(c) ct = `<b>${J.esc(c.name)}</b> · ${o.del==='isletmeye' ? `size ${J.fmtDist(J.dist(c,b))} uzakta` : o.del==='isletmede' ? 'işletmede, paketi bekliyor' : o.del==='yolda' ? 'paketi aldı, yolda' : 'müşterinin kapısında'}`;
-  h += `<div class="p-cour"><span>🛵</span><div class="tx">${ct}</div>${c?`<button class="p-ic" data-a="call" data-to="kurye" data-id="${o.id}" aria-label="Kuryeyi ara">📞</button>`:''}<button class="p-ic" data-a="call" data-to="musteri" data-id="${o.id}" aria-label="Müşteriyi ara">👤</button></div></div></div>`;
+  h += `<div class="p-cour"><span>${J.ic('bike',18)}</span><div class="tx">${ct}</div>${c?`<button class="p-ic" data-a="call" data-to="kurye" data-id="${o.id}" aria-label="Kuryeyi ara">${J.ic('phone',17)}</button>`:''}<button class="p-ic" data-a="call" data-to="musteri" data-id="${o.id}" aria-label="Müşteriyi ara">${J.ic('user',17)}</button></div></div></div>`;
   return h;
 }
 
 function tabOrders(b){
   let h = b.open ? J.batteryCard() : '';
   J.pendingCallbacks(b.id).filter(k => k.cb_deadline).forEach(k => {
-    h += `<div class="card bad"><h3>📞 Cevapsız müşteri araması</h3><div class="small">#${J.esc(k.no)}: Müşteriyi <b><span data-live="mmss" data-end="${k.cb_deadline}">…</span></b> içinde geri aramazsanız ikaz alırsınız ve müşteriye %${J.PENALTY_RATE*100} iade yapılır.</div><div class="btns"><button class="bad" data-a="call" data-to="musteri" data-id="${k.order_id}">Müşteriyi geri ara</button></div></div>`;
+    h += `<div class="card bad"><h3>${J.ic('phone-off',16)} Cevapsız müşteri araması</h3><div class="small">#${J.esc(k.no)}: Müşteriyi <b><span data-live="mmss" data-end="${k.cb_deadline}">…</span></b> içinde geri aramazsanız ikaz alırsınız ve müşteriye %${J.PENALTY_RATE*100} iade yapılır.</div><div class="btns"><button class="bad" data-a="call" data-to="musteri" data-id="${k.order_id}">Müşteriyi geri ara</button></div></div>`;
   });
   const act = J.orders().filter(o => o.rid===b.id && o.state==='aktif');
   const groups = [['Yeni siparişler', act.filter(o => o.prep==='bekliyor'), true], ['Hazırlanıyor', act.filter(o => o.prep==='hazirlaniyor'), false], ['Hazır · kurye bekleniyor', act.filter(o => o.prep==='hazir'), false]];
-  if(!act.length) h += b.open ? `<div class="p-empty" style="margin-top:14px"><div>⏳</div><b>Yeni sipariş bekleniyor</b><div class="small">Sipariş gelince sesli uyarı çalar ve bildirim gelir.</div></div>`
-    : `<div class="p-empty" style="margin-top:14px"><div>🌙</div><b>Şu an kapalısınız</b><div class="small">Sipariş almak için yukarıdaki anahtarı açın.</div></div>`;
+  if(!act.length) h += b.open ? `<div class="p-empty" style="margin-top:14px"><div>${J.ic('hourglass',34)}</div><b>Yeni sipariş bekleniyor</b><div class="small">Sipariş gelince sesli uyarı çalar ve bildirim gelir.</div></div>`
+    : `<div class="p-empty" style="margin-top:14px"><div>${J.ic('moon',34)}</div><b>Şu an kapalısınız</b><div class="small">Sipariş almak için yukarıdaki anahtarı açın.</div></div>`;
   groups.forEach(([t, list, hot]) => { if(list.length){ h += `<div class="p-sec">${t}<span class="n ${hot?'hot':''}">${list.length}</span></div>`; list.forEach(o => h += orderCard(o)); } });
   const done = J.orders().filter(o => o.rid===b.id && o.state!=='aktif').slice(0,8);
   if(done.length){ h += `<div class="p-sec">Son siparişler</div>`; done.forEach(o => h += `<div class="p-mini"><span>#${J.esc(o.no)} · ${J.esc(o.customer.name)} · <b>${J.tl(o.subtotal)}</b></span><span class="pill ${o.state==='teslim'?'ok':'bad'}">${o.state==='teslim'?'Teslim':o.state==='red'?'Reddedildi':'Ulaşılamadı'}</span></div>`); }
@@ -95,7 +96,7 @@ function importCard(b){
     const {items, errors, fname} = imp;
     const names = new Set((b.menu||[]).map(m => J.norm(m.name)));
     const upd = items.filter(i => names.has(J.norm(i.name))).length;
-    return `<div class="p-card" style="margin-top:14px;border:2px solid var(--brand)"><h3>📥 ${J.esc(fname)}</h3>
+    return `<div class="p-card" style="margin-top:14px;border:2px solid var(--brand)"><h3>${J.ic('file-spreadsheet',17)} ${J.esc(fname)}</h3>
       <div class="p-stats" style="margin:4px 0 10px"><div style="background:#f6f5f2"><b>${items.length}</b><span>okunan ürün</span></div><div style="background:#f6f5f2"><b>${items.length-upd}</b><span>yeni</span></div><div style="background:#f6f5f2"><b>${upd}</b><span>güncellenecek</span></div></div>
       ${items.slice(0,6).map(i => `<div class="row small"><span>${J.esc(i.name)} <span class="muted">${J.esc(i.cat)}</span>${i.available?'':' <span class="pill bad">Tükendi</span>'}</span><b>${J.tl(i.price)}</b></div>`).join('')}${items.length>6?`<div class="tiny muted" style="margin-top:6px">… ve ${items.length-6} ürün daha</div>`:''}
       ${items.some(J.isTemplateExample)?`<div class="card warn small" style="margin:10px 0 0"><b>Şablondaki örnek ürünler de okundu (${items.filter(J.isTemplateExample).length} adet).</b><div class="btns"><button class="sm brand" data-a="imp-strip">Örnekleri çıkar</button></div></div>`:''}
@@ -103,8 +104,8 @@ function importCard(b){
       <div class="note">Aynı isimli ürünlerin fiyatı, kategorisi ve durumu güncellenir; listede olmayan ürünleriniz silinmez. Şablondaki gri örnek satırları sildiğinizden emin olun.</div>
       <div class="p-act"><button class="brand" data-a="imp-ok" ${items.length?'':'disabled'}>Menüye aktar</button><button class="sec" data-a="imp-cancel">Vazgeç</button></div></div>`;
   }
-  return `<div class="p-card" style="margin-top:14px"><div class="row"><div><b>📥 Excel'den toplu ürün yükle</b><div class="tiny muted">Yüzlerce ürünü tek seferde ekleyin ya da fiyatları güncelleyin.</div></div></div>
-    <div class="p-grid2" style="margin-top:10px"><a class="btnlink" style="justify-content:center" href="sablonlar/jetgel-urun-yukleme-sablonu.xlsx" download>⬇️ Şablonu indir</a><label class="btnlink" style="justify-content:center;cursor:pointer;background:var(--brand);color:#fff">📤 Dosya seç<input type="file" id="imp-file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style="display:none"></label></div>
+  return `<div class="p-card" style="margin-top:14px"><div class="row"><div><b>${J.ic('file-spreadsheet',17)} Excel'den toplu ürün yükle</b><div class="tiny muted">Yüzlerce ürünü tek seferde ekleyin ya da fiyatları güncelleyin.</div></div></div>
+    <div class="p-grid2" style="margin-top:10px"><a class="btnlink" style="justify-content:center" href="sablonlar/jetgel-urun-yukleme-sablonu.xlsx" download>${J.ic('download',16)} Şablonu indir</a><label class="btnlink" style="justify-content:center;cursor:pointer;background:var(--brand);color:#fff">${J.ic('upload',16)} Dosya seç<input type="file" id="imp-file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style="display:none"></label></div>
     <div class="tiny muted" style="margin-top:8px">Şablonda market ve restoran için iki sayfa var; hangisini doldurduysanız o okunur. .xlsx ya da .csv kabul edilir.</div></div>`;
 }
 function tabMenu(b){
@@ -129,7 +130,7 @@ function tabEarn(b){
     <div class="p-card"><div class="row small"><span>Hesabınıza geçen</span><b class="money">${J.tl(got)}</b></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="note">Ürün bedeli platformun hesabına uğramaz; ödeme kuruluşu teslimatta doğrudan sizin hesabınıza aktarır (şu an simülasyon).</div></div>`;
   const ss = b.strikes||[];
   h += `<div class="p-sec">İkazlar<span class="n ${J.activeStrikes(b).length?'hot':''}">${J.activeStrikes(b).length}/3</span></div><div class="small muted" style="margin:-4px 2px 10px">İkazlar 90 günde silinir. 3 ikazda hesap askıya alınır.</div>`;
-  if(!ss.length) h += `<div class="p-empty"><div>🏅</div>İkaz yok. Müşteri aramalarını açtığınız sürece ikaz almazsınız.</div>`;
+  if(!ss.length) h += `<div class="p-empty"><div>${J.ic('award',34)}</div>İkaz yok. Müşteri aramalarını açtığınız sürece ikaz almazsınız.</div>`;
   ss.forEach((s,i) => h += `<div class="card small ${s.removed?'soft':'warn'}"><div class="row"><b>${i+1}. ikaz · #${J.esc(s.no)}</b><span>${s.removed?'<span class="pill ok">İtiraz kabul edildi</span>':s.appeal==='beklemede'?'<span class="pill blue">İtiraz incelemede</span>':s.appeal==='red'?'<span class="pill bad">İtiraz reddedildi</span>':''}</span></div><div class="muted">Müşteriye ${J.tl(s.refund)} iade · ${new Date(s.t).toLocaleString('tr-TR')}</div>${!s.appeal&&!s.removed?`<div class="btns"><button class="sm sec" data-a="appeal" data-id="${s.id}">İtiraz et</button></div>`:''}</div>`);
   return h;
 }
@@ -146,19 +147,19 @@ function renderMain(){
   if(!b){ bid = null; J.store.set('isletme_id', null); return renderPick(); }
   let h = header(b) + `<div class="p-body">`;
   if(!notifOk()) h += renderGate(b);
-  if(b.suspended) h += `<div class="card bad"><h3>⛔ Hesap askıya alındı</h3><div class="small">Son 90 günde 3 ikaz alındı. Sözleşme gereği sipariş alamazsınız. İtirazlarınız yönetim tarafından incelenir.</div></div>`;
+  if(b.suspended) h += `<div class="card bad"><h3>${J.ic('ban',16)} Hesap askıya alındı</h3><div class="small">Son 90 günde 3 ikaz alındı. Sözleşme gereği sipariş alamazsınız. İtirazlarınız yönetim tarafından incelenir.</div></div>`;
   h += ({siparis:tabOrders, menu:tabMenu, kazanc:tabEarn, ayar:tabSettings}[tab] || tabOrders)(b);
   // Uyarılar
   const waiting = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor');
   J.alarm('yeni', waiting.length > 0, 'order', 3000);
-  waiting.forEach(o => J.notify('yeni-'+o.id, '🔔 Yeni sipariş #'+o.no, o.items.map(i => i.qty+'× '+i.name).join(', ')));
+  waiting.forEach(o => J.notify('yeni-'+o.id, 'Yeni sipariş #'+o.no, o.items.map(i => i.qty+'× '+i.name).join(', ')));
   return h + `</div>`;
 }
 function renderTabs(){
   const b = biz(); let h = '';
   if(b){
     const nw = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor').length + J.pendingCallbacks(b.id).filter(k => k.cb_deadline).length;
-    h = `<nav class="p-tabs">${[['siparis','🧾','Siparişler'],['menu','📋','Menü'],['kazanc','💰','Kazanç'],['ayar','⚙️','Ayarlar']].map(([k,ic,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}"><i>${ic}</i>${l}${k==='siparis'&&nw?`<span class="bdg">${nw}</span>`:''}</button>`).join('')}</nav>`;
+    h = `<nav class="p-tabs">${[['siparis','receipt','Siparişler'],['menu','list','Menü'],['kazanc','wallet','Kazanç'],['ayar','settings','Ayarlar']].map(([k,ic,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}"><i>${J.ic(ic,22)}</i>${l}${k==='siparis'&&nw?`<span class="bdg">${nw}</span>`:''}</button>`).join('')}</nav>`;
   }
   const el = document.getElementById('ptabs'); if(el.innerHTML !== h) el.innerHTML = h;
 }
@@ -208,7 +209,7 @@ document.addEventListener('click', async e => {
     const r = J.mergeMenu(b.menu, imp.items);
     DB.patch('businesses', b.id, {menu: r.menu});
     J.log(`${b.name} Excel'den ${r.added} yeni ürün ekledi, ${r.updated} ürünü güncelledi.`);
-    J.toast(`✅ ${r.added} ürün eklendi, ${r.updated} ürün güncellendi.`);
+    J.toast(`${r.added} ürün eklendi, ${r.updated} ürün güncellendi.`);
     imp = null;
   }
   if(a==='appeal' && b){ DB.patch('businesses', b.id, {strikes: b.strikes.map(s => s.id===id ? Object.assign({}, s, {appeal:'beklemede'}) : s)}); J.log(`${b.name} bir ikaza itiraz etti.`); }

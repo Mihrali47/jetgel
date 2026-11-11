@@ -17,6 +17,7 @@
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
+<script src="app/ikon.js"></script>
 </head>
 <body class="m">
 <div id="mhead"></div>
@@ -36,7 +37,7 @@ let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draf
 let q = '', group = 'Hepsi', orderNote = '';
 let map = null, wantMap = false, pendingFit = null;
 const me = () => prof ? {type:'musteri', id:prof.id, name:prof.name} : null;
-const GROUPS = [['Hepsi','🍽️','Hepsi'],['Yemek','🍕','Yemek'],['Market','🛒','Market'],['Kahve & Tatlı','☕','Kahve'],['Ücretsiz','🎁','Ücretsiz']];
+const GROUPS = [['Hepsi','layout-dashboard','Hepsi'],['Yemek','utensils','Yemek'],['Market','shopping-cart','Market'],['Kahve & Tatlı','coffee','Kahve'],['Ücretsiz','gift','Ücretsiz']];
 const TABS = ['liste','siparisler','hesap'];
 
 function ensureMap(){ if(!map){ map = J.Map(document.getElementById('map')); map.onClick(p => { if(view==='profil'){ draft.lat = p.lat; draft.lng = p.lng; draft.src = 'harita'; map._fitted = 'p'+p.lat+','+p.lng; render(); } }); } }
@@ -71,10 +72,10 @@ function renderLogin(){
     <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ayşe">
     <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
-    <div class="note">⚠️ Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
+    <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
     <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
-  return top + `<div class="m-body">` + J.loginForm({title:'Hoş geldin 👋', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button></div>`;
+  return top + `<div class="m-body">` + J.loginForm({title:'Hoş geldin', sub:'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button></div>`;
 }
 
 /* ---------- Adres / profil ---------- */
@@ -82,12 +83,12 @@ function renderProfile(){
   const c0 = J.settings().center || J.DEFAULT_POS;
   if(!draft) draft = Object.assign({lat:c0.lat, lng:c0.lng, src:'varsayilan'}, prof || {});
   showMap(true);
-  map.set('ev', draft, '🏠', 'home'); map.keep(['ev']); map.clearLine('r');
+  map.set('ev', draft, J.ic('house',16), 'home'); map.keep(['ev']); map.clearLine('r');
   const fk = 'p'+draft.lat+','+draft.lng; if(map._fitted !== fk){ pendingFit = [[draft], 16]; map._fitted = fk; }
   return `${topBar(prof && prof.name ? 'Teslimat adresi' : 'Hoş geldin', prof && prof.name ? 'back' : '')}
     <div id="mapslot"></div>
     <div class="m-body"><div class="m-box"><div class="small muted">Haritaya dokunarak ya da konumunu bularak teslimat noktanı seç. Telefon numarası istemiyoruz; kuryeyle uygulama içinden konuşursun.</div>
-    <button class="sec wide" style="margin-top:10px" data-a="gps">📍 Konumumu bul</button>
+    <button class="sec wide" style="margin-top:10px" data-a="gps">${J.ic('locate-fixed',16)} Konumumu bul</button>
     <div class="tiny muted" style="margin-top:6px">Seçili nokta: ${(draft.src||draft.loc_src)==='gps'?'telefonunun konumu':(draft.src||draft.loc_src)==='harita'?'haritada seçtiğin nokta':'kayıtlı nokta'}</div>
     <label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">
     <label class="f" for="p-note">Adres tarifi</label><input id="p-note" value="${J.esc(draft.note)}" placeholder="Örn. Moda Cd. No 12, kat 3, zil: Yılmaz">
@@ -96,30 +97,30 @@ function renderProfile(){
 
 /* ---------- Keşfet ---------- */
 function header(){
-  return `<div class="m-head"><div class="r1"><button class="m-addr" data-a="edit-prof"><span class="ic">📍</span><span class="t"><span class="k">Teslimat adresi</span><span class="v">${J.esc(prof.note || 'Konumun')}</span></span></button><span class="mode">${J.modeBadge()}</span></div>
+  return `<div class="m-head"><div class="r1"><button class="m-addr" data-a="edit-prof"><span class="ic">${J.ic('map-pin',18)}</span><span class="t"><span class="k">Teslimat adresi</span><span class="v">${J.esc(prof.note || 'Konumun')}</span></span></button><span class="mode">${J.modeBadge()}</span></div>
     <div class="m-search"><input id="q" type="search" placeholder="Restoran, market ya da ürün ara" value="${J.esc(q)}" autocomplete="off"></div></div>`;
 }
 function restCard(x){
   const {b, d, open} = x;
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
-    <div class="m-cover" style="${cover(b)}"><div class="bdg">${fee}<span class="tag dark">Komisyonsuz</span></div>${J.esc(b.emoji||'🏪')}${open?`<span class="eta">⏱ ${etaTxt(b)}</span>`:''}</div>
-    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta"><span>${J.esc(b.kind||J.bizGroup(b))}</span><span>📍 ${J.fmtDist(d)}</span><span>🛵 ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
+    <div class="m-cover" style="${cover(b)}"><div class="bdg">${fee}<span class="tag dark">Komisyonsuz</span></div><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
+    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta"><span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span></div></div></div>`;
 }
 function renderList(){
   showMap(false);
   let h = header() + `<div class="m-body">`;
   const act = activeOrders();
-  if(act.length) h += `<div class="m-active" data-a="track" data-id="${act[0].id}"><span style="font-size:24px">🛵</span><div class="tx"><b>Siparişin yolda · #${J.esc(act[0].no)}</b><small>${J.esc(act[0].rname)} · takip etmek için dokun</small></div><span>›</span></div>`;
+  if(act.length) h += `<div class="m-active" data-a="track" data-id="${act[0].id}"><span class="m-active-ic">${J.ic('bike',22)}</span><div class="tx"><b>Siparişin yolda · #${J.esc(act[0].no)}</b><small>${J.esc(act[0].rname)} · takip etmek için dokun</small></div><span>›</span></div>`;
   const qn = J.norm(q);
   if(!qn){
-    h += `<div class="m-chips">${GROUPS.map(([g,ic,l]) => `<button class="m-chip ${group===g?'on':''}" data-a="grp" data-id="${g}"><i>${ic}</i>${l}</button>`).join('')}</div>`;
+    h += `<div class="m-chips">${GROUPS.map(([g,ic,l]) => `<button class="m-chip ${group===g?'on':''}" data-a="grp" data-id="${g}"><i>${J.ic(ic,24)}</i>${l}</button>`).join('')}</div>`;
     if(group==='Hepsi') h += `<div class="m-promo"><b>Komisyon yok, sürpriz ücret yok.</b><span>Teslimat ücretinin tamamı kuryeye gider. Ödeyeceğin her kuruşu sepette görürsün.</span></div>`;
     const again = [], seen = new Set();
     myOrders().filter(o => o.state==='teslim').forEach(o => { if(!seen.has(o.rid) && again.length < 6){ seen.add(o.rid); again.push(o); } });
     if(again.length && group==='Hepsi') h += `<div class="m-h"><b>Tekrar sipariş ver</b><span>tek dokunuşla sepete</span></div><div class="m-row">${again.map(o => {
       const b = DB.get('businesses', o.rid);
-      return `<div class="m-again"><div class="n">${J.esc(b&&b.emoji||'🏪')} ${J.esc(o.rname)}</div><div class="i">${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</div><button class="sm sec" data-a="reorder" data-id="${o.id}" ${bizOpen(b)?'':'disabled'}>${bizOpen(b)?'↻ Tekrarla':'Şu an kapalı'}</button></div>`; }).join('')}</div>`;
+      return `<div class="m-again"><div class="n">${J.esc(o.rname)}</div><div class="i">${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</div><button class="sm sec" data-a="reorder" data-id="${o.id}" ${bizOpen(b)?'':'disabled'}>${bizOpen(b)?J.ic('rotate-ccw',14)+' Tekrarla':'Şu an kapalı'}</button></div>`; }).join('')}</div>`;
   }
   let list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: bizOpen(b)})).filter(x => x.d < 5000);
   if(group==='Ücretsiz') list = list.filter(x => x.b.free_delivery);
@@ -133,9 +134,9 @@ function renderList(){
   if(qn && prods.length) h += `<div class="m-h"><b>Ürünler</b><span>${prods.length} sonuç</span></div><div class="m-prodres">${prods.slice(0,8).map(({x,m}) => `<div class="m-line" ${x.open?`data-a="open-biz" data-id="${x.b.id}"`:''} style="cursor:pointer"><div class="tx"><b>${J.esc(m.name)}</b><div class="tiny muted">${J.esc(x.b.name)}${x.open?'':' · kapalı'}</div></div><b class="money">${J.tl(m.price)}</b></div>`).join('')}</div>`;
   const openN = list.filter(x => x.open).length;
   h += `<div class="m-h"><b>${qn?'Restoranlar ve marketler':group==='Hepsi'?'Yakınındakiler':group}</b><span>${openN} açık</span></div>`;
-  if(!list.length) h += `<div class="m-empty"><div>🔎</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
+  if(!list.length) h += `<div class="m-empty"><div>${J.ic('search',36)}</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
   list.forEach(x => h += restCard(x));
-  if(J.notifPermission()==='default') h += `<div class="m-box small"><b>🔔 Kurye kapına gelince haber verelim mi?</b><div class="muted">Zorunlu değil.</div><div class="btns"><button class="sm brand" data-a="notif">Bildirimleri aç</button></div></div>`;
+  if(J.notifPermission()==='default') h += `<div class="m-box small"><b>${J.ic('bell',15)} Kurye kapına gelince haber verelim mi?</b><div class="muted">Zorunlu değil.</div><div class="btns"><button class="sm brand" data-a="notif">Bildirimleri aç</button></div></div>`;
   return h + `</div>`;
 }
 
@@ -146,8 +147,8 @@ function renderMenu(){
   if(!bizOpen(b)){ view = 'liste'; return renderList(); }
   const f = fees(b), menu = b.menu||[];
   const cats = []; menu.forEach(m => { const c = m.cat || 'Menü'; if(!cats.includes(c)) cats.push(c); });
-  let h = `<div class="m-hero" style="${cover(b)}"><button class="back" data-a="back" aria-label="Geri">‹</button>${J.esc(b.emoji||'🏪')}</div>
-    <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta"><span>${J.esc(b.kind||'')}</span><span>📍 ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
+  let h = `<div class="m-hero" style="${cover(b)}"><button class="back" data-a="back" aria-label="Geri">${J.ic('chevron-left',22)}</button><span class="cv-ic big">${J.bizIcon(b,44)}</span></div>
+    <div class="m-rinfo"><h1>${J.esc(b.name)}</h1><div class="m-meta"><span>${J.esc(b.kind||'')}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(J.dist(b,prof))}</span><span style="color:var(--ok);font-weight:700">● Açık</span></div>
     <div class="m-facts"><div><b>${etaTxt(b)}</b><span>Teslim süresi</span></div><div><b>${f.del?J.tl(f.del):'Ücretsiz'}</b><span>Teslimat (kuryeye)</span></div><div><b>${f.plat?J.tl(f.plat):'—'}</b><span>Hizmet bedeli</span></div></div></div>`;
   if(cats.length > 1) h += `<div class="m-cats">${cats.map((c,i) => `<button data-a="jump" data-id="cat${i}">${J.esc(c)}</button>`).join('')}</div>`;
   h += `<div class="m-menu">`;
@@ -156,10 +157,10 @@ function renderMenu(){
     menu.filter(m => (m.cat||'Menü')===c).forEach(m => {
       const n = cart[m.id] || 0, av = m.available !== false;
       const ctl = !av ? '' : n ? `<div class="m-step"><button data-a="dec" data-id="${m.id}" aria-label="Azalt">−</button><b>${n}</b><button data-a="inc" data-id="${m.id}" aria-label="Arttır">+</button></div>` : `<button class="m-add" data-a="inc" data-id="${m.id}" aria-label="Sepete ekle">+</button>`;
-      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}</div></div><div class="ph" style="${soft(b)}">${J.esc(b.emoji||'🍽️')}${ctl}</div></div>`;
+      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}</div></div><div class="act">${ctl}</div></div>`;
     });
   });
-  if(!menu.length) h += `<div class="m-empty"><div>📋</div>Bu işletme henüz ürün eklemedi.</div>`;
+  if(!menu.length) h += `<div class="m-empty"><div>${J.ic('list',36)}</div>Bu işletme henüz ürün eklemedi.</div>`;
   return h + `</div>`;
 }
 
@@ -171,7 +172,7 @@ function renderCart(){
   if(!bizOpen(b) || !cartCount()){ view = b && bizOpen(b) ? 'menu' : 'liste'; return view==='menu' ? renderMenu() : renderList(); }
   const sub = cartSum(b), f = fees(b), items = (b.menu||[]).filter(m => cart[m.id]);
   return topBar('Sepetim', 'to-menu') + `<div class="m-body">
-    <div class="m-box"><h3>${J.esc(b.emoji||'')} ${J.esc(b.name)}</h3>${items.map(m => `<div class="m-line"><div class="tx">${J.esc(m.name)}<div class="tiny muted">${J.tl(m.price)}</div></div><div class="m-qty"><button data-a="dec" data-id="${m.id}">−</button><b>${cart[m.id]}</b><button data-a="inc" data-id="${m.id}">+</button></div><b class="money" style="min-width:70px;text-align:right">${J.tl(m.price*cart[m.id])}</b></div>`).join('')}
+    <div class="m-box"><h3>${J.esc(b.name)}</h3>${items.map(m => `<div class="m-line"><div class="tx">${J.esc(m.name)}<div class="tiny muted">${J.tl(m.price)}</div></div><div class="m-qty"><button data-a="dec" data-id="${m.id}">−</button><b>${cart[m.id]}</b><button data-a="inc" data-id="${m.id}">+</button></div><b class="money" style="min-width:70px;text-align:right">${J.tl(m.price*cart[m.id])}</b></div>`).join('')}
       <button class="ghost sm" data-a="to-menu">+ Ürün ekle</button></div>
     <div class="m-box"><h3>İşletmeye not</h3><textarea id="o-note" class="m-note" maxlength="200" placeholder="Örn. soğansız olsun, zile basmayın">${J.esc(orderNote)}</textarea></div>
     <div class="m-box m-sum"><h3>Ödeme özeti</h3>
@@ -179,8 +180,8 @@ function renderCart(){
       <div class="row"><span>Teslimat ücreti<small>Tamamı kuryeye gider</small></span><span class="money">${f.del?J.tl(f.del):'<span style="color:var(--ok)">Ücretsiz</span>'}</span></div>
       <div class="row"><span>Hizmet bedeli<small>Platformun sipariş başına sabit payı</small></span><span class="money">${f.plat?J.tl(f.plat):'—'}</span></div>
       <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat)}</b></div></div>
-    <div class="m-fair"><i>🤝</i><div><b>Komisyon yok.</b> ${b.free_delivery?'Bu işletme teslimat ücretini senin yerine ödüyor.':'İşletme de bu sipariş için sabit ücret öder; ürün fiyatlarına yüzde eklenmez.'}</div></div>
-    <div class="note" style="margin-bottom:12px">💳 Ödeme simülasyonu: gerçek para çekilmez. Gerçek sistemde önce kartında yalnızca blokaj olur; işletme onaylarsa çekilir, reddederse kalkar.</div></div>`;
+    <div class="m-fair"><i>${J.ic('handshake',22)}</i><div><b>Komisyon yok.</b> ${b.free_delivery?'Bu işletme teslimat ücretini senin yerine ödüyor.':'İşletme de bu sipariş için sabit ücret öder; ürün fiyatlarına yüzde eklenmez.'}</div></div>
+    <div class="note" style="margin-bottom:12px">Ödeme simülasyonu: gerçek para çekilmez. Gerçek sistemde önce kartında yalnızca blokaj olur; işletme onaylarsa çekilir, reddederse kalkar.</div></div>`;
 }
 
 /* ---------- Takip ---------- */
@@ -189,10 +190,10 @@ function renderTrack(){
   if(!o){ view = 'liste'; return renderList(); }
   const b = DB.get('businesses', o.rid), c = o.courier_id && DB.get('couriers', o.courier_id);
   showMap(true);
-  map.set('ev', o.customer, '🏠', 'home');
-  if(b) map.set('biz', b, J.esc(b.emoji||'🏪'), '');
+  map.set('ev', o.customer, J.ic('house',16), 'home');
+  if(b) map.set('biz', b, J.bizIcon(b,16), '');
   const showC = c && ['isletmeye','isletmede','yolda','kapida'].includes(o.del);
-  if(showC) map.set('kurye', c, '🛵', 'cour busy', c.name); else map.remove('kurye');
+  if(showC) map.set('kurye', c, J.ic('bike',16), 'cour busy', c.name); else map.remove('kurye');
   map.keep(['ev','biz','kurye']);
   if(!map._fitted || map._fitted !== o.id + o.del){ pendingFit = [[o.customer, b, showC ? c : null]]; map._fitted = o.id + o.del; }
   const D = ['yolda','kapida','teslim','ulasilamadi'];
@@ -217,9 +218,9 @@ function renderTrack(){
   }
   if(o.state==='aktif'){
     h += `<div class="m-box">`;
-    if(c) h += `<div class="m-person"><div class="av">🛵</div><div class="tx"><b>${J.esc(c.name)}</b><span class="small muted">Kuryen${o.del==='yolda'?' · '+J.fmtDist(J.dist(c,o.customer))+' uzakta':''}</span></div><button class="m-call" data-a="call" data-to="kurye:${c.id}" aria-label="Kuryeyi ara">📞</button></div><div style="height:12px"></div>`;
-    else if(o.del==='araniyor') h += `<div class="m-person"><div class="av">🔎</div><div class="tx"><b>Kurye aranıyor</b><span class="small muted">Yakındaki kuryelere teklif gidiyor</span></div></div><div style="height:12px"></div>`;
-    h += `<div class="m-person"><div class="av" style="${b?soft(b):''}">${J.esc(b&&b.emoji||'🏪')}</div><div class="tx"><b>${J.esc(o.rname)}</b><span class="small muted">İşletme</span></div><button class="m-call" data-a="call" data-to="isletme:${o.rid}" aria-label="İşletmeyi ara">📞</button></div>
+    if(c) h += `<div class="m-person"><div class="av">${J.ic('bike',22)}</div><div class="tx"><b>${J.esc(c.name)}</b><span class="small muted">Kuryen${o.del==='yolda'?' · '+J.fmtDist(J.dist(c,o.customer))+' uzakta':''}</span></div><button class="m-call" data-a="call" data-to="kurye:${c.id}" aria-label="Kuryeyi ara">${J.ic('phone',18)}</button></div><div style="height:12px"></div>`;
+    else if(o.del==='araniyor') h += `<div class="m-person"><div class="av">${J.ic('search',20)}</div><div class="tx"><b>Kurye aranıyor</b><span class="small muted">Yakındaki kuryelere teklif gidiyor</span></div></div><div style="height:12px"></div>`;
+    h += `<div class="m-person"><div class="av" style="${b?soft(b):''}">${J.bizIcon(b,20)}</div><div class="tx"><b>${J.esc(o.rname)}</b><span class="small muted">İşletme</span></div><button class="m-call" data-a="call" data-to="isletme:${o.rid}" aria-label="İşletmeyi ara">${J.ic('phone',18)}</button></div>
       <div class="note">Arama internet üzerinden yapılır, numaralar gizli kalır. İşletme açmaz ve ${J.settings().fast?'30 sn (hızlı test modu)':'5 dk'} içinde geri dönmezse siparişinin %${J.PENALTY_RATE*100}'i sana iade edilir.</div></div>`;
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
@@ -228,9 +229,9 @@ function renderTrack(){
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
     <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust - (o.refund||0))}</b></div>
-    ${o.note?`<div class="tiny muted" style="margin-top:8px">📝 ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
-  if(o.state==='teslim' && bizOpen(b)) h += `<button class="brand wide" data-a="reorder" data-id="${o.id}">↻ Aynısını tekrar sipariş ver</button>`;
-  if(o.del==='kapida' && o.state==='aktif'){ J.notify('kapi-'+o.id, '🚪 Kuryen kapında', 'Teslimat kodun: ' + o.pin); J.alarm('kapi', true, 'ok', 6000); } else J.alarm('kapi', false);
+    ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
+  if(o.state==='teslim' && bizOpen(b)) h += `<button class="brand wide" data-a="reorder" data-id="${o.id}">${J.ic('rotate-ccw',16)} Aynısını tekrar sipariş ver</button>`;
+  if(o.del==='kapida' && o.state==='aktif'){ J.notify('kapi-'+o.id, 'Kuryen kapında', 'Teslimat kodun: ' + o.pin); J.alarm('kapi', true, 'ok', 6000); } else J.alarm('kapi', false);
   return h + `</div>`;
 }
 
@@ -239,10 +240,10 @@ function renderOrders(){
   showMap(false);
   const all = myOrders();
   let h = topBar('Siparişlerim') + `<div class="m-body">`;
-  if(!all.length) return h + `<div class="m-empty"><div>🧾</div>Henüz siparişin yok.<div class="btns center"><button class="brand" data-a="tab" data-id="liste">Keşfetmeye başla</button></div></div></div>`;
+  if(!all.length) return h + `<div class="m-empty"><div>${J.ic('receipt',36)}</div>Henüz siparişin yok.<div class="btns center"><button class="brand" data-a="tab" data-id="liste">Keşfetmeye başla</button></div></div></div>`;
   all.slice(0,30).forEach(o => {
     const b = DB.get('businesses', o.rid), st = ST[o.state] || ['', o.state];
-    h += `<div class="m-ord" data-a="track" data-id="${o.id}"><div class="ph" style="${b?soft(b):''}">${J.esc(b&&b.emoji||'🏪')}</div><div class="tx"><b>${J.esc(o.rname)}</b><div class="i">${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</div><div class="tiny muted">${new Date(o.created_at).toLocaleString('tr-TR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${J.tl(o.subtotal+o.fees.cust-(o.refund||0))}</div></div><span class="pill ${st[0]}">${o.state==='aktif'?'Aktif':st[1]}</span></div>`;
+    h += `<div class="m-ord" data-a="track" data-id="${o.id}"><div class="ph" style="${b?soft(b):''}">${J.bizIcon(b,22)}</div><div class="tx"><b>${J.esc(o.rname)}</b><div class="i">${o.items.map(i => i.qty+'× '+J.esc(i.name)).join(', ')}</div><div class="tiny muted">${new Date(o.created_at).toLocaleString('tr-TR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${J.tl(o.subtotal+o.fees.cust-(o.refund||0))}</div></div><span class="pill ${st[0]}">${o.state==='aktif'?'Aktif':st[1]}</span></div>`;
   });
   return h + `</div>`;
 }
@@ -252,19 +253,19 @@ function renderAccount(){
   showMap(false);
   const n = J.notifPermission();
   return topBar('Hesabım') + `<div class="m-body">
-    <div class="m-box m-person"><div class="av">🙂</div><div class="tx"><b>${J.esc(prof.name)}</b><span class="small muted">${J.esc(prof.login ? prof.login.user : '')}</span></div></div>
+    <div class="m-box m-person"><div class="av">${J.ic('user',22)}</div><div class="tx"><b>${J.esc(prof.name)}</b><span class="small muted">${J.esc(prof.login ? prof.login.user : '')}</span></div></div>
     <div class="m-list">
-      <button data-a="edit-prof"><i>📍</i><span class="x">Teslimat adresi<div class="tiny muted">${J.esc(prof.note||'Konumun')}</div></span>›</button>
-      <button data-a="tab" data-id="siparisler"><i>🧾</i><span class="x">Siparişlerim</span>›</button>
-      <button data-a="notif" ${n==='granted'||n==='unsupported'?'disabled':''}><i>🔔</i><span class="x">Bildirimler</span><span class="small muted">${n==='granted'?'Açık':n==='denied'?'Engelli':n==='unsupported'?'Desteklenmiyor':'Kapalı'}</span></button>
+      <button data-a="edit-prof"><i>${J.ic('map-pin',19)}</i><span class="x">Teslimat adresi<div class="tiny muted">${J.esc(prof.note||'Konumun')}</div></span>›</button>
+      <button data-a="tab" data-id="siparisler"><i>${J.ic('receipt',19)}</i><span class="x">Siparişlerim</span>›</button>
+      <button data-a="notif" ${n==='granted'||n==='unsupported'?'disabled':''}><i>${J.ic('bell',19)}</i><span class="x">Bildirimler</span><span class="small muted">${n==='granted'?'Açık':n==='denied'?'Engelli':n==='unsupported'?'Desteklenmiyor':'Kapalı'}</span></button>
     </div>
     <div class="m-box small"><h3>Jetgel nasıl çalışır?</h3>
-      <div class="row"><span>🛵 Teslimat ücreti</span><b>${J.tl(J.FEE.custDel)} · tamamı kuryeye</b></div>
-      <div class="row"><span>🧾 Hizmet bedeli</span><b>${J.tl(J.FEE.custPlat)} sabit</b></div>
-      <div class="row"><span>🏪 İşletmeden komisyon</span><b>Yok, sabit ücret</b></div>
-      <div class="row"><span>🔐 Teslimat onayı</span><b>4 haneli kod</b></div>
-      <div class="row"><span>📞 Arama</span><b>Uygulama içi, numara gizli</b></div></div>
-    <div class="m-list"><button data-a="logout" style="color:var(--bad)"><i>🚪</i><span class="x">Çıkış yap</span></button></div>
+      <div class="row"><span>Teslimat ücreti</span><b>${J.tl(J.FEE.custDel)} · tamamı kuryeye</b></div>
+      <div class="row"><span>Hizmet bedeli</span><b>${J.tl(J.FEE.custPlat)} sabit</b></div>
+      <div class="row"><span>İşletmeden komisyon</span><b>Yok, sabit ücret</b></div>
+      <div class="row"><span>Teslimat onayı</span><b>4 haneli kod</b></div>
+      <div class="row"><span>Arama</span><b>Uygulama içi, numara gizli</b></div></div>
+    <div class="m-list"><button data-a="logout" style="color:var(--bad)"><i>${J.ic('log-out',19)}</i><span class="x">Çıkış yap</span></button></div>
     <div class="tiny muted" style="text-align:center">${J.modeBadge()}</div></div>`;
 }
 
@@ -279,7 +280,7 @@ function renderBar(){
     if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order"><span>Siparişi onayla</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat)}</span></button></div>`; }
   } else if(TABS.includes(view) || view==='takip'){
     const t = view==='takip' ? 'siparisler' : view, act = activeOrders().length;
-    h = `<nav class="m-tabs">${[['liste','🏠','Keşfet'],['siparisler','🧾','Siparişlerim'],['hesap','👤','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${ic}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;
+    h = `<nav class="m-tabs">${[['liste','house','Keşfet'],['siparisler','receipt','Siparişlerim'],['hesap','user','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${J.ic(ic,22)}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;
   }
   const el = document.getElementById('mbar'); if(el.innerHTML !== h) el.innerHTML = h;
 }
@@ -369,7 +370,7 @@ function autoLocate(){
     const pos = {lat:p.coords.latitude, lng:p.coords.longitude};
     DB.patch('customers', prof.id, {lat:pos.lat, lng:pos.lng, loc_src:'gps'});
     J.autoRelocate(pos);
-    J.toast('📍 Teslimat noktan konumuna göre ayarlandı.');
+    J.toast('Teslimat noktan konumuna göre ayarlandı.');
   }, () => {}, {enableHighAccuracy:true, timeout:20000, maximumAge:60000});
 }
 document.addEventListener('input', e => {

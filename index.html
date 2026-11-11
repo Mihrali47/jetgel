@@ -12,6 +12,7 @@
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
+<script src="app/ikon.js"></script>
 <style>
 .hero{padding:22px 18px 20px;margin:12px 0 0;border-radius:22px;background:linear-gradient(135deg,#1d1b18,#3a2a1e);color:#fff}
 .hero .muted{color:#e9e1d6}
@@ -23,7 +24,8 @@
 .hero h1 span{color:var(--brand)}
 .roles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
 .role{display:block;text-decoration:none;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px}
-.role .e{font-size:30px}
+.role .e{width:44px;height:44px;border-radius:12px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center}
+.role.main .e{background:rgba(255,255,255,.18);color:#fff}
 .role b{display:block;font-size:17px;margin-top:6px}
 .role span{font-size:12.5px;color:var(--muted)}
 .role.main{grid-column:1/-1;background:var(--brand);color:#fff;border-color:var(--brand)}
@@ -40,17 +42,17 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
     <div class="fair"><div><b>%0</b>komisyon</div><div><b>100 TL</b>kuryeye</div><div><b>SMS yok</b>kodla teslim</div></div>
   </div>
   <div class="roles">
-    <a class="role main" href="musteri.html"><div class="e">🍽️</div><b>Sipariş ver</b><span>Müşteri uygulaması</span></a>
-    <a class="role" href="isletme.html"><div class="e">🏪</div><b>İşletme</b><span>Siparişleri al, hazırla</span></a>
-    <a class="role" href="kurye.html"><div class="e">🛵</div><b>Kurye</b><span>Teklif al, navigasyonla teslim et</span></a>
-    <a class="role" href="yonetim.html"><div class="e">📊</div><b>Yönetim</b><span>İşletme ekle, her şeyi izle</span></a>
-    <a class="role" href="simulasyon.html"><div class="e">🎬</div><b>Simülasyon</b><span>Tek ekranda tüm sistem (esnafa göstermek için)</span></a>
+    <a class="role main" href="musteri.html"><div class="e" data-ic="utensils"></div><b>Sipariş ver</b><span>Müşteri uygulaması</span></a>
+    <a class="role" href="isletme.html"><div class="e" data-ic="store"></div><b>İşletme</b><span>Siparişleri al, hazırla</span></a>
+    <a class="role" href="kurye.html"><div class="e" data-ic="bike"></div><b>Kurye</b><span>Teklif al, navigasyonla teslim et</span></a>
+    <a class="role" href="yonetim.html"><div class="e" data-ic="layout-dashboard"></div><b>Yönetim</b><span>İşletme ekle, her şeyi izle</span></a>
+    <a class="role" href="simulasyon.html"><div class="e" data-ic="clapperboard"></div><b>Simülasyon</b><span>Tek ekranda tüm sistem (esnafa göstermek için)</span></a>
   </div>
-  <div class="card"><h3>🧪 Test hesapları</h3>
+  <div class="card"><h3>Test hesapları</h3>
     <table><tr><th>Rol</th><th>Kullanıcı adı</th><th>Şifre</th></tr>
-      <tr><td>🏪 Dükkân</td><td><b>test1</b> … <b>test9</b></td><td>test</td></tr>
-      <tr><td>🛵 Kurye</td><td><b>1test</b> … <b>9test</b></td><td>test</td></tr>
-      <tr><td>🍽️ Müşteri</td><td><b>test</b></td><td>test</td></tr></table>
+      <tr><td>Dükkân</td><td><b>test1</b> … <b>test9</b></td><td>test</td></tr>
+      <tr><td>Kurye</td><td><b>1test</b> … <b>9test</b></td><td>test</td></tr>
+      <tr><td>Müşteri</td><td><b>test</b></td><td>test</td></tr></table>
     <div class="note">Bunlar sadece deneme hesapları. Prototipte şifreler güvenli saklanmıyor; gerçek şifre kullanma.</div>
   </div>
   <div class="card"><h3>Nasıl denenir? (3 telefonla)</h3>
@@ -59,15 +61,15 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
       <li><b>2. telefon → Kurye:</b> <b>1test</b> / test ile giriş yap, bildirim izni ver, üstteki anahtarı <b>Açık</b> yap. Masa başında denemek için Hesap sekmesinden "Demo sürüş"ü seç; sokakta "Gerçek GPS".</li>
       <li><b>3. telefon → Sipariş ver:</b> <b>test</b> / test ile giriş yap, "Test1 · Pideci"ye gir, ürün ekle, alttaki "Sepete git" → "Siparişi onayla".</li>
       <li>İşletme onaylar, kuryeye 30 saniyelik teklif düşer, kurye kabul eder ve navigasyonla gider. Kapıda müşterinin ekranındaki kod girilir.</li>
-      <li>Sesli arama için siparişin içindeki 📞 butonlarını kullan. İlk aramada mikrofon izni istenir.</li>
+      <li>Sesli arama için siparişin içindeki telefon düğmelerini kullan. İlk aramada mikrofon izni istenir.</li>
     </ol>
     <div class="note">Tek telefonla denemek için aynı tarayıcıda farklı sekmeler açabilirsin. Ödeme simülasyondur, gerçek para çekilmez.</div>
   </div>
-  <div class="card brand"><h3>🤖 Android uygulaması</h3>
+  <div class="card brand"><h3>Android uygulaması</h3>
     <div class="small">Kurye ve işletme için önerilir: aramada <b>ahize/hoparlör</b> seçimi, <b>ekran kilitliyken çalan arama</b> ve sipariş bildirimi, <b>arka planda GPS</b>.</div>
-    <div class="btns"><a class="btnlink" href="https://github.com/Mihrali47/jetgel/releases/download/android-son/jetgel.apk">⬇️ jetgel.apk indir</a></div>
+    <div class="btns"><a class="btnlink" href="https://github.com/Mihrali47/jetgel/releases/download/android-son/jetgel.apk"><span data-ic="download"></span> jetgel.apk indir</a></div>
     <div class="note">İndirdikten sonra dosyayı aç, "bilinmeyen kaynaklardan yüklemeye izin ver" de ve yükle. Güncellemek için aynı linkten yenisini kurman yeterli. Site güncellemeleri uygulamaya kendiliğinden gelir.</div></div>
-  <div class="card soft"><h3>📲 Telefona uygulama gibi yükle</h3>
+  <div class="card soft"><h3>Telefona uygulama gibi yükle</h3>
     <div class="small"><b>Android (Chrome):</b> sağ üstteki ⋮ menüsü → <b>Ana ekrana ekle</b> ya da <b>Uygulamayı yükle</b>.<br><b>iPhone (Safari):</b> alttaki paylaş simgesi → <b>Ana Ekrana Ekle</b>. iPhone'da bildirimler sadece ana ekrana eklenmiş uygulamada çalışır.</div>
     <div class="note">Her rolü ayrı yükleyebilirsin: önce o rolün sayfasını aç, sonra ana ekrana ekle.</div>
   </div>
@@ -76,6 +78,7 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
 <script>
 J.DB.on(() => { document.getElementById('mode').innerHTML = J.modeBadge(); });
 J.DB.init().then(() => { document.getElementById('mode').innerHTML = J.modeBadge(); });
+document.querySelectorAll('[data-ic]').forEach(el => { el.innerHTML = J.ic(el.dataset.ic, el.classList.contains('e') ? 24 : 16); });
 J.registerSW();
 </script>
 </body>

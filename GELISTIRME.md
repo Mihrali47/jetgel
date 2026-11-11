@@ -1,6 +1,6 @@
-# AGENTS.md — Yapay zekâ kodlama asistanları için talimatlar
+# Geliştirme notları
 
-Bu dosya, bu repoda çalışan her yapay zekâ asistanı (Claude, ChatGPT/Codex, Copilot, Cursor vb.) içindir. Bir değişiklik yapmadan önce bu dosyayı ve `README.md`'yi baştan sona oku.
+Bu projede çalışan herkes için kurallar ve teknik notlar. Bir değişiklik yapmadan önce bu dosyayı ve `README.md`'yi baştan sona okuyun.
 
 ## Proje nedir
 
@@ -10,11 +10,11 @@ Bu dosya, bu repoda çalışan her yapay zekâ asistanı (Claude, ChatGPT/Codex,
 
 Canlı site: https://mihrali47.github.io/jetgel/ (GitHub Pages, `main` dalının kökünden yayınlanır).
 
-## Proje sahibi hakkında
+## Çalışma dili
 
-- Proje sahibi **kod bilmiyor**. Kararları o verir, kodu yapay zekâ asistanları yazar.
-- Sahiple **Türkçe** ve teknik terimleri açıklayarak konuş.
-- Her değişiklikten sonra ne yaptığını kısa ve sade bir dille anlat; sahibin siteyi telefondan test edeceğini unutma.
+- İş kararlarını proje sahibi verir.
+- Yazışmalar ve commit mesajları **Türkçe**; teknik terimler açıklanarak.
+- Her değişiklikten sonra ne yapıldığı kısa ve sade bir dille anlatılır; site telefondan test edilir.
 
 ## Değişmemesi gereken iş kuralları
 
@@ -33,6 +33,7 @@ Bu kurallar proje sahibinin kararlarıdır. Sahip açıkça istemeden **değişt
 | Yol | Ne |
 |---|---|
 | `index.html` | Giriş sayfası |
+| `app/ikon.js` | Çizgi ikonlar (Lucide, ISC). Arayüzde emoji yerine `J.ic('ad')` kullanılır |
 | `musteri.html`, `isletme.html`, `kurye.html`, `yonetim.html` | Rol uygulamaları; her biri kendi arayüzünü çizer, iş mantığı `app/core.js`'te |
 | `app/core.js` | Veri katmanı (`J.DB`), iş kuralları (`J.FEE`, süreler), sipariş akışı, kurye atama (`J.dispatchTick`), ikaz (`J.strikeTick`), rota/navigasyon, WebRTC arama, uyarılar, harita (`J.Map`) |
 | `app/config.js` | Supabase URL + publishable key, ICE/TURN sunucuları. Secret key buraya ASLA yazılmaz |
@@ -70,13 +71,14 @@ Dükkân `test1`…`test9`, kurye `1test`…`9test`, müşteri `test`; hepsinin 
 
 ## Çalışma kuralları
 
-1. **Aynı anda tek asistan çalışır.** Başlamadan önce `main` dalının güncel halini çek.
+1. **Aynı anda tek kişi çalışır.** Başlamadan önce `main` dalının güncel halini çek.
 2. **Küçük ve tek amaçlı değişiklikler yap.** Her commit tek bir işi anlatsın; commit mesajları Türkçe olsun.
 3. **İş kurallarını bozmadığını kontrol et.** Ücret, ödeme ve teslimat kurallarına dokunan bir değişiklik yaptıysan sahibe açıkça söyle.
 4. **README'yi güncel tut.** Yeni bir kural, özellik ya da karar eklediysen `README.md`'deki ilgili bölümü de güncelle. Yol haritasında biten maddeleri işaretle.
 5. **Dış bağımlılık eklerken dikkatli ol.** Kütüphaneleri mümkünse `vendor/` altına yerel kopya olarak ekle; site GitHub Pages'te sunucusuz çalışıyor.
 6. **Test et.** Değişiklikten sonra en azından şu akışı dört sekmede (demo modu) dene: yönetim → demo işletmelerini yükle; işletme → seç, bildirim izni, aç; kurye → kaydol, bildirim izni, çevrimiçi (demo sürüş); müşteri → profil, sipariş → işletme onayla → kurye kabul → hazır → paketi al → kodla teslim. Bir sesli arama da dene. Telefon genişliğinde (390 px) bak.
 7. **Gizli bilgi koyma.** API anahtarı, şifre, kişisel veri repoya girmez.
+8. **Commit mesajlarına araç/yazar imzası eklenmez** (Co-Authored-By vb.).
 
 ## Henüz yapılmayanlar (bilinçli olarak)
 

@@ -14,13 +14,14 @@
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
+<script src="app/ikon.js"></script>
 </head>
 <body>
 <div class="top"><a class="brandname" href="./"><span>Jetgel</span> · Yönetim</a><span id="mode"></span></div>
 <div class="wrap wide">
   <div class="tabbar" id="tabs"></div>
   <div class="grid2" id="genel-grid">
-    <div><div class="card"><div class="row"><h3>Canlı harita</h3><span class="tiny muted">🟢 boşta · 🔵 teslimatta · soluk: çevrimdışı</span></div><div id="map" class="map tall" style="margin-bottom:0"></div><div id="maphint" class="tiny muted" style="margin-top:6px"></div></div></div>
+    <div><div class="card"><div class="row"><h3>Canlı harita</h3><span class="tiny muted"><span class="dot" style="background:#2b8a3e"></span> boşta · <span class="dot" style="background:#1c6ed4"></span> teslimatta · soluk: çevrimdışı</span></div><div id="map" class="map tall" style="margin-bottom:0"></div><div id="maphint" class="tiny muted" style="margin-top:6px"></div></div></div>
     <div id="side"></div>
   </div>
   <div id="panel"></div>
@@ -37,10 +38,10 @@ const stTxt = o => o.state==='red' ? '<span class="pill bad">Reddedildi</span>' 
 function drawMap(){
   if(!map.ok) return;
   const keys = [];
-  J.businesses().forEach(b => { const k = 'b'+b.id; keys.push(k); map.set(k, b, J.esc(b.emoji||'🏪'), (b.open && J.isAlive(b)) ? '' : 'off', b.name); });
-  J.couriers().forEach(c => { const k = 'c'+c.id; keys.push(k); const alive = c.online && J.isAlive(c); map.set(k, c, '🛵', 'cour ' + (c.busy?'busy':'') + (alive||c.busy?'':' off'), c.name); });
-  J.orders().filter(o => o.state==='aktif').forEach(o => { const k = 'o'+o.id; keys.push(k); map.set(k, o.customer, '🏠', 'home', '#'+o.no); });
-  if(tab==='isletmeler' && edit && edit.lat){ keys.push('edit'); map.set('edit', edit, '📍', '', edit.name || 'Yeni işletme'); }
+  J.businesses().forEach(b => { const k = 'b'+b.id; keys.push(k); map.set(k, b, J.bizIcon(b,16), (b.open && J.isAlive(b)) ? '' : 'off', b.name); });
+  J.couriers().forEach(c => { const k = 'c'+c.id; keys.push(k); const alive = c.online && J.isAlive(c); map.set(k, c, J.ic('bike',16), 'cour ' + (c.busy?'busy':'') + (alive||c.busy?'':' off'), c.name); });
+  J.orders().filter(o => o.state==='aktif').forEach(o => { const k = 'o'+o.id; keys.push(k); map.set(k, o.customer, J.ic('house',16), 'home', '#'+o.no); });
+  if(tab==='isletmeler' && edit && edit.lat){ keys.push('edit'); map.set('edit', edit, J.ic('map-pin',16), '', edit.name || 'Yeni işletme'); }
   map.keep(keys);
   document.getElementById('maphint').textContent = tab==='isletmeler' && edit ? 'İşletmenin konumunu seçmek için haritaya dokunun.' : '';
 }
@@ -71,16 +72,16 @@ function renderBiz(){
   let h = '';
   if(edit){
     h += `<div class="card brand"><h3>${edit.id ? 'İşletmeyi düzenle' : 'Yeni işletme'}</h3>
-      <div class="row"><div style="flex:1"><label class="f" for="e-name">İşletme adı</label><input id="e-name" value="${J.esc(edit.name||'')}"></div><div style="width:90px"><label class="f" for="e-emoji">Simge</label><input id="e-emoji" value="${J.esc(edit.emoji||'🏪')}"></div></div>
+      <div class="row"><div style="flex:1"><label class="f" for="e-name">İşletme adı</label><input id="e-name" value="${J.esc(edit.name||'')}"></div><div style="width:130px"><label class="f" for="e-kind">Tür</label><select id="e-kind">${Object.keys(J.KIND_GROUP).map(k => `<option ${edit.kind===k?'selected':''}>${J.esc(k)}</option>`).join('')}<option value="" ${!edit.kind?'selected':''}>Diğer</option></select></div></div>
       <div class="row"><div style="flex:1"><label class="f" for="e-user">Giriş kullanıcı adı</label><input id="e-user" autocapitalize="none" value="${J.esc(edit.user||'')}"></div><div style="flex:1"><label class="f" for="e-pass">Şifre</label><input id="e-pass" value="${J.esc(edit.pass||'')}"></div></div>
-      <label class="f">Konum</label><div class="small">${edit.lat ? `📍 ${edit.lat.toFixed(5)}, ${edit.lng.toFixed(5)}` : '<span style="color:var(--bad)">Haritaya dokunarak konum seçin.</span>'}</div>
+      <label class="f">Konum</label><div class="small">${edit.lat ? `${edit.lat.toFixed(5)}, ${edit.lng.toFixed(5)}` : '<span style="color:var(--bad)">Haritaya dokunarak konum seçin.</span>'}</div>
       <label class="f" for="e-menu">Menü (her satıra: ürün adı ; fiyat ; kategori ; açıklama — son ikisi isteğe bağlı)</label><textarea id="e-menu" rows="7" placeholder="Kıymalı Pide ; 280&#10;Ayran ; 45">${J.esc(edit.menuText||'')}</textarea>
       <div class="row small" style="margin-top:8px"><label for="e-free" style="flex:1">Müşteri teslimat payını işletme üstlensin</label><input type="checkbox" id="e-free" style="width:auto" ${edit.free_delivery?'checked':''}></div>
       <div class="btns"><button class="brand" data-a="save-biz">Kaydet</button><button class="sec" data-a="cancel">Vazgeç</button>${edit.id?`<button class="bad" data-a="del-biz">Sil</button>`:''}</div></div>`;
   } else h += `<div class="btns" style="margin:0 0 12px"><button class="brand" data-a="new-biz">+ Yeni işletme ekle</button></div>`;
   J.businesses().forEach(b => {
     const n = J.activeStrikes(b).length;
-    h += `<div class="card"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.esc(b.emoji||'🏪')}</div><div><b>${J.esc(b.name)}</b><div class="small muted">${(b.menu||[]).length} ürün · ${b.open && J.isAlive(b) ? '🟢 Açık' : '⚪️ Kapalı'}${b.free_delivery?' · ücretsiz teslimat':''} · giriş: <b>${J.esc(b.login?b.login.user:'—')}</b> · ikaz ${n}/3${b.suspended?' · <b style="color:var(--bad)">askıda</b>':''}</div></div></div>
+    h += `<div class="card"><div class="row"><div class="rest" style="cursor:default"><div class="emo">${J.bizIcon(b,22)}</div><div><b>${J.esc(b.name)}</b><div class="small muted">${(b.menu||[]).length} ürün · ${b.open && J.isAlive(b) ? 'Açık' : 'Kapalı'}${b.free_delivery?' · ücretsiz teslimat':''} · giriş: <b>${J.esc(b.login?b.login.user:'—')}</b> · ikaz ${n}/3${b.suspended?' · <b style="color:var(--bad)">askıda</b>':''}</div></div></div>
       <div class="btns" style="margin:0"><button class="sm sec" data-a="edit-biz" data-id="${b.id}">Düzenle</button>${b.suspended?`<button class="sm ok" data-a="unsuspend" data-id="${b.id}">Askıyı kaldır</button>`:''}</div></div></div>`;
   });
   return h;
@@ -110,17 +111,17 @@ function renderSettings(){
   const s = J.settings();
   return `<div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
     ${DB.mode==='canli' ? `<div class="btns"><button class="sm sec" data-a="force-demo">Bu cihazda demo moduna geç</button></div>` : (window.JETGEL_CONFIG.supabaseUrl ? `<div class="btns"><button class="sm sec" data-a="force-live">Canlı moda dön</button></div>` : '')}</div>
-    <div class="card"><h3>📞 Sesli arama · aktarma sunucusu (TURN)</h3>
+    <div class="card"><h3>Sesli arama · aktarma sunucusu (TURN)</h3>
       <div class="small muted">Telefonlar birbirine doğrudan bağlanamadığında (mobil veri, bazı modemler) sesi bu sunucu taşır. Metered panelinde <b>TURN Server → Add Credential → Show ICE Servers Array</b> ile çıkan metnin tamamını buraya yapıştırıp kaydedin. Tüm telefonlar otomatik kullanır.</div>
       <div class="small" style="margin-top:8px">Durum: ${J.hasTurn() ? `<span class="pill ok">Aktarma sunucusu tanımlı (${(s.turn||[]).length} adres)</span>` : '<span class="pill warn">Tanımlı değil · sadece doğrudan bağlantı</span>'}</div>
       <textarea id="turn-txt" rows="6" style="margin-top:8px;font-family:monospace;font-size:12px" placeholder='[ { urls: "turn:...", username: "...", credential: "..." } ]'></textarea>
       <div class="btns"><button class="brand" data-a="save-turn">Kaydet</button>${(s.turn||[]).length?'<button class="sec" data-a="clear-turn">Kaldır</button>':''}</div></div>
     <div class="card"><h3>Hızlı test modu</h3><div class="small muted">Açıkken süreler 10 kat kısalır: hazırlık 1 dk = 6 sn, işletmenin geri arama süresi 30 sn, müşteriye ulaşılamazsa bekleme 1 dk, demo sürüş 10 kat hızlı. Gerçek denemede kapatın.</div><div class="btns"><button class="${s.fast?'ok':'sec'}" data-a="fast" data-v="1">Açık</button><button class="${!s.fast?'ok':'sec'}" data-a="fast" data-v="0">Kapalı</button></div></div>
-    <div class="card"><h3>🧪 Test hesapları</h3><div class="small">Dükkânlar: <b>test1 … test9</b> · Kuryeler: <b>1test … 9test</b> · Müşteri: <b>test</b> · Tüm şifreler: <b>test</b></div>
+    <div class="card"><h3>Test hesapları</h3><div class="small">Dükkânlar: <b>test1 … test9</b> · Kuryeler: <b>1test … 9test</b> · Müşteri: <b>test</b> · Tüm şifreler: <b>test</b></div>
       <div class="small muted" style="margin-top:6px">Eksik olanlar ilk açılışta kendiliğinden oluşturulur. "Sıfırla" test hesaplarını ilk haline getirir (açık/kapalı durumu, kazanç, ikazlar sıfırlanır; siparişler silinmez).</div>
       <div class="btns"><button class="sec" data-a="seed">Eksik test hesaplarını oluştur</button><button class="sec" data-a="reset-test">Test hesaplarını sıfırla</button></div>
-      <div class="card soft" style="margin-top:12px"><b>📍 Test dükkânlarını bulunduğun yere taşı</b><div class="small muted">9 test dükkânı, 9 test kuryesi ve test müşterisi, bu cihazın şu anki konumunun çevresine (yaklaşık 1 km içine) taşınır. Böylece her şeyi kendi mahallende deneyebilirsin.${s.center?` Şu anki merkez: ${s.center.lat.toFixed(4)}, ${s.center.lng.toFixed(4)}`:' Şu an Moda/Kadıköy\'de.'}</div><div class="btns"><button class="brand" data-a="relocate">Konumumu bul ve taşı</button>${s.center?'<button class="sec" data-a="relocate-moda">Moda\'ya geri al</button>':''}</div></div>
-      <div class="note">⚠️ Prototip girişi: şifreler veritabanında düz metin durur ve veritabanı herkese açıktır. Bu gerçek bir güvenlik değildir; gerçek kullanımdan önce değiştirilecek.</div></div>
+      <div class="card soft" style="margin-top:12px"><b>Test dükkânlarını bulunduğun yere taşı</b><div class="small muted">9 test dükkânı, 9 test kuryesi ve test müşterisi, bu cihazın şu anki konumunun çevresine (yaklaşık 1 km içine) taşınır. Böylece her şeyi kendi mahallende deneyebilirsin.${s.center?` Şu anki merkez: ${s.center.lat.toFixed(4)}, ${s.center.lng.toFixed(4)}`:' Şu an Moda/Kadıköy\'de.'}</div><div class="btns"><button class="brand" data-a="relocate">Konumumu bul ve taşı</button>${s.center?'<button class="sec" data-a="relocate-moda">Moda\'ya geri al</button>':''}</div></div>
+      <div class="note">Prototip girişi: şifreler veritabanında düz metin durur ve veritabanı herkese açıktır. Bu gerçek bir güvenlik değildir; gerçek kullanımdan önce değiştirilecek.</div></div>
     <div class="card bad"><h3>Tüm verileri sil</h3><div class="small">İşletmeler, kuryeler, siparişler, aramalar ve günlük kalıcı olarak silinir. ${DB.mode==='canli'?'<b>Canlı modda tüm cihazlardan silinir.</b>':''}</div>
       <div class="btns">${confirmReset ? `<button class="bad" data-a="reset-yes">Evet, hepsini sil</button><button class="sec" data-a="reset-no">Vazgeç</button>` : `<button class="bad" data-a="reset">Tüm verileri sil…</button>`}</div></div>`;
 }
@@ -145,7 +146,7 @@ function textToMenu(txt, old){
     return {id: prev ? prev.id : J.uid('u'), name, price:p, cat: cat != null ? cat : (prev && prev.cat) || '', desc: desc != null ? desc : (prev && prev.desc) || '', available: prev ? prev.available !== false : true};
   }).filter(Boolean);
 }
-function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.emoji = g('e-emoji').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; edit.user = g('e-user').value.trim(); edit.pass = g('e-pass').value; } }
+function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.kind = g('e-kind').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; edit.user = g('e-user').value.trim(); edit.pass = g('e-pass').value; } }
 
 document.addEventListener('click', async e => {
   const el = e.target.closest('[data-a]'); if(!el || el.disabled) return;
@@ -162,7 +163,7 @@ document.addEventListener('click', async e => {
   if(a==='relocate-moda'){ J.relocateTests({lat:40.9868, lng:29.0305}); DB.patch('settings','ayar',{center:null}); setTimeout(() => { map.fit(J.businesses()); render(); }, 400); }
   if(a==='seed') J.ensureTestAccounts(false);
   if(a==='reset-test') J.ensureTestAccounts(true);
-  if(a==='new-biz') edit = {name:'', emoji:'🏪', lat:null, lng:null, menuText:'', free_delivery:false, user:'', pass:''};
+  if(a==='new-biz') edit = {name:'', kind:'', lat:null, lng:null, menuText:'', free_delivery:false, user:'', pass:''};
   if(a==='edit-biz'){ const b = DB.get('businesses', id); edit = Object.assign({}, b, {menuText:menuToText(b.menu), user:b.login?b.login.user:'', pass:b.login?b.login.pass:''}); map.fit([b]); }
   if(a==='cancel') edit = null;
   if(a==='save-biz'){
@@ -172,7 +173,7 @@ document.addEventListener('click', async e => {
     const taken = J.findLogin('businesses', edit.user) || J.findLogin('couriers', edit.user) || J.findLogin('customers', edit.user);
     if(taken && taken.id !== edit.id){ J.toast('Bu kullanıcı adı alınmış.'); return; }
     const menu = textToMenu(edit.menuText, edit.menu);
-    const data = {name:edit.name.trim(), emoji:edit.emoji||'🏪', lat:edit.lat, lng:edit.lng, free_delivery:!!edit.free_delivery, menu, login:{user:edit.user, pass:edit.pass}};
+    const data = {name:edit.name.trim(), kind:edit.kind||'', lat:edit.lat, lng:edit.lng, free_delivery:!!edit.free_delivery, menu, login:{user:edit.user, pass:edit.pass}};
     if(edit.id) DB.patch('businesses', edit.id, data);
     else DB.put('businesses', J.uid('b'), Object.assign(data, {open:false, suspended:false, notif_ok:false, strikes:[]}));
     J.log(`İşletme kaydedildi: ${data.name} (${menu.length} ürün).`, 'ok');

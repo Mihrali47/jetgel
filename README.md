@@ -102,9 +102,9 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | `manifest-*.webmanifest`, `sw.js`, `ikonlar/` | Telefona yüklenebilir uygulama (PWA) |
 | `vendor/` | Leaflet ve Supabase kütüphanelerinin yerel kopyaları |
 | `sablonlar/` | Toplu ürün yükleme Excel şablonu |
-| `AGENTS.md` | Yapay zekâ asistanları için talimatlar |
+| `GELISTIRME.md` | Geliştirme kuralları ve teknik notlar |
 
-> **Yapay zekâ ile çalışırken:** Hangi asistanı kullanırsanız kullanın, ilk mesajda "Önce AGENTS.md ve README.md dosyalarını oku" deyin. Aynı anda iki asistana değişiklik yaptırmayın.
+> **Geliştirmeye başlamadan önce** `GELISTIRME.md` ve bu dosyayı okuyun. Aynı anda tek kişi çalışsın.
 
 ## Teknik notlar
 

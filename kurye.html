@@ -17,6 +17,7 @@
 <script src="vendor/supabase/supabase.js"></script>
 <script src="app/config.js"></script>
 <script src="app/core.js"></script>
+<script src="app/ikon.js"></script>
 </head>
 <body class="p">
 <div class="wrap">
@@ -92,78 +93,32 @@ async function ensureRoute(o){
 let loginErr = '', regErr = '', showReg = false;
 function renderProfile(){
   const top = `<div class="p-login"><div class="logo">Jet<span>gel</span> Kurye</div><div class="small muted">Teslimat başına sabit ${J.tl(J.FEE.courier)}, ceza puanı yok.</div></div><div class="p-body">`;
-  if(showReg) return top + `<div class="card"><h3>Yeni kurye kaydı 🛵</h3><div class="small muted">Prototip için ad, kullanıcı adı ve şifre yeterli. Gerçek sistemde kimlik ve belge onayı istenecek.</div>
+  if(showReg) return top + `<div class="card"><h3>Yeni kurye kaydı</h3><div class="small muted">Prototip için ad, kullanıcı adı ve şifre yeterli. Gerçek sistemde kimlik ve belge onayı istenecek.</div>
     <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ali">
     <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
-    <div class="note">⚠️ Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
+    <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
     <button class="brand wide" style="margin-top:12px" data-a="create">Kaydol</button><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
-  return top + J.loginForm({title:'Kurye girişi 🛵', sub:'', ph:'1test', hint:'1test … 9test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Kaydol</button></div>`;
+  return top + J.loginForm({title:'Kurye girişi', sub:'', ph:'1test', hint:'1test … 9test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Kaydol</button></div>`;
 }
 function renderGate(){
   const p = J.notifPermission();
-  return `<div class="card warn gate"><div class="ic">🔔</div><h3>Bildirim izni zorunlu</h3><div class="small">Teslimat tekliflerini ve aramaları kaçırmaman için bildirimler açık olmalı. İzin vermeden çevrimiçi olamazsın.</div>
+  return `<div class="card warn gate"><div class="ic">${J.ic('bell',40)}</div><h3>Bildirim izni zorunlu</h3><div class="small">Teslimat tekliflerini ve aramaları kaçırmaman için bildirimler açık olmalı. İzin vermeden çevrimiçi olamazsın.</div>
     ${p==='denied' ? `<div class="note" style="text-align:left"><b>Bildirimler engellenmiş.</b> Adres çubuğundaki kilit simgesine dokun → Bildirimler → İzin ver. Sonra sayfayı yenile.</div>` : `<div class="btns center"><button class="brand" data-a="notif">Bildirim izni ver</button></div>`}</div>`;
 }
 function navHtml(o){
   if(!o){ return ''; }
-  if(routing && !route) return `<div class="nav"><div class="turn"><div class="arrow">🧭</div><div class="t">Rota hesaplanıyor…</div></div></div>`;
+  if(routing && !route) return `<div class="nav"><div class="turn"><div class="arrow">${J.ic('compass',34)}</div><div class="t">Rota hesaplanıyor…</div></div></div>`;
   if(!route || !['isletmeye','yolda'].includes(o.del)) return '';
   const ns = J.navState(route, pos, locMode==='demo' ? prog : null);
-  return `<div class="nav"><div class="turn"><div class="arrow">${ns.step.arrow}</div><div><div class="d">${ns.step.type==='arrive' && ns.inM<20 ? 'Vardın' : J.fmtDist(ns.inM)}</div><div class="t">${J.esc(ns.step.text)}</div></div></div><div class="meta"><span>Kalan <b>${J.fmtDist(ns.remain)}</b></span><span>~<b>${ns.etaMin}</b> dk</span><span>${route.source==='osrm'?'Gerçek yol rotası':'Düz çizgi (yedek)'}</span></div></div>`;
-}
-function renderMain(){
-  const c = cour();
-  if(!c){ cid = null; J.store.set('kurye_id', null); return renderProfile(); }
-  const offer = myOffer(), o = myJob();
-  let h = '';
-  if(!notifOk()) h += renderGate();
-  if(c.online) h += J.batteryCard();
-  h += `<div class="card soft"><div class="row"><div><b>${J.esc(c.name)}</b><div class="small">${c.online?'🟢 Çevrimiçisin':'⚪️ Çevrimdışı'}</div></div><button class="${c.online?'sec':'ok'}" data-a="online" ${(!notifOk()||o)?'disabled':''}>${c.online?'Çevrimdışı ol':'Çevrimiçi ol'}</button></div>
-    <div class="row small" style="margin-top:10px"><span>Konum</span><span><button class="sm ${locMode==='gps'?'':'sec'}" data-a="loc" data-id="gps">📡 Gerçek GPS</button> <button class="sm ${locMode==='demo'?'':'sec'}" data-a="loc" data-id="demo">🎮 Demo sürüş</button></span></div>
-    <div class="tiny muted" style="margin-top:6px">${locMode==='gps' ? (gpsErr ? J.esc(gpsErr) : `Telefonunun konumu kullanılıyor${gpsAcc?` (±${gpsAcc} m)`:''}. Hedefe yaklaşınca durum kendiliğinden güncellenir.`) : 'Demo sürüş: masa başında denemek için kurye rotada kendiliğinden ilerler.'}</div></div>`;
-  if(offer){
-    const b = DB.get('businesses', offer.rid);
-    h += `<div class="card brand"><div class="row"><h3>🔔 Yeni teslimat teklifi</h3><span class="pill brand"><span data-live="down" data-end="${offer.offer.exp}">…</span> sn</span></div><div class="big">${J.tl(J.FEE.courier)}</div><div class="small muted">Sabit ücret · bahşiş olursa tamamı senin</div>
-      <div class="row small" style="margin-top:8px"><span>Alış: ${J.esc(b?b.emoji:'')} ${J.esc(offer.rname)}</span><b>${J.fmtDist(J.dist(pos,b))}</b></div><div class="row small"><span>Teslim: 🏠 ${J.esc(offer.customer.name)}</span><b>${J.fmtDist(J.dist(b,offer.customer))}</b></div>
-      <div class="btns"><button class="ok" style="flex:1" data-a="accept">Kabul et</button><button class="sec" data-a="decline">Reddet</button></div><div class="note">Reddetmenin cezası yok. 30 sn içinde kabul etmezsen teklif sıradaki kuryeye geçer.</div></div>`;
-    J.notify('teklif-'+offer.id, '🔔 Yeni teslimat teklifi', `${offer.rname} → ${J.tl(J.FEE.courier)}`);
-  }
-  J.alarm('teklif', !!offer, 'order', 2500);
-  if(o){
-    const b = DB.get('businesses', o.rid), tg = target(o);
-    const steps = [['İşletmeye git', o.del!=='isletmeye'], ['Paketi al', ['yolda','kapida'].includes(o.del)], ['Müşteriye git', o.del==='kapida'], ['Kodla teslim et', false]];
-    const first = steps.findIndex(s => !s[1]);
-    h += `<div class="card"><div class="row"><h3>Aktif teslimat #${J.esc(o.no)}</h3><span class="pill brand">${J.tl(J.FEE.courier)}</span></div>
-      <div class="small">${o.del==='isletmeye'||o.del==='isletmede' ? `🏪 ${J.esc(o.rname)}` : `🏠 ${J.esc(o.customer.name)}${o.customer.note?` · ${J.esc(o.customer.note)}`:''}`}</div>
-      ${tg?`<div class="btns"><a class="btnlink" href="${J.gmaps(tg)}" target="_blank" rel="noopener">🧭 Google Haritalar'da aç</a></div>`:''}
-      <ul class="steps">${steps.map((s,i) => `<li class="${s[1]?'done':i===first?'now':''}"><i>${s[1]?'✓':''}</i>${s[0]}</li>`).join('')}</ul>`;
-    if(o.del==='isletmeye') h += `<div class="small muted">İşletmeye gidiyorsun. ${J.ARRIVE_M} m yaklaşınca varış kendiliğinden kaydedilir. (Uzaklık: ${J.fmtDist(J.dist(pos,b))})</div>`;
-    if(o.del==='isletmede') h += o.prep==='hazir'
-      ? `<button class="ok wide" style="margin-top:8px" data-a="pickup">📦 Paketi aldım (fiş kontrol edildi)</button>`
-      : `<div class="small">İşletmedesin. Sipariş henüz hazır değil${o.prep_until?` (~<span data-live="mdown" data-end="${o.prep_until}">…</span> dk)`:''}. İşletme "hazır" deyince buton açılır.</div>`;
-    if(o.del==='yolda') h += `<div class="small muted">Müşteriye gidiyorsun. (Uzaklık: ${J.fmtDist(J.dist(pos,o.customer))})</div>`;
-    if(o.del==='kapida'){
-      const called = J.calls().some(k => k.order_id===o.id && k.from.type==='kurye' && k.from.id===cid && k.start >= (o.arrived_at||0));
-      const waitEnd = (o.arrived_at||J.now()) + J.D(J.WAIT_MS);
-      h += `<div class="small" style="margin-top:8px"><b>Müşteriden 4 haneli kodu iste:</b></div><div class="row" style="margin-top:6px"><input id="pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pin)}" style="font-size:22px;letter-spacing:8px;text-align:center"><button class="ok" data-a="pin">Onayla</button></div>
-        ${pinErr?`<div class="small" style="color:var(--bad);margin-top:6px">${J.esc(pinErr)}</div>`:''}
-        <div class="btns"><label class="btnlink" style="cursor:pointer">📸 Teslimat fotoğrafı${o.photo?' ✓':''}<input type="file" accept="image/*" capture="environment" id="photo" style="display:none"></label></div>
-        <div class="card soft small" style="margin-top:12px"><b>Müşteri kapıyı açmıyor mu?</b><div class="muted">Önce uygulamadan ara${called?' ✓':''}, sonra bekle (<span data-live="mmss" data-end="${waitEnd}">…</span> kaldı). Konumun kayıtlı; ücretini her durumda alırsın.</div><div class="btns"><button class="sm bad" data-a="unreach" data-end="${waitEnd}" ${called?'':'disabled'}>Müşteriye ulaşılamadı</button></div></div>`;
-    }
-    h += `<div class="btns"><button class="sm sec" data-a="call" data-to="musteri">📞 Müşteri</button><button class="sm sec" data-a="call" data-to="isletme">📞 İşletme</button></div></div>`;
-  }
-  if(!o && !offer && c.online) h += `<div class="card soft small" style="text-align:center">⏳ Teklif bekleniyor… İşletmelere yakın durursan teklif gelme ihtimalin artar. Ekran açık tutulur.</div>`;
-  h += `<div class="card ok"><div class="row"><h3>Kazancın</h3><b class="big">${J.tl(c.earnings||0)}</b></div><div class="small muted">${(c.jobs||[]).length} teslimat · Gerçek sistemde günlük ödeme. Ceza puanı yok.</div>${(c.jobs||[]).slice(0,5).map(j => `<div class="row small"><span>#${J.esc(j.no)} ${J.esc(j.rname)}</span><span class="money">+${J.tl(j.amount)}</span></div>`).join('')}</div>`;
-  h += `<div class="row tiny muted"><span></span><button class="ghost sm" data-a="logout">Çıkış yap</button></div>`;
-  return h;
+  return `<div class="nav"><div class="turn"><div class="arrow">${J.ic(ns.step.arrow, 36)}</div><div><div class="d">${ns.step.type==='arrive' && ns.inM<20 ? 'Vardın' : J.fmtDist(ns.inM)}</div><div class="t">${J.esc(ns.step.text)}</div></div></div><div class="meta"><span>Kalan <b>${J.fmtDist(ns.remain)}</b></span><span>~<b>${ns.etaMin}</b> dk</span><span>${route.source==='osrm'?'Gerçek yol rotası':'Düz çizgi (yedek)'}</span></div></div>`;
 }
 function header(c){
   const o = myJob(), jobs = c.jobs||[];
   const td = jobs.filter(j => j.t ? today(j.t) : false);
   const tdSum = td.reduce((s,j) => s + (j.amount||0), 0);
-  return `<div class="p-head"><div class="r1"><div class="av">🛵</div><div class="tx"><div class="nm">${J.esc(c.name)}</div><div class="sb">${o?'Teslimatta':c.online?'Çevrimiçi':'Çevrimdışı'} ${J.modeBadge()}</div></div>
+  return `<div class="p-head"><div class="r1"><div class="av">${J.ic('bike',24)}</div><div class="tx"><div class="nm">${J.esc(c.name)}</div><div class="sb">${o?'Teslimatta':c.online?'Çevrimiçi':'Çevrimdışı'} ${J.modeBadge()}</div></div>
     <button class="p-sw ${c.online?'on':''}" data-a="online" ${(!notifOk()||o)?'disabled':''}><span class="k"></span>${c.online?'Açık':'Kapalı'}</button></div>
     <div class="p-stats"><div><b>${J.tl(tdSum)}</b><span>Bugün kazanç</span></div><div><b>${td.length}</b><span>Bugün teslimat</span></div><div><b>${J.tl(c.earnings||0)}</b><span>Toplam</span></div></div></div>`;
 }
@@ -172,10 +127,10 @@ function tabTask(c){
   let h = '';
   if(offer){
     const b = DB.get('businesses', offer.rid);
-    h += `<div class="p-offer"><div class="top2"><span>🔔 Yeni teslimat teklifi</span><span class="cd" data-live="down" data-end="${offer.offer.exp}">…</span></div><div class="amt">${J.tl(J.FEE.courier)}</div><div class="small" style="opacity:.9">Sabit ücret · bahşiş olursa tamamı senin</div>
-      <div class="leg">🏪<span>Alış: <b>${J.esc(offer.rname)}</b></span><b>${J.fmtDist(J.dist(pos,b))}</b></div><div class="leg">🏠<span>Teslim: <b>${J.esc(offer.customer.name)}</b></span><b>${J.fmtDist(J.dist(b,offer.customer))}</b></div>
+    h += `<div class="p-offer"><div class="top2"><span>${J.ic('bell',17)} Yeni teslimat teklifi</span><span class="cd" data-live="down" data-end="${offer.offer.exp}">…</span></div><div class="amt">${J.tl(J.FEE.courier)}</div><div class="small" style="opacity:.9">Sabit ücret · bahşiş olursa tamamı senin</div>
+      <div class="leg">${J.ic('store',17)}<span>Alış: <b>${J.esc(offer.rname)}</b></span><b>${J.fmtDist(J.dist(pos,b))}</b></div><div class="leg">${J.ic('house',17)}<span>Teslim: <b>${J.esc(offer.customer.name)}</b></span><b>${J.fmtDist(J.dist(b,offer.customer))}</b></div>
       <div class="acts"><button class="ok" data-a="accept">Kabul et</button><button class="sec" data-a="decline">Reddet</button></div><small>Reddetmenin cezası yok. 30 sn içinde kabul etmezsen teklif sıradaki kuryeye geçer.</small></div>`;
-    J.notify('teklif-'+offer.id, '🔔 Yeni teslimat teklifi', `${offer.rname} → ${J.tl(J.FEE.courier)}`);
+    J.notify('teklif-'+offer.id, 'Yeni teslimat teklifi', `${offer.rname} → ${J.tl(J.FEE.courier)}`);
   }
   J.alarm('teklif', !!offer, 'order', 2500);
   if(o){
@@ -185,11 +140,11 @@ function tabTask(c){
     const toBiz = o.del==='isletmeye'||o.del==='isletmede';
     h += `<div class="p-card"><div class="row"><b style="font-size:16px">Teslimat #${J.esc(o.no)}</b><span class="pill ok">${J.tl(J.FEE.courier)}</span></div>
       <div class="p-steps">${['İşletmeye git','Paketi al','Müşteriye git','Kodla teslim'].map((t,i) => `<div class="${done[i]?'done':i===now?'now':''}">${t}</div>`).join('')}</div>
-      <div class="p-dest"><div class="av">${toBiz?J.esc(b&&b.emoji||'🏪'):'🏠'}</div><div class="tx"><b>${toBiz?J.esc(o.rname):J.esc(o.customer.name)}</b><span>${toBiz?'Paketi alacağın yer':J.esc(o.customer.note||'Teslimat adresi')} · ${J.fmtDist(J.dist(pos, tg||b))}</span></div><button class="p-ic" data-a="call" data-to="${toBiz?'isletme':'musteri'}" aria-label="Ara">📞</button></div>
-      ${tg?`<div class="btns"><a class="btnlink" href="${J.gmaps(tg)}" target="_blank" rel="noopener">🧭 Google Haritalar'da aç</a><button class="sm sec" data-a="call" data-to="${toBiz?'musteri':'isletme'}">📞 ${toBiz?'Müşteri':'İşletme'}</button></div>`:''}`;
+      <div class="p-dest"><div class="av">${toBiz?J.bizIcon(b,22):J.ic('house',22)}</div><div class="tx"><b>${toBiz?J.esc(o.rname):J.esc(o.customer.name)}</b><span>${toBiz?'Paketi alacağın yer':J.esc(o.customer.note||'Teslimat adresi')} · ${J.fmtDist(J.dist(pos, tg||b))}</span></div><button class="p-ic" data-a="call" data-to="${toBiz?'isletme':'musteri'}" aria-label="Ara">${J.ic('phone',17)}</button></div>
+      ${tg?`<div class="btns"><a class="btnlink" href="${J.gmaps(tg)}" target="_blank" rel="noopener">${J.ic('navigation',15)} Google Haritalar'da aç</a><button class="sm sec" data-a="call" data-to="${toBiz?'musteri':'isletme'}">${J.ic('phone',15)} ${toBiz?'Müşteri':'İşletme'}</button></div>`:''}`;
     if(o.del==='isletmeye') h += `<div class="note">İşletmeye gidiyorsun. ${J.ARRIVE_M} m yaklaşınca varış kendiliğinden kaydedilir.</div>`;
     if(o.del==='isletmede') h += o.prep==='hazir'
-      ? `<button class="ok p-big" data-a="pickup">📦 Paketi aldım (fiş kontrol edildi)</button>`
+      ? `<button class="ok p-big" data-a="pickup">${J.ic('package',18)} Paketi aldım (fiş kontrol edildi)</button>`
       : `<div class="p-timer"><span>⏳ Sipariş hazırlanıyor</span><span>${o.prep_until?`<b data-live="mdown" data-end="${o.prep_until}">…</b> dk`:''}</span></div><div class="tiny muted" style="margin-top:6px">İşletme "hazır" deyince buton açılır.</div>`;
     if(o.del==='yolda') h += `<div class="note">Müşteriye gidiyorsun. Adrese ${J.ARRIVE_M} m yaklaşınca kapıda olduğun kaydedilir.</div>`;
     if(o.del==='kapida'){
@@ -197,16 +152,16 @@ function tabTask(c){
       const waitEnd = (o.arrived_at||J.now()) + J.D(J.WAIT_MS);
       h += `<div style="margin-top:14px"><b>Müşteriden 4 haneli kodu iste</b></div><input id="pin" class="p-pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pin)}" style="margin-top:8px">
         ${pinErr?`<div class="small" style="color:var(--bad);margin-top:6px">${J.esc(pinErr)}</div>`:''}
-        <button class="ok p-big" data-a="pin">✅ Kodu onayla ve teslim et</button>
-        <div class="btns"><label class="btnlink" style="cursor:pointer">📸 Teslimat fotoğrafı${o.photo?' ✓':''}<input type="file" accept="image/*" capture="environment" id="photo" style="display:none"></label></div>
+        <button class="ok p-big" data-a="pin">${J.ic('circle-check',18)} Kodu onayla ve teslim et</button>
+        <div class="btns"><label class="btnlink" style="cursor:pointer">${J.ic('camera',15)} Teslimat fotoğrafı${o.photo?' ✓':''}<input type="file" accept="image/*" capture="environment" id="photo" style="display:none"></label></div>
         <div class="card soft small" style="margin-top:12px"><b>Müşteri kapıyı açmıyor mu?</b><div class="muted">Önce uygulamadan ara${called?' ✓':''}, sonra bekle (<span data-live="mmss" data-end="${waitEnd}">…</span> kaldı). Konumun kayıtlı; ücretini her durumda alırsın.</div><div class="btns"><button class="sm bad" data-a="unreach" data-end="${waitEnd}" ${called?'':'disabled'}>Müşteriye ulaşılamadı</button></div></div>`;
     }
     h += `</div>`;
   }
   if(!o && !offer) h += c.online
-    ? `<div class="p-card p-wait"><div class="rd">📡</div><b>Teklif bekleniyor</b><div class="small muted">İşletmelere yakın durursan teklif gelme ihtimalin artar. Ekran açık tutulur.</div></div>`
-    : `<div class="p-card p-off"><div class="rd">😴</div><b>Çevrimdışısın</b><div class="small muted">Teklif almak için yukarıdaki anahtarı aç.</div>${notifOk()?`<button class="ok p-big" data-a="online">Çevrimiçi ol</button>`:''}</div>`;
-  if(locMode==='gps' && gpsErr) h += `<div class="card warn small">📡 ${J.esc(gpsErr)}</div>`;
+    ? `<div class="p-card p-wait"><div class="rd">${J.ic('radio',34)}</div><b>Teklif bekleniyor</b><div class="small muted">İşletmelere yakın durursan teklif gelme ihtimalin artar. Ekran açık tutulur.</div></div>`
+    : `<div class="p-card p-off"><div class="rd">${J.ic('moon',34)}</div><b>Çevrimdışısın</b><div class="small muted">Teklif almak için yukarıdaki anahtarı aç.</div>${notifOk()?`<button class="ok p-big" data-a="online">Çevrimiçi ol</button>`:''}</div>`;
+  if(locMode==='gps' && gpsErr) h += `<div class="card warn small">${J.ic('locate-fixed',15)} ${J.esc(gpsErr)}</div>`;
   return h;
 }
 function tabEarn(c){
@@ -214,12 +169,12 @@ function tabEarn(c){
   let h = `<div class="p-card" style="background:linear-gradient(135deg,#1f9d55,#2b8a3e);color:#fff"><div class="small" style="opacity:.85">Toplam kazancın</div><div style="font-size:32px;font-weight:900">${J.tl(c.earnings||0)}</div><div class="small" style="opacity:.85">${jobs.length} teslimat · teslimat başına sabit ${J.tl(J.FEE.courier)}</div></div>
     <div class="p-card small"><div class="row"><span>Ödeme</span><b>Gerçek sistemde günlük</b></div><div class="row"><span>Ceza puanı</span><b>Yok</b></div><div class="row"><span>Teklif reddetme</span><b>Cezasız</b></div><div class="row"><span>Müşteri kapıyı açmazsa</span><b>Ücretini yine alırsın</b></div></div>`;
   h += `<div class="p-sec">Son teslimatlar<span class="n">${jobs.length}</span></div>`;
-  if(!jobs.length) h += `<div class="p-empty"><div>🧾</div>Henüz teslimat yok.</div>`;
+  if(!jobs.length) h += `<div class="p-empty"><div>${J.ic('receipt',34)}</div>Henüz teslimat yok.</div>`;
   jobs.slice(0,20).forEach(j => h += `<div class="p-mini"><span>#${J.esc(j.no)} · ${J.esc(j.rname)}${j.t?` <span class="tiny muted">${new Date(j.t).toLocaleString('tr-TR',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>`:''}</span><b style="color:var(--ok)">+${J.tl(j.amount)}</b></div>`);
   return h;
 }
 function tabAccount(c){
-  return `${c.online ? J.batteryCard() : ''}<div class="p-card"><h3>Konum</h3><div class="p-grid2"><button class="${locMode==='gps'?'ok':'sec'}" data-a="loc" data-id="gps">📡 Gerçek GPS</button><button class="${locMode==='demo'?'ok':'sec'}" data-a="loc" data-id="demo">🎮 Demo sürüş</button></div>
+  return `${c.online ? J.batteryCard() : ''}<div class="p-card"><h3>Konum</h3><div class="p-grid2"><button class="${locMode==='gps'?'ok':'sec'}" data-a="loc" data-id="gps">${J.ic('locate-fixed',16)} Gerçek GPS</button><button class="${locMode==='demo'?'ok':'sec'}" data-a="loc" data-id="demo">${J.ic('gamepad-2',16)} Demo sürüş</button></div>
     <div class="tiny muted" style="margin-top:8px">${locMode==='gps' ? (gpsErr ? J.esc(gpsErr) : `Telefonunun konumu kullanılıyor${gpsAcc?` (±${gpsAcc} m)`:''}. Hedefe yaklaşınca durum kendiliğinden güncellenir.`) : 'Demo sürüş: masa başında denemek için kurye rotada kendiliğinden ilerler.'}</div></div>
     <div class="p-card small"><h3>Hesap</h3><div class="row"><span>Kullanıcı adı</span><b>${J.esc(c.login ? c.login.user : '')}</b></div><div class="row"><span>Bildirimler</span><b>${notifOk()?'Açık':'Kapalı'}</b></div><button class="sec wide" style="margin-top:12px" data-a="logout" ${myJob()?'disabled':''}>Çıkış yap</button>${myJob()?'<div class="tiny muted" style="margin-top:6px">Aktif teslimat bitmeden çıkış yapılamaz.</div>':''}</div>`;
 }
@@ -239,10 +194,10 @@ function drawMap(){
   const on = !!(offer || (o && ['isletmeye','yolda'].includes(o.del))) && tab==='gorev';
   showMap(on);
   if(!on || !map.ok) return;
-  map.set('ben', pos, '🛵', 'cour me', 'Sen');
+  map.set('ben', pos, J.ic('bike',16), 'cour me', 'Sen');
   const b = DB.get('businesses', (o||offer).rid);
-  if(b) map.set('biz', b, J.esc(b.emoji||'🏪'), '');
-  map.set('ev', (o||offer).customer, '🏠', 'home');
+  if(b) map.set('biz', b, J.bizIcon(b,16), '');
+  map.set('ev', (o||offer).customer, J.ic('house',16), 'home');
   if(route && o && ['isletmeye','yolda'].includes(o.del)) map.line('rota', route.pts, '#e8590c', route.source!=='osrm'); else map.clearLine('rota');
   const k = (o ? o.id+o.del : 'teklif') + (route ? route.pts.length : '');
   if(map._k !== k){ map._k = k; const tg = target(o) || b; map.fit([pos, tg]); }
@@ -259,7 +214,7 @@ function render(){
 }
 function renderTabs(){
   const c = cid && cour(); let h = '';
-  if(c) h = `<nav class="p-tabs">${[['gorev','🛵','Görev'],['kazanc','💰','Kazanç'],['hesap','👤','Hesap']].map(([k,ic,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}"><i>${ic}</i>${l}${k==='gorev'&&(myOffer()||myJob())&&tab!=='gorev'?'<span class="bdg">!</span>':''}</button>`).join('')}</nav>`;
+  if(c) h = `<nav class="p-tabs">${[['gorev','bike','Görev'],['kazanc','wallet','Kazanç'],['hesap','user','Hesap']].map(([k,ic,l]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}"><i>${J.ic(ic,22)}</i>${l}${k==='gorev'&&(myOffer()||myJob())&&tab!=='gorev'?'<span class="bdg">!</span>':''}</button>`).join('')}</nav>`;
   const el = document.getElementById('ptabs'); if(el.innerHTML !== h) el.innerHTML = h;
 }
 let lastCall = '';
