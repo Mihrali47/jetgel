@@ -151,3 +151,14 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-tips button{background:#f6f5f2;color:var(--ink);padding:10px 4px;border-radius:12px;font-size:13.5px;border:1.5px solid transparent}
 .m-tips button.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand)}
 .m-box h3 svg.ic{color:var(--brand)}
+.m-prio{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;color:var(--ink);border-radius:16px;padding:14px;margin-bottom:12px;border:2px solid transparent;font-weight:400}
+.m-prio.on{border-color:var(--brand);background:var(--brand-soft)}
+.m-prio .ic{width:40px;height:40px;border-radius:12px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;flex:none}
+.m-prio.on .ic{background:var(--brand);color:#fff}
+.m-prio .tx{flex:1;min-width:0}
+.m-prio .tx b{display:block;font-size:14.5px}
+.m-prio .tx small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.m-prio .sw{width:44px;height:26px;border-radius:99px;background:#d6d1c8;position:relative;flex:none}
+.m-prio .sw:after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+.m-prio.on .sw{background:var(--brand)}
+.m-prio.on .sw:after{left:21px}

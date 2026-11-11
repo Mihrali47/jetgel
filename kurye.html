@@ -127,10 +127,10 @@ function tabTask(c){
   let h = '';
   if(offer){
     const b = DB.get('businesses', offer.rid);
-    h += `<div class="p-offer"><div class="top2"><span>${J.ic('bell',17)} Yeni teslimat teklifi</span><span class="cd" data-live="down" data-end="${offer.offer.exp}">…</span></div><div class="amt">${J.tl(J.FEE.courier + (offer.tip||0))}</div><div class="small" style="opacity:.9">${offer.tip?`Sabit ${J.tl(J.FEE.courier)} + müşteriden ${J.tl(offer.tip)} bahşiş`:'Sabit ücret · bahşiş olursa tamamı senin'}</div>
+    h += `<div class="p-offer"><div class="top2"><span>${J.ic('bell',17)} Yeni teslimat teklifi</span><span class="cd" data-live="down" data-end="${offer.offer.exp}">…</span></div><div class="amt">${J.tl(J.FEE.courier + (offer.tip||0) + (offer.prio_fee||0))}</div><div class="small" style="opacity:.9">${[`Sabit ${J.tl(J.FEE.courier)}`].concat(offer.priority?[`hızlı teslimat +${J.tl(offer.prio_fee)}`]:[]).concat(offer.tip?[`bahşiş +${J.tl(offer.tip)}`]:[]).join(' · ')}${offer.priority?'<div style="margin-top:6px;font-weight:800">Hızlı teslimat: lütfen öncelik ver</div>':''}</div>
       <div class="leg">${J.ic('store',17)}<span>Alış: <b>${J.esc(offer.rname)}</b></span><b>${J.fmtDist(J.dist(pos,b))}</b></div><div class="leg">${J.ic('house',17)}<span>Teslim: <b>${J.esc(offer.customer.name)}</b></span><b>${J.fmtDist(J.dist(b,offer.customer))}</b></div>
       <div class="acts"><button class="ok" data-a="accept">Kabul et</button><button class="sec" data-a="decline">Reddet</button></div><small>Reddetmenin cezası yok. 30 sn içinde kabul etmezsen teklif sıradaki kuryeye geçer.</small></div>`;
-    J.notify('teklif-'+offer.id, 'Yeni teslimat teklifi', `${offer.rname} → ${J.tl(J.FEE.courier + (offer.tip||0))}`);
+    J.notify('teklif-'+offer.id, 'Yeni teslimat teklifi', `${offer.rname} → ${J.tl(J.FEE.courier + (offer.tip||0) + (offer.prio_fee||0))}${offer.priority?' · hızlı':''}`);
   }
   J.alarm('teklif', !!offer, 'order', 2500);
   if(o){
@@ -138,7 +138,7 @@ function tabTask(c){
     const done = [o.del!=='isletmeye', ['yolda','kapida'].includes(o.del), o.del==='kapida', false];
     const now = done.indexOf(false);
     const toBiz = o.del==='isletmeye'||o.del==='isletmede';
-    h += `<div class="p-card"><div class="row"><b style="font-size:16px">Teslimat #${J.esc(o.no)}</b><span class="pill ok">${J.tl(J.FEE.courier + (o.tip||0))}${o.tip?' · bahşişli':''}</span></div>
+    h += `<div class="p-card"><div class="row"><b style="font-size:16px">Teslimat #${J.esc(o.no)}</b><span class="pill ok">${J.tl(J.FEE.courier + (o.tip||0) + (o.prio_fee||0))}${o.priority?' · hızlı':''}${o.tip?' · bahşişli':''}</span></div>
       <div class="p-steps">${['İşletmeye git','Paketi al','Müşteriye git','Kodla teslim'].map((t,i) => `<div class="${done[i]?'done':i===now?'now':''}">${t}</div>`).join('')}</div>
       <div class="p-dest"><div class="av">${toBiz?J.bizIcon(b,22):J.ic('house',22)}</div><div class="tx"><b>${toBiz?J.esc(o.rname):J.esc(o.customer.name)}</b><span>${toBiz?'Paketi alacağın yer':J.esc(o.customer.note||'Teslimat adresi')} · ${J.fmtDist(J.dist(pos, tg||b))}</span></div><button class="p-ic" data-a="call" data-to="${toBiz?'isletme':'musteri'}" aria-label="Ara">${J.ic('phone',17)}</button></div>
       ${tg?`<div class="btns"><a class="btnlink" href="${J.gmaps(tg)}" target="_blank" rel="noopener">${J.ic('navigation',15)} Google Haritalar'da aç</a><button class="sm sec" data-a="call" data-to="${toBiz?'musteri':'isletme'}">${J.ic('phone',15)} ${toBiz?'Müşteri':'İşletme'}</button></div>`:''}`;

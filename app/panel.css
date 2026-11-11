@@ -110,3 +110,4 @@ body.p #map{margin:12px 14px 0;border-radius:16px;height:260px}
 .p-login .logo span{color:var(--brand)}
 .p-cour > span{display:grid;color:#6d6860}
 .p-timer span:first-child{display:flex;align-items:center;gap:6px}
+.p-ord.prio .hd{background:#fff5f5}

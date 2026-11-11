@@ -63,7 +63,8 @@ function orderCard(o){
   const c = o.courier_id && DB.get('couriers', o.courier_id), b = biz();
   const st = o.prep==='bekliyor' ? '<span class="pill brand">Yeni</span>' : o.prep==='hazirlaniyor' ? '<span class="pill blue">Hazırlanıyor</span>' : '<span class="pill ok">Hazır</span>';
   const net = o.subtotal-o.fees.biz-(o.refund||0);
-  let h = `<div class="p-ord ${o.prep==='bekliyor'?'new':''}"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${ago(o.created_at)}${o.customer.note?` · ${J.fmtDist(J.dist(b,o.customer))}`:''}</div>${st}</div><div class="bd">
+  let h = `<div class="p-ord ${o.prep==='bekliyor'?'new':''} ${o.priority?'prio':''}"><div class="hd"><span class="no">#${J.esc(o.no)}</span><div class="who"><b>${J.esc(o.customer.name)}</b>${ago(o.created_at)}${o.customer.note?` · ${J.fmtDist(J.dist(b,o.customer))}`:''}</div>${o.priority?`<span class="pill bad">${J.ic('timer',11)} Hızlı</span>`:''}${st}</div><div class="bd">
+    ${o.priority?`<div class="p-note" style="background:var(--bad-soft);margin:0 0 8px">${J.ic('timer',15)} <b>Hızlı teslimat:</b> müşteri ek ücret ödedi, lütfen öne alın.</div>`:''}
     <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}</span></li>`).join('')}</ul>
     ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
     <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
@@ -82,6 +83,7 @@ function tabOrders(b){
     h += `<div class="card bad"><h3>${J.ic('phone-off',16)} Cevapsız müşteri araması</h3><div class="small">#${J.esc(k.no)}: Müşteriyi <b><span data-live="mmss" data-end="${k.cb_deadline}">…</span></b> içinde geri aramazsanız ikaz alırsınız ve müşteriye %${J.PENALTY_RATE*100} iade yapılır.</div><div class="btns"><button class="bad" data-a="call" data-to="musteri" data-id="${k.order_id}">Müşteriyi geri ara</button></div></div>`;
   });
   const act = J.orders().filter(o => o.rid===b.id && o.state==='aktif');
+  act.sort((x,y) => (!!y.priority - !!x.priority) || (x.created_at - y.created_at));   // hızlı teslimatlar önce
   const groups = [['Yeni siparişler', act.filter(o => o.prep==='bekliyor'), true], ['Hazırlanıyor', act.filter(o => o.prep==='hazirlaniyor'), false], ['Hazır · kurye bekleniyor', act.filter(o => o.prep==='hazir'), false]];
   if(!act.length) h += b.open ? `<div class="p-empty" style="margin-top:14px"><div>${J.ic('hourglass',34)}</div><b>Yeni sipariş bekleniyor</b><div class="small">Sipariş gelince sesli uyarı çalar ve bildirim gelir.</div></div>`
     : `<div class="p-empty" style="margin-top:14px"><div>${J.ic('moon',34)}</div><b>Şu an kapalısınız</b><div class="small">Sipariş almak için yukarıdaki anahtarı açın.</div></div>`;
@@ -152,7 +154,7 @@ function renderMain(){
   // Uyarılar
   const waiting = J.orders().filter(o => o.rid===b.id && o.state==='aktif' && o.prep==='bekliyor');
   J.alarm('yeni', waiting.length > 0, 'order', 3000);
-  waiting.forEach(o => J.notify('yeni-'+o.id, 'Yeni sipariş #'+o.no, o.items.map(i => i.qty+'× '+i.name).join(', ')));
+  waiting.forEach(o => J.notify('yeni-'+o.id, (o.priority?'Hızlı sipariş #':'Yeni sipariş #')+o.no, o.items.map(i => i.qty+'× '+i.name).join(', ')));
   return h + `</div>`;
 }
 function renderTabs(){

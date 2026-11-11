@@ -7,7 +7,7 @@ const CFG = window.JETGEL_CONFIG || {};
 const J = window.J = window.J || {};
 
 /* ===================== AYARLAR (iş kuralları) ===================== */
-J.FEE = {custDel:50, custPlat:5, bizDel:50, bizPlat:5, courier:100, platform:10};
+J.FEE = {custDel:50, custPlat:5, bizDel:50, bizPlat:5, courier:100, platform:10, priority:25};   // priority: hızlı teslimat ek ücreti (müşteri öder, tamamı kuryeye)
 J.TIP_MAX = 500;                // bahşiş üst sınırı (TL)
 J.PENALTY_RATE = 0.15;          // ikazda müşteriye iade
 J.COMMISSION_RATE = 0.35;       // karşılaştırma için
@@ -166,7 +166,8 @@ J.PAY_TXT = {blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · tesli
 J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic('credit-card',12)} ${J.PAY_TXT[o.pay]||o.pay}</span>`;
 function payout(o){
   const tip = o.tip || 0;   // bahşişin tamamı kuryeye
-  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0), courier: J.FEE.courier + tip, tip, platform: J.FEE.platform, refund: o.refund||0};
+  const prio = o.priority ? (o.prio_fee || 0) : 0;   // hızlı teslimat ücreti de kuryeye
+  const shares = {business: o.subtotal - o.fees.biz - (o.refund||0), courier: J.FEE.courier + tip + prio, tip, priority: prio, platform: J.FEE.platform, refund: o.refund||0};
   DB.patch('orders', o.id, {pay:'dagitildi', shares});
   J.log(`#${o.no} ödeme dağıtıldı: işletme ${J.tl(shares.business)}, kurye ${J.tl(shares.courier)}, platform ${J.tl(shares.platform)}${shares.refund?`, iade ${J.tl(shares.refund)}`:''}.`, 'pay', o.id);
 }
@@ -185,11 +186,12 @@ J.placeOrder = function(b, cart, cust, extra){
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||''},
     note: String((extra && extra.note) || '').slice(0, 200),
     tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
+    priority: !!(extra && extra.priority), prio_fee: (extra && extra.priority) ? J.FEE.priority : 0,
     pin: String(Math.floor(1000+Math.random()*9000)), courier_id:null, offer:null, tried:[],
     created_at: J.now()
   };
   DB.put('orders', id, o);
-  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip)} bloke.${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
+  J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip+o.prio_fee)} bloke.${o.priority?' Hızlı teslimat.':''}${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
   return o;
 };
 J.acceptOrder = function(o, prepMin){
@@ -233,7 +235,8 @@ J.dispatchTick = function(o){
     return;
   }
   const c = cands[0];
-  DB.patch('orders', o.id, {offer:{cid:c.id, exp: t + J.OFFER_MS}, del:'araniyor', no_cand_logged:false});
+  // Hızlı teslimatta teklif süresi yarıya iner: yanıt vermeyen kuryeden sıradakine daha çabuk geçilir
+  DB.patch('orders', o.id, {offer:{cid:c.id, exp: t + (o.priority ? J.OFFER_MS/2 : J.OFFER_MS)}, del:'araniyor', no_cand_logged:false});
   J.log(`#${o.no} teklifi → ${c.name} (işletmeye ${J.fmtDist(J.dist(c, DB.get('businesses',o.rid)))}).`, 'dispatch', o.id);
 };
 J.courierAccept = async function(c, o){
@@ -252,9 +255,9 @@ J.arriveBusiness = o => { DB.patch('orders', o.id, {del:'isletmede'}); J.log(`#$
 J.pickup = o => { DB.patch('orders', o.id, {del:'yolda', picked_at:J.now()}); J.log(`#${o.no} paket alındı (fiş QR), müşteriye gidiyor.`, '', o.id); };
 J.arriveCustomer = o => { DB.patch('orders', o.id, {del:'kapida', arrived_at:J.now()}); J.log(`#${o.no} kurye müşterinin kapısında.`, '', o.id); };
 function finishCourier(c, o){
-  const tip = o.tip || 0;
-  const jobs = [{id:o.id, no:o.no, t:J.now(), amount:J.FEE.courier + tip, tip, rname:o.rname}].concat(c.jobs||[]).slice(0,50);
-  DB.patch('couriers', c.id, {busy:null, earnings:(c.earnings||0)+J.FEE.courier+tip, jobs});
+  const tip = o.tip || 0, prio = o.priority ? (o.prio_fee || 0) : 0;
+  const jobs = [{id:o.id, no:o.no, t:J.now(), amount:J.FEE.courier + tip + prio, tip, prio, rname:o.rname}].concat(c.jobs||[]).slice(0,50);
+  DB.patch('couriers', c.id, {busy:null, earnings:(c.earnings||0)+J.FEE.courier+tip+prio, jobs});
 }
 J.complete = function(c, o, how){
   DB.patch('orders', o.id, {state:'teslim', del:'teslim', delivered_at:J.now(), how});
