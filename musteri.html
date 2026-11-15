@@ -53,7 +53,7 @@ const GUEST_VIEWS = ['liste', 'menu', 'sepet', 'giris'];
 function needLogin(next, msg){ afterLogin = next; loginErr = ''; showReg = false; J.toast(msg || 'Devam etmek için giriş yap ya da hesap oluştur.'); go('giris'); }
 let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
-let q = '', group = 'Hepsi', orderNote = '', tip = 0, tipCustom = false, prio = false, sched = null;
+let q = '', group = 'Hepsi', orderNote = '', tip = 0, tipCustom = false, prio = false, sched = null, payM = 'kart', cashFor = '';
 const TIPS = [0, 10, 20, 30, 50];
 const tipBox = (sel, act, custom) => `<div class="m-tips">${TIPS.map(v => `<button class="${sel===v && !custom?'on':''}" data-a="${act}" data-v="${v}">${v?J.tl(v):'Yok'}</button>`).join('')}<button class="${custom?'on':''}" data-a="${act}" data-v="diger">Diğer</button></div>`;
 let map = null, wantMap = false, pendingFit = null;
@@ -261,6 +261,9 @@ function renderCart(){
       ${sched?`<select id="sched-sel" style="margin-top:10px">${J.schedSlots(b).map(t => `<option value="${t}" ${t===sched?'selected':''}>${J.fmtSched(t)}</option>`).join('')}</select><div class="tiny muted" style="margin-top:6px">Siparişin teslim saatinden ${J.SCHED_LEAD} dk önce işletmeye iletilir. Ödeme o zamana kadar sadece bloke edilir.</div>`:''}</div>
     <button class="m-prio ${prio?'on':''}" data-a="prio"><span class="ic">${J.ic('timer',20)}</span><span class="tx"><b>Hızlı teslimat · +${J.tl(J.FEE.priority)}</b><small>İşletme siparişini öne alır, kurye daha hızlı atanır. Hedef: 5-10 dk daha erken. Ücretin tamamı kuryeye.</small></span><span class="sw"></span></button>
     <div class="m-box"><h3>${J.ic('heart-handshake',16)} Kuryeye bahşiş</h3><div class="tiny muted" style="margin:-4px 0 10px">İsteğe bağlı. Bahşişin tamamı kuryeye gider, kesinti yapılmaz.</div>${tipBox(tip, 'tip', tipCustom)}${tipCustom?`<input id="tip-in" inputmode="numeric" placeholder="Tutar (TL)" value="${tip||''}" style="margin-top:8px">`:''}</div>
+    <div class="m-box"><h3>${J.ic('wallet',16)} Ödeme</h3>${prof.door_block ? `<div class="card bad small" style="margin:0">#${J.esc(prof.door_block_order||'')} siparişinde sana ulaşılamadığı için kapıda ödeme hesabında kapatıldı. Açtırmak için destekle iletişime geç.</div>` : `
+      <div class="m-sort" style="margin:0">${Object.entries(J.PAY_METHODS).map(([k,t]) => `<button class="${payM===k?'on':''}" data-a="paym" data-id="${k}">${J.ic(k==='nakit'?'banknote':'credit-card',15)} ${t}</button>`).join('')}</div>
+      ${payM==='nakit' ? `<label class="f" for="cash-for">Kaç TL'lik banknotla ödeyeceksin? <span class="muted">(kurye para üstünü hazırlasın, isteğe bağlı)</span></label><input id="cash-for" inputmode="numeric" placeholder="Örn. 500" value="${J.esc(cashFor)}">` : `<div class="tiny muted" style="margin-top:8px">Kurye yanında POS cihazı getirir; kartını kapıda okutursun.</div>`}`}</div>
     <div class="m-box m-sum"><h3>Ödeme özeti</h3>
       <div class="row"><span>Ürünler</span><span class="money">${J.tl(sub)}</span></div>
       <div class="row"><span>Teslimat ücreti<small>Tamamı kuryeye gider</small></span><span class="money">${f.del?J.tl(f.del):'<span style="color:var(--ok)">Ücretsiz</span>'}</span></div>
@@ -271,7 +274,7 @@ function renderCart(){
       ${tip?`<div class="row"><span>Kurye bahşişi<small>Tamamı kuryeye gider</small></span><span class="money">${J.tl(tip)}</span></div>`:''}
       <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, sub)-ldisc(b, sub))}</b></div></div>
     <div class="m-fair"><i>${J.ic('handshake',22)}</i><div><b>Komisyon yok.</b> ${b.free_delivery?'Bu işletme teslimat ücretini senin yerine ödüyor.':'İşletme de bu sipariş için sabit ücret öder; ürün fiyatlarına yüzde eklenmez.'}</div></div>
-    <div class="note" style="margin-bottom:12px">Ödeme simülasyonu: gerçek para çekilmez. Gerçek sistemde önce kartında yalnızca blokaj olur; işletme onaylarsa çekilir, reddederse kalkar.</div></div>`;
+    <div class="note" style="margin-bottom:12px">Ödemeyi siparişin kapına geldiğinde kuryeye yaparsın. İşletme siparişi reddederse hiçbir ödeme yapmazsın.</div></div>`;
 }
 
 /* ---------- Takip ---------- */
@@ -317,9 +320,9 @@ function renderTrack(){
     J.msgNotify(o, 'musteri');
   }
   if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
-  if(o.state==='red') h += `<div class="card bad small"><b>${J.esc(J.REJECT_REASONS[o.reject_reason] || J.REJECT_REASONS.diger)}.</b>${o.reject_items && o.reject_items.length ? ` Tükenen: ${o.reject_items.map(J.esc).join(', ')}.` : ''} İşletme siparişi kabul edemedi. Kartındaki blokaj kaldırıldı, para çekilmedi.</div>`;
+  if(o.state==='red') h += `<div class="card bad small"><b>${J.esc(J.REJECT_REASONS[o.reject_reason] || J.REJECT_REASONS.diger)}.</b>${o.reject_items && o.reject_items.length ? ` Tükenen: ${o.reject_items.map(J.esc).join(', ')}.` : ''} İşletme siparişi kabul edemedi. ${J.isDoor(o) ? 'Herhangi bir ödeme yapmana gerek yok.' : 'Kartındaki blokaj kaldırıldı, para çekilmedi.'}</div>`;
   if(o.state==='aktif' && o.prep==='hazirlaniyor' && o.prep_ext) h += `<div class="card small">${J.ic('clock',15)} İşletme siparişin için ${o.prep_ext_min} dk ek süre istedi; tahmini teslim saati güncellendi.</div>`;
-  if(o.state==='iptal') h += `<div class="card bad small">Sipariş destek ekibimiz tarafından iptal edildi${o.cancel_reason ? ' (' + J.esc(o.cancel_reason) + ')' : ''}. ${o.pay==='iade' ? 'Ödediğin tutarın tamamı kartına iade edildi.' : 'Kartındaki blokaj kaldırıldı, para çekilmedi.'}</div>`;
+  if(o.state==='iptal') h += `<div class="card bad small">Sipariş destek ekibimiz tarafından iptal edildi${o.cancel_reason ? ' (' + J.esc(o.cancel_reason) + ')' : ''}. ${J.isDoor(o) ? 'Herhangi bir ödeme yapmana gerek yok.' : o.pay==='iade' ? 'Ödediğin tutarın tamamı kartına iade edildi.' : 'Kartındaki blokaj kaldırıldı, para çekilmedi.'}</div>`;
   h += `<div class="m-box m-sum"><h3>Sipariş detayı</h3>${o.items.map(i => `<div class="row"><span>${i.qty}× ${J.itemLabel(i)}</span><span class="money">${J.tl(i.qty*i.price)}</span></div>`).join('')}
     <div class="row"><span>Teslimat + hizmet bedeli</span><span class="money">${o.fees.cust?J.tl(o.fees.cust):'Ücretsiz'}</span></div>
     ${o.loyalty_disc?`<div class="row" style="color:var(--ok)"><span>Sadakat indirimi</span><span class="money">−${J.tl(o.loyalty_disc)}</span></div>`:''}
@@ -329,6 +332,7 @@ function renderTrack(){
     ${o.tip||o.tip_after?`<div class="row"><span>Kurye bahşişi</span><span class="money">${J.tl((o.tip||0)+(o.tip_after||0))}</span></div>`:''}
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
     <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0) - (o.refund||0) - (o.claim_refund||0))}</b></div>
+    ${J.isDoor(o) ? `<div class="row"><span>Ödeme</span><span>${J.payPill(o)}</span></div>${o.state==='aktif' ? `<div class="tiny muted" style="margin-top:6px">Kapıda ödeyeceğin tutar: <b>${J.tl(J.custPaid(o))}</b>${o.cash_for ? ` · ${J.tl(o.cash_for)} ile ödeyeceğini kuryeye ilettik` : ''}. Teslimat kodunu ödemeden sonra söyle.</div>` : ''}${(o.refund || o.claim_refund) && o.state==='teslim' ? `<div class="tiny muted" style="margin-top:6px">İade tutarı sana destek ekibimiz tarafından ödenecek.</div>` : ''}` : ''}
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
   if(o.state==='teslim') h += claimBox(o);
   if(o.state==='teslim' && !o.rated){
@@ -340,7 +344,7 @@ function renderTrack(){
       <button class="brand wide" style="margin-top:10px" data-a="rate-send" ${rate.biz||rate.cour?'':'disabled'}>Değerlendirmeyi gönder</button></div>`;
   }
   if(o.state==='teslim' && o.rated && o.rating) h += `<div class="m-fair"><i>${J.ic('star',20)}</i><div><b>Değerlendirmen için teşekkürler.</b> İşletme ${o.rating.biz||'-'}/5${o.courier_id?` · Kurye ${o.rating.cour||'-'}/5`:''}</div></div>`;
-  if(o.state==='teslim' && o.courier_id && !o.tip && !o.tip_after) h += `<div class="m-box"><h3>${J.ic('heart-handshake',16)} Kuryene bahşiş bırak</h3><div class="tiny muted" style="margin:-4px 0 10px">Memnun kaldıysan teşekkür et. Tamamı kuryeye gider.</div><div class="m-tips">${[20,30,50,100].map(v => `<button data-a="tip-after" data-v="${v}">${J.tl(v)}</button>`).join('')}</div></div>`;
+  if(o.state==='teslim' && o.courier_id && !o.tip && !o.tip_after && !J.isDoor(o)) h += `<div class="m-box"><h3>${J.ic('heart-handshake',16)} Kuryene bahşiş bırak</h3><div class="tiny muted" style="margin:-4px 0 10px">Memnun kaldıysan teşekkür et. Tamamı kuryeye gider.</div><div class="m-tips">${[20,30,50,100].map(v => `<button data-a="tip-after" data-v="${v}">${J.tl(v)}</button>`).join('')}</div></div>`;
   if(o.state==='teslim' && o.tip_after) h += `<div class="m-fair"><i>${J.ic('heart-handshake',22)}</i><div><b>Teşekkürler!</b> ${J.tl(o.tip_after)} bahşişin kuryene iletildi.</div></div>`;
   if(o.state==='teslim' && bizOpen(b)) h += `<button class="brand wide" data-a="reorder" data-id="${o.id}">${J.ic('rotate-ccw',16)} Aynısını tekrar sipariş ver</button>`;
   if(o.del==='kapida' && o.state==='aktif'){ J.notify('kapi-'+o.id, 'Kuryen kapında', 'Teslimat kodun: ' + o.pin); J.alarm('kapi', true, 'ok', 6000); } else J.alarm('kapi', false);
@@ -352,7 +356,7 @@ function claimBox(o){
     const c = o.claim, ok = c.state === 'onaylandi';
     return `<div class="m-box"><h3>${J.ic('triangle-alert',16)} Sorun bildirimin</h3><div class="row small"><span>${J.esc(J.CLAIM_REASONS[c.reason]||'')} · ${c.picks.map(p => `${p.qty}× ${J.esc((o.items[p.i]||{}).name||'')}`).join(', ')}</span><b class="money">${J.tl(c.amount)}</b></div>
       <div style="margin-top:8px"><span class="pill ${ok?'ok':c.state==='beklemede'||c.state==='itiraz'?'warn':'bad'}">${J.CLAIM_TXT[c.state]}</span></div>
-      ${ok?`<div class="small" style="margin-top:8px">${J.tl(c.amount)} iade, ödediğin karta yapılır (simülasyon). İade işletmenin payından karşılanır.</div>`:''}
+      ${ok?`<div class="small" style="margin-top:8px">${J.tl(c.amount)} iade sana destek ekibimiz tarafından ödenir. İade işletmenin payından karşılanır.</div>`:''}
       ${c.state==='reddedildi'?`<div class="small muted" style="margin-top:8px">İşletme bildirimini kabul etmedi. Haklı olduğunu düşünüyorsan yönetime itiraz edebilirsin.</div><button class="sec wide" style="margin-top:8px" data-a="clm-esc">Yönetime itiraz et</button>`:''}</div>`;
   }
   if(!J.canClaim(o)) return '';
@@ -538,6 +542,8 @@ document.addEventListener('click', e => {
     if(miss) J.toast(`${miss} ürün artık satışta değil, sepete eklenmedi.`);
     go(cartCount() ? 'sepet' : 'menu');
   }
+  if(a==='paym'){ payM = id; }
+  if(a==='order' && !isGuest() && prof.door_block){ J.toast('Kapıda ödeme hesabında kapalı. Destekle iletişime geç.'); return; }
   if(a==='order' && isGuest()){ needLogin('sepet'); render(); return; }
   if(a==='order'){
     const b = DB.get('businesses', curBiz);
@@ -548,7 +554,7 @@ document.addEventListener('click', e => {
     if(dup){ J.toast('Bu siparişi az önce verdin; takip ekranına yönlendiriliyorsun.'); cart = {}; trackId = dup.id; J.store.set('musteri_takip', dup.id); go('takip'); render(); return; }
     placing = true; setTimeout(() => { placing = false; }, 3000);
     if(J.isFull(b) && !sched){ J.toast('İşletme şu an çok yoğun. Birkaç dakika sonra tekrar dene ya da planlı sipariş ver.'); render(); return; }
-    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
+    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, pay_method: payM, cash_for: cashFor, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; sched = null; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
     else J.toast('Sipariş verilemedi. Sepetteki bir ürün tükenmiş ya da işletme yoğun olabilir; sepeti kontrol et.');
   }
@@ -619,6 +625,7 @@ document.addEventListener('change', e => {
 document.addEventListener('input', e => {
   if(e.target.id==='q'){ q = e.target.value; render(); return; }
   if(e.target.id==='o-note'){ orderNote = e.target.value; return; }
+  if(e.target.id==='cash-for'){ cashFor = e.target.value.replace(/\D/g,'').slice(0,5); return; }
   if(e.target.id==='rate-note'){ rate.note = e.target.value; return; }
   if(e.target.id==='clm-note'){ clm.note = e.target.value; return; }
   if(e.target.id==='tip-in'){ tip = Math.max(0, Math.min(J.TIP_MAX, parseInt(e.target.value.replace(/\D/g,''),10) || 0)); renderBar(); return; }
@@ -627,7 +634,7 @@ document.addEventListener('input', e => {
   if(e.target.id==='p-note') draft.note = e.target.value;
 });
 // Yazı yazılırken (not, adres) ekranı yeniden çizme
-const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='clm-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='p-name' || a.id==='p-note'); };
+const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='clm-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='cash-for' || a.id==='p-name' || a.id==='p-note'); };
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 function guestLocate(){

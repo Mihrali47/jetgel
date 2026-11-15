@@ -49,7 +49,7 @@ J.store = {
 /* ===================== VERİ KATMANI =====================
    Demo modu: localStorage + BroadcastChannel (aynı cihazdaki sekmeler).
    Canlı mod: Supabase "kayitlar" tablosu + realtime (tüm cihazlar). */
-const TABLES = ['businesses','couriers','customers','orders','calls','events','settings','applications'];
+const TABLES = ['businesses','couriers','customers','orders','calls','events','settings','applications', 'settlements'];
 const DB = J.DB = {mode:'demo', status:'baglaniyor', cache:{}, listeners:[]};
 TABLES.forEach(t => DB.cache[t] = new Map());
 DB.rows = t => Array.from(DB.cache[t].values());
@@ -164,8 +164,14 @@ J.partyName = function(p){
 /* ===================== ÖDEME (simülasyon) =====================
    Para platformun hesabına uğramaz (alt üye işyeri modeli varsayımı).
    blokaj → işletme onayında çekim (bekletiliyor) → teslimde dağıtım. Red → blokaj kalkar. */
-J.PAY_TXT = {blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi', iade:'Tamamı iade edildi'};
-J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':o.pay==='kalkti'?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic('credit-card',12)} ${J.PAY_TXT[o.pay]||o.pay}</span>`;
+/* KAPIDA ÖDEME (ilk aşama): Online ödeme altyapısı bağlanana kadar müşteri kapıda kurye'ye öder (POS ile kart ya da nakit).
+   Kurye tutarın tamamını tahsil eder; kendi payını (100 TL + bahşiş + hızlı ücret) alır, işletme payını işletmeye, platform payını platforma teslim eder.
+   Hesaplaşmalar 'settlements' tablosuna kaydedilir. */
+J.ONLINE_PAY = false;   // ödeme kuruluşu bağlanınca true
+J.PAY_METHODS = {kart:'Kapıda kartla (POS)', nakit:'Kapıda nakit'};
+J.isDoor = o => o && (o.pay_method === 'kart' || o.pay_method === 'nakit');
+J.PAY_TXT = {kapida:'Kapıda ödenecek', yok:'Ödeme alınmadı', blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi', iade:'Tamamı iade edildi'};
+J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':(o.pay==='kalkti'||o.pay==='yok')?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',12)} ${J.isDoor(o) && o.pay==='dagitildi' ? (o.pay_method==='nakit'?'Kapıda nakit tahsil edildi':'Kapıda kartla tahsil edildi') : J.isDoor(o) && o.pay==='kapida' ? J.PAY_METHODS[o.pay_method] : (J.PAY_TXT[o.pay]||o.pay)}</span>`;
 function payout(o){
   const tip = o.tip || 0;   // bahşişin tamamı kuryeye
   const prio = o.priority ? (o.prio_fee || 0) : 0;   // hızlı teslimat ücreti de kuryeye
@@ -228,7 +234,7 @@ J.placeOrder = function(b, cart, cust, extra){
   const id = J.uid('o');
   const o = {
     id, no: String(Date.now()).slice(-5), rid:b.id, rname:b.name, items, subtotal, fees,
-    state:'aktif', prep:'bekliyor', del:'yok', pay:'blokaj', refund:0,
+    state:'aktif', prep:'bekliyor', del:'yok', pay: J.PAY_METHODS[extra && extra.pay_method] ? 'kapida' : 'blokaj', pay_method: J.PAY_METHODS[extra && extra.pay_method] ? extra.pay_method : 'online', cash_for: extra && extra.pay_method === 'nakit' ? Math.max(0, parseInt(extra.cash_for,10) || 0) : 0, refund:0,
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||'', mahalle:cust.mahalle||''},
     note: String((extra && extra.note) || '').slice(0, 200),
     tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
@@ -273,15 +279,15 @@ J.prepEstimate = function(b, extraLoad){
 J.acceptOrder = function(o, prepMin){
   const b = DB.get('businesses', o.rid);
   if(!prepMin) prepMin = b ? J.prepEstimate(b) : 12;
-  DB.patch('orders', o.id, {pick_code: o.pick_code || String(1000 + Math.floor(Math.random()*9000)), prep:'hazirlaniyor', prep_until: J.now() + prepMin*J.minMs(), prep_min:prepMin, pay:'bekletiliyor', del:'araniyor', accepted_at:J.now()});
-  J.log(`#${o.no} işletme onayladı (tahmini hazırlık ${prepMin} dk). Ödeme çekildi, teslimata kadar bekletiliyor.`, 'order', o.id);
+  DB.patch('orders', o.id, {pick_code: o.pick_code || String(1000 + Math.floor(Math.random()*9000)), prep:'hazirlaniyor', prep_until: J.now() + prepMin*J.minMs(), prep_min:prepMin, pay: J.isDoor(o) ? 'kapida' : 'bekletiliyor', del:'araniyor', accepted_at:J.now()});
+  J.log(`#${o.no} işletme onayladı (tahmini hazırlık ${prepMin} dk). ${J.isDoor(o) ? 'Ödeme kapıda alınacak (' + J.PAY_METHODS[o.pay_method] + ').' : 'Ödeme çekildi, teslimata kadar bekletiliyor.'}`, 'order', o.id);
 };
 J.REJECT_REASONS = {yogun:'Şu an çok yoğunuz', tukendi:'Siparişteki bir ürün tükendi', kapaniyor:'Mutfağımız kapanmak üzere', adres:'Adresiniz hizmet alanımızın dışında', diger:'İşletme siparişi kabul edemedi'};
 // outIdx: tükenen ürünlerin sipariş içindeki sırası; menüde "tükendi" olarak işaretlenir
 J.rejectOrder = function(o, reason, outIdx){
   reason = J.REJECT_REASONS[reason] ? reason : 'diger';
   const out = (outIdx||[]).map(i => o.items[i] && o.items[i].name).filter(Boolean);
-  DB.patch('orders', o.id, {state:'red', pay:'kalkti', reject_reason:reason, reject_items:out});
+  DB.patch('orders', o.id, {state:'red', pay: J.isDoor(o) ? 'yok' : 'kalkti', reject_reason:reason, reject_items:out});
   J.stockMove(o.rid, o.items.filter(i => !out.includes(i.name)), +1);
   if(out.length){ const b = DB.get('businesses', o.rid); if(b) DB.patch('businesses', b.id, {menu:(b.menu||[]).map(m => out.includes(m.name) ? Object.assign({}, m, {available:false}) : m)}); }
   if(o.discount && o.coupon_id) J.couponReturn(o);
@@ -505,7 +511,7 @@ J.adminCancel = function(o, reason){
   if(o.courier_id) DB.patch('couriers', o.courier_id, {busy:null});
   const refunded = o.pay === 'bekletiliyor';
   J.stockMove(o.rid, o.items, +1);
-  DB.patch('orders', o.id, {state:'iptal', pay: refunded ? 'iade' : 'kalkti', cancel_reason: reason || 'Yönetim iptali', cancelled_at:J.now(), offer:null});
+  DB.patch('orders', o.id, {state:'iptal', pay: J.isDoor(o) ? 'yok' : refunded ? 'iade' : 'kalkti', cancel_reason: reason || 'Yönetim iptali', cancelled_at:J.now(), offer:null});
   if(o.discount && o.coupon_id) J.couponReturn(o);
   J.log(`#${o.no} yönetim tarafından iptal edildi (${reason||'-'}). ${refunded ? 'Ödemenin tamamı iade edildi.' : 'Blokaj kaldırıldı.'}`, 'bad', o.id);
   return true;
@@ -710,8 +716,36 @@ J.addTip = async function(o, amount){
 J.unreachable = function(c, o){
   DB.patch('orders', o.id, {state:'ulasilamadi', del:'ulasilamadi'});
   finishCourier(c, o);
+  if(J.isDoor(o)){
+    // Kapıda ödemede para alınamadı: müşterinin kapıda ödeme hakkı kapanır, durum yönetime düşer
+    DB.patch('orders', o.id, {pay:'yok'});
+    const cu = DB.get('customers', o.customer.id); if(cu) DB.patch('customers', cu.id, {door_block:true, door_block_t:J.now(), door_block_order:o.no});
+    J.log(`#${o.no} müşteriye ulaşılamadı; kapıda ödeme alınamadı. Müşterinin kapıda ödeme hakkı kapatıldı.`, 'bad', o.id);
+    return;
+  }
   J.log(`#${o.no} müşteriye ulaşılamadı (kurye bekledi ve aradı). Kurallar gereği iade yok.`, 'bad', o.id);
   payout(o);
+};
+// Hesaplaşma: kuryenin kapıda topladığı paradan işletmeye ve platforma borcu
+J.settlements = () => DB.rows('settlements');
+J.doorLedger = function(){
+  const L = {};   // L[courierId] = {biz:{bid:tutar}, plat, refund, collected, paidBiz:{bid}, paidPlat}
+  const get = cid => L[cid] = L[cid] || {biz:{}, plat:0, refund:0, collected:0, keep:0, paidBiz:{}, paidPlat:0};
+  J.orders().filter(o => J.isDoor(o) && o.state === 'teslim' && o.shares && o.courier_id).forEach(o => {
+    const x = get(o.courier_id), sh = o.shares;
+    x.collected += o.collected || J.custPaid(o); x.keep += sh.courier;
+    x.biz[o.rid] = (x.biz[o.rid]||0) + sh.business;   // sorun bildirimi iadesi düşülmüş pay
+    x.plat += sh.platform; x.refund += (sh.refund||0) + (o.claim_refund||0);   // müşteriye geri verilecekler platform üzerinden ödenir
+  });
+  J.settlements().forEach(s => { const x = get(s.cid); if(s.to === 'platform') x.paidPlat += s.amount; else x.paidBiz[s.to] = (x.paidBiz[s.to]||0) + s.amount; });
+  return L;
+};
+J.settle = function(cid, to, amount, by){
+  if(!(amount > 0)) return false;
+  DB.put('settlements', J.uid('s'), {cid, to, amount:Math.round(amount*100)/100, t:J.now(), by});
+  const c = DB.get('couriers', cid), b = to === 'platform' ? null : DB.get('businesses', to);
+  J.log(`Hesaplaşma: ${c ? c.name : 'kurye'} → ${b ? b.name : 'platform'} ${J.tl(amount)} teslim etti (${by} onayladı).`, 'pay');
+  return true;
 };
 
 /* ===================== İKAZ =====================
@@ -729,7 +763,8 @@ J.strikeTick = async function(){
     if(!(await DB.claim('calls', k.id, 'cezalandi'))) continue;
     if(!(await DB.claim('orders', o.id, 'strike_applied'))) continue;   // siparişte en fazla bir ikaz
     const refund = Math.round(o.subtotal * J.PENALTY_RATE);
-    DB.patch('orders', o.id, {refund:(o.refund||0)+refund});
+    // Ödeme dağıtıldıysa paylar da güncellenir (iade işletme payından)
+    DB.patch('orders', o.id, Object.assign({refund:(o.refund||0)+refund}, o.shares ? {shares:Object.assign({}, o.shares, {business:o.shares.business - refund, refund:(o.shares.refund||0) + refund})} : {}));
     const strikes = (b.strikes||[]).concat([{id:J.uid('i'), t, order_id:o.id, no:o.no, refund, appeal:null, removed:false}]);
     const n = strikes.filter(s => !s.removed).length;
     const patch = {strikes};

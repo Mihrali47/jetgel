@@ -90,6 +90,7 @@ function orderCard(o){
     ${o.priority?`<div class="p-note" style="background:var(--bad-soft);margin:0 0 8px">${J.ic('timer',15)} <b>Hızlı teslimat:</b> müşteri ek ücret ödedi, lütfen öne alın.</div>`:''}
     <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}${i.opts&&i.opts.length?`<span class="p-opts">${i.opts.map(J.esc).join(' · ')}</span>`:''}</span></li>`).join('')}</ul>
     ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
+    ${J.isDoor(o)?`<div class="tiny" style="margin-top:8px">${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',13)} Müşteri kapıda <b>${o.pay_method==='nakit'?'nakit':'kartla'}</b> ödeyecek; kurye tahsil edip payınızı size teslim eder.</div>`:''}
     <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.loyalty_disc?`<span>Sadakat indirimi (katkınız)</span><b>−${J.tl(o.loyalty_disc)}</b>`:''}${o.discount?`<span>Başkan kuponu (katkınız)</span><b>−${J.tl(o.discount)}</b>`:''}${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
   if(o.prep==='bekliyor'){ const st = J.prepStats(b), est = J.prepEstimate(b);
     h += `<div class="p-timer" style="background:#f6f5f2;color:var(--ink)"><span>${J.ic('timer',16)} Tahmini hazırlık süresi</span><span><b>${est}</b> dk</span></div><div class="tiny muted" style="margin-top:6px">${st.avg!=null?`Son siparişlerinizdeki ortalama ${Math.round(st.avg)} dk`:'Başlangıç süresi'}${st.load?` + şu an hazırlanan ${st.load} sipariş`:''}. Süreyi sistem yoğunluğunuza göre belirler; "Hazır" dediğiniz anlar ortalamayı günceller.</div>
@@ -129,7 +130,7 @@ function printTicket(o){
   </style></head><body><h1>${J.esc(b.name)}</h1><div class="c">${d}</div><div class="no">#${J.esc(o.no)}</div>
   ${o.priority ? '<div class="c big">*** HIZLI TESLİMAT ***</div>' : ''}${o.sched_at ? `<div class="c big">PLANLI: ${J.esc(J.fmtSched(o.sched_at))}</div>` : ''}<hr>
   ${o.items.map(i => row(`${i.qty} x ${J.esc(i.name)}`, J.tl(i.price*i.qty)) + (i.opts && i.opts.length ? `<div class="o">${i.opts.map(J.esc).join(', ')}</div>` : '')).join('')}<hr>
-  ${row('Ara toplam', J.tl(o.subtotal))}${o.note ? `<hr><div class="big">NOT: ${J.esc(o.note)}</div>` : ''}<hr>
+  ${row('Ara toplam', J.tl(o.subtotal))}${J.isDoor(o) ? row('<b>KAPIDA ' + (o.pay_method==='nakit' ? 'NAKİT' : 'KART') + '</b>', '<b>' + J.tl(J.custPaid(o)) + '</b>') : ''}${o.note ? `<hr><div class="big">NOT: ${J.esc(o.note)}</div>` : ''}<hr>
   <div>${J.esc(o.customer.name)}</div><div>${J.esc(o.customer.note || '')}</div><hr>${o.pick_code ? `<div class="c">KURYE ALIŞ KODU</div><div class="no" style="font-size:24px">${J.esc(o.pick_code)}</div><div class="c qr">${J.qrSvg(J.pickQr(o), 4)}</div><div class="c">Kurye bu QR'ı okutarak ya da kodu girerek paketi alır.</div>` : ''}
   <script>window.onload=()=>{window.print();}<\/script></body></html>`);
   w.document.close();
@@ -236,11 +237,18 @@ function reportCard(b){
     ${r.os.length?`<div class="lbl">Saatlere göre sipariş</div><div class="p-bars">${r.hours.map((n,h) => `<div title="${h}:00 · ${n} sipariş"><i style="height:${Math.round(n/mx*100)}%"></i><span>${h%3===0?h:''}</span></div>`).join('')}</div>`:''}
     <button class="sec wide" style="margin-top:12px" data-a="csv" ${r.os.length?'':'disabled'}>${J.ic('download',15)} Excel için indir (CSV)</button></div>`;
 }
+function courierDueCard(b){
+  const L = J.doorLedger(), rows = Object.keys(L).map(cid => ({c:DB.get('couriers', cid), cid, due:(L[cid].biz[b.id]||0) - (L[cid].paidBiz[b.id]||0)})).filter(r => r.due >= 0.5);
+  if(!rows.length) return '';
+  return `<div class="p-sec">Kuryelerden alacağınız<span class="n hot">${rows.length}</span></div><div class="p-card"><div class="tiny muted" style="margin-bottom:6px">Kapıda ödemeli siparişlerde kurye müşteriden tahsil ettiği tutardan sizin payınızı size teslim eder. Parayı aldığınızda onaylayın.</div>
+    ${rows.map(r => `<div class="p-mini"><span>${J.ic('bike',14)} ${J.esc(r.c ? r.c.name : 'Kurye')}</span><span><b>${J.tl(r.due)}</b> <button class="ok sm" data-a="settle" data-id="${r.cid}" data-v="${r.due}">Teslim aldım</button></span></div>`).join('')}</div>`;
+}
 function tabEarn(b){
   const paid = J.orders().filter(o => o.rid===b.id && o.pay==='dagitildi' && o.shares);
   const got = paid.reduce((s,o) => s+o.shares.business, 0), would = Math.round(paid.reduce((s,o) => s+o.subtotal, 0)*(1-J.COMMISSION_RATE));
   let h = `<div class="p-card" style="margin-top:14px;background:linear-gradient(135deg,#1f9d55,#2b8a3e);color:#fff"><div class="small" style="opacity:.85">Komisyonsuz sistemle fazladan kazancınız</div><div style="font-size:32px;font-weight:900">+${J.tl(Math.max(0,got-would))}</div><div class="small" style="opacity:.85">${paid.length} tamamlanan sipariş</div></div>
-    <div class="p-card"><div class="row small"><span>Hesabınıza geçen</span><b class="money">${J.tl(got)}</b></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="note">Ürün bedeli platformun hesabına uğramaz; ödeme kuruluşu teslimatta doğrudan sizin hesabınıza aktarır (şu an simülasyon).</div></div>`;
+    <div class="p-card"><div class="row small"><span>Hesabınıza geçen</span><b class="money">${J.tl(got)}</b></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="note">Ödeme şimdilik kapıda alınır: kurye müşteriden tahsil eder, sizin payınızı size teslim eder. Platform ürün bedeline dokunmaz.</div></div>`;
+  h = courierDueCard(b) + h;
   h += reportCard(b);
   const rt = J.ratingOf(b);
   h += `<div class="p-sec">Müşteri puanınız${rt.n?`<span class="n">${rt.n}</span>`:''}</div><div class="p-card">${rt.n?`<div class="row"><div><div style="font-size:30px;font-weight:900">${J.fmtRating(rt.avg)} <span style="font-size:15px;color:var(--muted)">/ 5</span></div><div class="tiny muted">${rt.n} değerlendirme${rt.n<J.RATING_MIN_N?` · ${J.RATING_MIN_N} değerlendirmeden sonra müşterilere gösterilir`:''}</div></div>${J.ratingBadge(b)}</div>`:'<div class="small muted">Henüz değerlendirme yok. Teslim edilen siparişlerden sonra müşteriler 1-5 arası puan verir.</div>'}
@@ -342,6 +350,7 @@ document.addEventListener('click', async e => {
     }, err => J.toast('Konum alınamadı: ' + (err.code===1 ? 'izin verilmedi' : err.message)), {enableHighAccuracy:true, timeout:20000, maximumAge:0});
     return;
   }
+  if(a==='settle' && b){ if(J.settle(id, b.id, +el.dataset.v, 'isletme')) J.toast('Kuryeden teslim alındı olarak kaydedildi.'); }
   if(a==='rj-open'){ rj = id; rjWhy = ''; rjOut = []; }
   if(a==='rj-close') rj = null;
   if(a==='rj-why') rjWhy = id;

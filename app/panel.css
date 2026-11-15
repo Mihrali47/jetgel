@@ -185,3 +185,6 @@ button.sm{padding:5px 9px;font-size:12px}
 .p-scan .fr{position:relative;width:62vw;max-width:280px;aspect-ratio:1;border:3px solid #fff;border-radius:18px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
 .p-scan .tx{position:relative;color:#fff;font-weight:700;margin-top:18px}
 .p-scan button{position:relative;margin-top:18px}
+.p-collect{margin-top:14px;background:#fff8e6;border:1.5px solid #f2d27a;border-radius:14px;padding:12px}
+.p-collect.on{background:var(--ok-soft,#e8f6ee);border-color:#9bd3b0}
+.p-collect b{font-size:20px}

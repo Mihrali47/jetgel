@@ -90,10 +90,19 @@ function renderFin(){
     <div class="tiny muted" style="margin-top:6px">${done.length} teslim · ${cxN} iptal · ${redN} red. Para platform hesabından geçmez; tablo ödeme kuruluşunun yaptığı dağıtımı gösterir.</div>
     <div class="p-act"><button class="sec" data-a="fin-csv">${J.ic('download',14)} CSV indir</button></div></div>`;
   h += `<div class="card"><div style="overflow-x:auto"><table><tr><th>#</th><th>Tarih</th><th>İşletme</th><th>Durum</th><th>Tahsil</th><th>İşletme</th><th>Kurye</th><th>Platform</th><th>İndirim</th><th>İade</th></tr>${rows.slice(0,200).map(r => `<tr><td>${J.esc(r.o.no)}</td><td class="tiny">${new Date(r.o.created_at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td>${J.esc(r.o.rname)}</td><td>${stTxt(r.o)}</td><td>${J.tl(r.paid)}</td><td>${J.tl(r.biz)}</td><td>${J.tl(r.cour)}${r.o.tip||r.o.tip_after||r.o.prio_fee ? `<div class="tiny muted">bahşiş/hızlı dahil</div>` : ''}</td><td>${J.tl(r.plat)}</td><td>${J.tl(r.disc)}</td><td>${J.tl(r.ref)}</td></tr>`).join('') || '<tr><td colspan="10" class="muted small">Bu dönemde kapanan sipariş yok.</td></tr>'}</table></div></div>`;
+  h += ledgerHtml();
   h += perfHtml();
   return h;
 }
 // Dönem performansı: en çok satanlar, işletme ve kurye tablosu
+function ledgerHtml(){
+  const L = J.doorLedger(), ids = Object.keys(L);
+  if(!ids.length) return '';
+  return `<div class="card"><h3>Kapıda tahsilat · kurye hesapları</h3><div style="overflow-x:auto"><table><tr><th>Kurye</th><th>Tahsil edilen</th><th>Kurye payı</th><th>İşletmelere kalan</th><th>Platforma kalan</th><th></th></tr>${ids.map(cid => { const x = L[cid], c = DB.get('couriers', cid);
+    const biz = Object.keys(x.biz).reduce((t,b) => t + x.biz[b] - (x.paidBiz[b]||0), 0), plat = x.plat + x.refund - x.paidPlat;
+    return `<tr><td>${J.esc(c ? c.name : cid)}</td><td>${J.tl(x.collected)}</td><td>${J.tl(x.keep)}</td><td style="${biz>=0.5?'color:var(--bad)':''}">${J.tl(biz)}</td><td style="${plat>=0.5?'color:var(--bad)':''}">${J.tl(plat)}${x.refund ? `<div class="tiny muted">${J.tl(x.refund)} müşteri iadesi dahil</div>` : ''}</td><td>${plat >= 0.5 ? `<button class="ok sm" data-a="settle-plat" data-id="${cid}" data-v="${plat}">Platform payını aldım</button>` : ''}</td></tr>`; }).join('')}</table></div>
+    <div class="tiny muted" style="margin-top:6px">Müşteri iadeleri (ikaz ve sorun bildirimi) kapıda ödemede kuryenin teslim ettiği paradan müşteriye ödenir.</div></div>`;
+}
 function perfHtml(){
   const from = J.now() - fin*86400000, os = J.orders().filter(o => o.created_at >= from);
   const avg = a => a.length ? Math.round(a.reduce((t,x) => t+x, 0) / a.length) : null, mn = ms => ms / 60000;
@@ -199,6 +208,11 @@ function renderApps(){
   return courierApps() + all.map(a => `<div class="p-card"><div class="row"><div><b style="font-size:16px">${J.esc(a.name)}</b><div class="small muted">${J.esc(a.kind||'Diğer')} · ${J.esc(a.owner)} · ${J.esc(a.phone)}</div><div class="small">${J.esc(a.addr)}</div><div class="tiny muted">${new Date(a.t).toLocaleString('tr-TR')} · giriş: <b>${J.esc(a.login.user)}</b>${a.lat?` · <a href="https://www.google.com/maps?q=${a.lat},${a.lng}" target="_blank" rel="noopener">konumu gör</a>`:''}</div></div><span class="pill ${a.state==='beklemede'?'warn':a.state==='onaylandi'?'ok':'bad'}">${{beklemede:'Bekliyor',onaylandi:'Onaylandı',reddedildi:'Reddedildi'}[a.state]}</span></div>
     ${a.state==='beklemede'?`<input id="rsn-${a.id}" placeholder="Red sebebi (reddederseniz işletme görür)" style="margin-top:10px"><div class="p-act"><button class="ok" data-a="app-ok" data-id="${a.id}">Onayla ve işletmeyi aç</button><button class="sec" data-a="app-no" data-id="${a.id}">Reddet</button></div>`:a.reason?`<div class="tiny muted" style="margin-top:6px">Sebep: ${J.esc(a.reason)}</div>`:''}</div>`).join('');
 }
+function doorBlocks(){
+  const cs = DB.rows('customers').filter(c => c.door_block);
+  if(!cs.length) return '';
+  return `<div class="p-sec">Kapıda ödemesi kapatılan müşteriler<span class="n">${cs.length}</span></div>` + cs.map(c => `<div class="p-card"><div class="row"><div><b>${J.esc(c.name||'Müşteri')}</b><div class="tiny muted">#${J.esc(c.door_block_order||'')} siparişinde ulaşılamadı · ${c.door_block_t ? new Date(c.door_block_t).toLocaleString('tr-TR') : ''}</div></div><button class="sec sm" data-a="door-open" data-id="${c.id}">Kapıda ödemeyi aç</button></div></div>`).join('');
+}
 function renderClaims(){
   const esc = pendingClaims(), appeals = J.businesses().flatMap(b => (b.strikes||[]).filter(s => s.appeal==='beklemede').map(s => ({b,s})));
   let h = `<div class="p-sec">İade itirazları<span class="n ${esc.length?'hot':''}">${esc.length}</span></div>`;
@@ -210,6 +224,7 @@ function renderClaims(){
   h += `<div class="p-sec">İkaz itirazları<span class="n ${appeals.length?'hot':''}">${appeals.length}</span></div>`;
   if(!appeals.length) h += `<div class="p-empty">Bekleyen ikaz itirazı yok.</div>`;
   appeals.forEach(({b,s}) => h += `<div class="p-card"><div class="row"><b>${J.esc(b.name)} · #${J.esc(s.no)}</b><span class="money">${J.tl(s.refund)}</span></div><div class="tiny muted">${new Date(s.t).toLocaleString('tr-TR')} · arama kayıtlarını "Aramalar" sekmesinden kontrol edin</div><div class="p-act"><button class="ok" data-a="appeal-ok" data-b="${b.id}" data-id="${s.id}">İtirazı kabul et (ikazı sil)</button><button class="sec" data-a="appeal-no" data-b="${b.id}" data-id="${s.id}">Reddet</button></div></div>`);
+  h += doorBlocks();
   return h;
 }
 function render(){
@@ -239,6 +254,8 @@ document.addEventListener('click', async e => {
   { const el0 = e.target.closest('[data-a]'); if(el0){ const a0 = el0.dataset.a, id0 = el0.dataset.id;
     if(a0==='cour-ok'){ const c = DB.get('couriers', id0); DB.patch('couriers', id0, {approved:true, approved_t:J.now()}); J.log(`Kurye onaylandı: ${c ? c.name : ''}.`, 'ok'); render(); return; }
     if(a0==='cour-no'){ const inp = document.getElementById('rsn-'+id0); DB.patch('couriers', id0, {rejected:true, reject_reason:(inp && inp.value.trim()) || ''}); J.log('Bir kurye başvurusu reddedildi.', 'warn'); render(); return; }
+    if(a0==='door-open'){ DB.patch('customers', id0, {door_block:false}); J.log('Bir müşterinin kapıda ödeme hakkı yeniden açıldı.', 'ok'); render(); return; }
+    if(a0==='settle-plat'){ J.settle(id0, 'platform', +el0.dataset.v, 'yonetim'); render(); return; }
     if(a0==='inc-ok'){ J.resolveIncident(DB.get('orders', id0)); render(); return; }
     if(a0==='clm-ok' || a0==='clm-no'){ J.decideClaim(DB.get('orders', id0), a0==='clm-ok', 'yonetim'); render(); return; }
     if(a0==='app-ok'){ const ap = DB.get('applications', id0); if(ap && ap.state==='beklemede'){
