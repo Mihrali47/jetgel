@@ -240,6 +240,7 @@ J.placeOrder = function(b, cart, cust, extra){
     state:'aktif', prep:'bekliyor', del:'yok', pay: J.PAY_METHODS[extra && extra.pay_method] ? 'kapida' : 'blokaj', pay_method: J.PAY_METHODS[extra && extra.pay_method] ? extra.pay_method : 'online', cash_for: extra && extra.pay_method === 'nakit' ? Math.max(0, parseInt(extra.cash_for,10) || 0) : 0, prev_debt: J.PAY_METHODS[extra && extra.pay_method] && cust.debt > 0 ? cust.debt : 0, refund:0,
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||'', mahalle:cust.mahalle||''},
     note: String((extra && extra.note) || '').slice(0, 200),
+    gift: extra && extra.gift && String(extra.gift.to||'').trim() ? {to:String(extra.gift.to).trim().slice(0,60), msg:String(extra.gift.msg||'').slice(0,250), anon:!!extra.gift.anon} : null,
     tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
     sched_at: extra && extra.sched_at && extra.sched_at > J.now() + 30*60000 ? extra.sched_at : null,
     priority: !!(extra && extra.priority), prio_fee: (extra && extra.priority) ? J.FEE.priority : 0,
@@ -1293,16 +1294,17 @@ const TEST_SHOPS = [
   ['Tatlıcı','🍰',false,[['Sütlaç',120,'Fırında, fındıklı','Sütlü tatlılar'],['Kazandibi',130,'Geleneksel tarif','Sütlü tatlılar'],['Baklava (porsiyon)',220,'Antep fıstıklı, 4 dilim','Şerbetli tatlılar'],['Çay',25,'İnce belli bardak','İçecekler']]],
   ['Dönerci','🌯',false,[['Tavuk Döner Dürüm',190,'Lavaş, patates, turşu, özel sos','Dürümler','Ekstra et=60 | Acılı=0 | Turşusuz=0 | Patatessiz=0'],['Et Döner Dürüm',260,'Yaprak et döner, domates, soğan','Dürümler'],['İskender',380,'Tereyağı, yoğurt, domates sosu','Porsiyonlar'],['Ayran',45,'300 ml','İçecekler']]],
   ['Manav','🥬',false,[['Domates 1 kg',39.9,'Mevsim domatesi','Sebze'],['Salatalık 1 kg',34.9,'Çengelköy','Sebze'],['Elma 1 kg',44.9,'Amasya','Meyve'],['Muz 1 kg',89.9,'Yerli','Meyve']]],
+  ['Çiçekçi','',false,[['Kırmızı Gül Buketi',850,'11 adet kırmızı gül, okaliptus','Buketler','Gül sayısı* > 11 gül=0 | Gül sayısı* > 21 gül=550 | Gül sayısı* > 41 gül=1450 | Vazo=250'],['Mevsim Çiçekleri',550,'Çiçekçinin seçtiği taze mevsim çiçekleri','Buketler','Boy* > Küçük=0 | Boy* > Büyük=300'],['Beyaz Orkide',950,'Çift dallı, saksıda','Saksı çiçekleri'],['Sukulent Seti',420,'3 farklı sukulent, seramik saksı','Saksı çiçekleri'],['Çikolata Kutusu',290,'Buketin yanına','Hediyelik']]],
 ];
 const testMenu = (id, menu, old) => menu.map((m,k) => {
   const prev = (old||[]).find(x => x.name === m[0]);
   return Object.assign({id: prev ? prev.id : id+'m'+k, name:m[0], price:m[1], desc:m[2]||'', cat:m[3]||'', available: prev ? prev.available !== false : true}, m[4] ? {opts: J.parseOpts(m[4])} : {});
 });
 // Tür → kategori grubu (müşteri uygulamasındaki filtreler)
-J.KIND_GROUP = {Pideci:'Yemek', 'Kebapçı':'Yemek', 'Çorbacı':'Yemek', Burgerci:'Yemek', 'Dönerci':'Yemek', Market:'Market', Manav:'Market', Kahveci:'Kahve & Tatlı', 'Tatlıcı':'Kahve & Tatlı'};
-J.KIND_COLOR = {Pideci:'#f4a261', 'Kebapçı':'#e76f51', 'Çorbacı':'#e9b949', Market:'#2a9d8f', Burgerci:'#f77f00', Kahveci:'#8d6e63', 'Tatlıcı':'#e88aa3', 'Dönerci':'#c8553d', Manav:'#52b788'};
-J.KIND_ICON = {Pideci:'pizza', 'Kebapçı':'beef', 'Çorbacı':'soup', Market:'shopping-cart', Burgerci:'sandwich', Kahveci:'coffee', 'Tatlıcı':'cake-slice', 'Dönerci':'drumstick', Manav:'carrot'};
-J.GROUP_ICON = {Yemek:'utensils', Market:'shopping-cart', 'Kahve & Tatlı':'coffee'};
+J.KIND_GROUP = {'Çiçekçi':'Çiçek', Pideci:'Yemek', 'Kebapçı':'Yemek', 'Çorbacı':'Yemek', Burgerci:'Yemek', 'Dönerci':'Yemek', Market:'Market', Manav:'Market', Kahveci:'Kahve & Tatlı', 'Tatlıcı':'Kahve & Tatlı'};
+J.KIND_COLOR = {'Çiçekçi':'#d6457c', Pideci:'#f4a261', 'Kebapçı':'#e76f51', 'Çorbacı':'#e9b949', Market:'#2a9d8f', Burgerci:'#f77f00', Kahveci:'#8d6e63', 'Tatlıcı':'#e88aa3', 'Dönerci':'#c8553d', Manav:'#52b788'};
+J.KIND_ICON = {'Çiçekçi':'flower-2', Pideci:'pizza', 'Kebapçı':'beef', 'Çorbacı':'soup', Market:'shopping-cart', Burgerci:'sandwich', Kahveci:'coffee', 'Tatlıcı':'cake-slice', 'Dönerci':'drumstick', Manav:'carrot'};
+J.GROUP_ICON = {'Çiçek':'flower-2', Yemek:'utensils', Market:'shopping-cart', 'Kahve & Tatlı':'coffee'};
 J.bizIcon = (b, size) => J.ic(J.KIND_ICON[b && b.kind] || J.GROUP_ICON[J.bizGroup(b||{})] || 'store', size);
 J.bizGroup = b => J.KIND_GROUP[b.kind] || 'Yemek';
 J.bizColor = b => J.KIND_COLOR[b.kind] || '#e8590c';
@@ -1313,7 +1315,7 @@ J.etaRange = function(b, to){
   const lo = Math.max(15, Math.round((prep + ride)/5)*5);
   return [lo, lo+10];
 };
-const GRID = [[40.9830,29.0265],[40.9830,29.0305],[40.9830,29.0345],[40.9868,29.0265],[40.9868,29.0305],[40.9868,29.0345],[40.9903,29.0265],[40.9903,29.0305],[40.9903,29.0345]];
+const GRID = [[40.9830,29.0265],[40.9830,29.0305],[40.9830,29.0345],[40.9868,29.0265],[40.9868,29.0305],[40.9868,29.0345],[40.9903,29.0265],[40.9903,29.0305],[40.9903,29.0345],[40.9850,29.0225]];
 // Eksik test hesaplarını oluşturur; var olanların durumuna dokunmaz (reset=true ise baştan kurar).
 J.ensureTestAccounts = function(reset){
   let made = 0;
@@ -1347,7 +1349,7 @@ J.relocateTests = function(center){
   const c0 = {lat:40.9868, lng:29.0305};
   const dLat = center.lat - c0.lat, dLng = center.lng - c0.lng;
   let n = 0;
-  DB.rows('businesses').filter(b => /^b_test\d$/.test(b.id)).forEach(b => {
+  DB.rows('businesses').filter(b => /^b_test\d+$/.test(b.id)).forEach(b => {
     if(b.loc_real) return;   // dükkân konumunu GPS ile kaydettiyse dokunma
     const i = +b.id.slice(6) - 1; DB.patch('businesses', b.id, {lat:GRID[i][0]+dLat, lng:GRID[i][1]+dLng}); n++;
   });
@@ -1365,7 +1367,7 @@ J.relocateTests = function(center){
 // Gerçek konum test dükkânlarından 5 km'den uzaksa test hesaplarını otomatik olarak o çevreye taşır
 J.autoRelocate = function(pos){
   if(!pos || pos.lat == null || J._autoRel) return false;
-  const tests = DB.rows('businesses').filter(b => /^b_test\d$/.test(b.id));
+  const tests = DB.rows('businesses').filter(b => /^b_test\d+$/.test(b.id));
   if(!tests.length || tests.some(b => J.dist(b, pos) < 5000)) return false;
   J._autoRel = true;
   J.relocateTests({lat:pos.lat, lng:pos.lng});

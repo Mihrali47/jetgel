@@ -188,7 +188,7 @@ function tabTask(c){
     const toBiz = o.del==='isletmeye'||o.del==='isletmede';
     h += `<div class="p-card"><div class="row"><b style="font-size:16px">Teslimat #${J.esc(o.no)}</b><span class="pill ok">${J.tl(J.FEE.courier + (o.tip||0) + (o.prio_fee||0))}${o.priority?' · hızlı':''}${o.tip?' · bahşişli':''}</span></div>
       <div class="p-steps">${['İşletmeye git','Paketi al','Müşteriye git','Kodla teslim'].map((t,i) => `<div class="${done[i]?'done':i===now?'now':''}">${t}</div>`).join('')}</div>
-      <div class="p-dest"><div class="av">${toBiz?J.bizIcon(b,22):J.ic('house',22)}</div><div class="tx"><b>${toBiz?J.esc(o.rname):J.esc(o.customer.name)}</b><span>${toBiz?'Paketi alacağın yer':J.esc(o.customer.note||'Teslimat adresi')} · ${J.fmtDist(J.dist(pos, tg||b))}</span></div><button class="p-ic" data-a="call" data-to="${toBiz?'isletme':'musteri'}" aria-label="Ara">${J.ic('phone',17)}</button></div>
+      <div class="p-dest"><div class="av">${toBiz?J.bizIcon(b,22):J.ic('house',22)}</div><div class="tx"><b>${toBiz?J.esc(o.rname):J.esc(o.gift ? o.gift.to + ' (hediye alıcısı)' : o.customer.name)}</b><span>${toBiz?'Paketi alacağın yer':J.esc(o.customer.note||'Teslimat adresi')} · ${J.fmtDist(J.dist(pos, tg||b))}</span></div><button class="p-ic" data-a="call" data-to="${toBiz?'isletme':'musteri'}" aria-label="Ara">${J.ic('phone',17)}</button></div>
       ${tg?`<div class="btns"><a class="btnlink" href="${J.gmaps(tg)}" target="_blank" rel="noopener">${J.ic('navigation',15)} Google Haritalar'da aç</a><button class="sm sec" data-a="call" data-to="${toBiz?'musteri':'isletme'}">${J.ic('phone',15)} ${toBiz?'Müşteri':'İşletme'}</button></div>`:''}`;
     h += incidentBox(o);
     if(o.del==='isletmeye') h += `<div class="note">İşletmeye gidiyorsun. ${J.ARRIVE_M} m yaklaşınca varış kendiliğinden kaydedilir.</div>`;
@@ -202,9 +202,11 @@ function tabTask(c){
       const called = J.calls().some(k => k.order_id===o.id && k.from.type==='kurye' && k.from.id===cid && k.start >= (o.arrived_at||0));
       const waitEnd = (o.arrived_at||J.now()) + J.D(J.WAIT_MS);
       if(J.isDoor(o)) h += `<div class="p-collect ${collected===o.id?'on':''}"><div class="row"><span>${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',18)} ${o.pay_method==='nakit'?'Nakit tahsil et':'İşletmenin POS\'u ile kartı çek'}</span><b>${J.tl(J.doorAmount(o))}</b></div>${o.prev_debt ? `<div class="tiny">Sipariş ${J.tl(J.custPaid(o))} + müşterinin önceki borcu ${J.tl(o.prev_debt)}</div>` : ''}${o.pay_method==='nakit' && o.cash_for ? `<div class="tiny">Müşteri ${J.tl(o.cash_for)} verecek · para üstü <b>${J.tl(Math.max(0, o.cash_for - J.doorAmount(o)))}</b></div>` : ''}<button class="${collected===o.id?'ok':'sec'} wide" style="margin-top:8px" data-a="collect">${collected===o.id ? J.ic('circle-check',16) + ' Ödeme alındı' : 'Ödemeyi aldım'}</button>${o.pay_method==='kart' && collected!==o.id ? `<button class="ghost wide" style="margin-top:4px;font-size:13px" data-a="pos-fail">POS çalışmıyor · müşteri nakit ödeyecek</button>` : ''}</div>`;
+      if(o.gift) h += `<div class="card small" style="margin-top:12px;background:#fdeef4">${J.ic('gift',15)} <b>Hediye teslimatı.</b> Alıcı: <b>${J.esc(o.gift.to)}</b>. Alıcı teslimat kodunu bilmiyorsa kapıda fotoğraf çekip "Fotoğrafla teslim et"e dokun.</div>`;
       h += `<div style="margin-top:14px"><b>Müşteriden 4 haneli kodu iste</b></div><input id="pin" class="p-pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pin)}" style="margin-top:8px">
         ${pinErr?`<div class="small" style="color:var(--bad);margin-top:6px">${J.esc(pinErr)}</div>`:''}
         <button class="ok p-big" data-a="pin">${J.ic('circle-check',18)} Kodu onayla ve teslim et</button>
+        ${o.gift ? `<button class="sec wide" style="margin-top:8px" data-a="photo-done" ${o.photo_img?'':'disabled'}>${J.ic('camera',16)} Fotoğrafla teslim et${o.photo_img?'':' (önce fotoğraf çek)'}</button>` : ''}
         <div class="btns"><label class="btnlink" style="cursor:pointer">${J.ic('camera',15)} Teslimat fotoğrafı${o.photo?' '+J.ic('check',14):''}<input type="file" accept="image/*" capture="environment" id="photo" style="display:none"></label></div>
         <div class="card soft small" style="margin-top:12px"><b>Müşteri kapıyı açmıyor mu?</b><div class="muted">Önce uygulamadan ara${called?' '+J.ic('check',14):''}, sonra bekle (<span data-live="mmss" data-end="${waitEnd}">…</span> kaldı). Konumun kayıtlı; ücretini her durumda alırsın.</div><div class="btns"><button class="sm bad" data-a="unreach" data-end="${waitEnd}" ${called?'':'disabled'}>Müşteriye ulaşılamadı</button></div></div>`;
     }
@@ -348,6 +350,14 @@ document.addEventListener('click', async e => {
     else if(pin !== o.pin){ pinErr = 'Kod yanlış. Kod doğrulanmadan teslimat tamamlanamaz.'; J.log(`#${o.no} yanlış teslimat kodu girildi.`, 'warn', o.id); }
     else { pinErr = ''; pin = ''; if(J.isDoor(o)){ DB.patch('orders', o.id, {collected: J.doorAmount(o), collected_by: c.id}); J.clearDebt(o); } J.complete(c, o, 'kod ile onaylandı'); J.beep('ok'); route = null; routeKey = ''; }
   }
+  if(a==='photo-done'){
+    const o = myJob(); if(!o || !o.gift) return;
+    if(J.isDoor(o) && collected !== o.id){ pinErr = 'Önce ödemeyi al ve "Ödemeyi aldım"a dokun.'; render(); return; }
+    if(!o.photo_img){ pinErr = 'Önce teslimat fotoğrafını çek.'; render(); return; }
+    const d = J.dist(pos, o.customer);
+    if(d > J.PIN_RADIUS_M){ pinErr = `Adrese ${J.fmtDist(d)} uzaktasın. Teslim yalnızca ${J.PIN_RADIUS_M} m içinde yapılabilir.`; render(); return; }
+    pinErr = ''; if(J.isDoor(o)){ DB.patch('orders', o.id, {collected: J.doorAmount(o), collected_by: c.id}); J.clearDebt(o); } J.complete(c, o, 'fotoğrafla teslim (hediye)'); J.beep('ok'); route = null; routeKey = '';
+  }
   if(a==='unreach'){
     const o = myJob(); if(!o) return;
     if(J.now() < +el.dataset.end){ J.toast('Bekleme süresi dolmadan sipariş kapatılamaz.'); return; }
@@ -358,7 +368,9 @@ document.addEventListener('click', async e => {
   render();
 });
 document.addEventListener('input', e => { if(e.target.id==='pick'){ pick = e.target.value.replace(/\D/g,'').slice(0,4); pickErr = ''; } if(e.target.id==='pin'){ pin = e.target.value.replace(/\D/g,'').slice(0,4); pinErr = ''; } });
-document.addEventListener('change', e => { if(e.target.id==='photo' && e.target.files && e.target.files.length){ const o = myJob(); if(o){ DB.patch('orders', o.id, {photo:true}); J.log(`#${o.no} teslimat fotoğrafı eklendi.`, '', o.id); J.toast('Fotoğraf eklendi.'); } } });
+document.addEventListener('change', async e => { if(e.target.id==='photo' && e.target.files && e.target.files.length){ const o = myJob(); if(o){
+    let img = null; try{ img = await J.compressImage(e.target.files[0], 640, 0.55); }catch(err){}
+    DB.patch('orders', o.id, Object.assign({photo:true}, img ? {photo_img:img} : {})); J.log(`#${o.no} teslimat fotoğrafı eklendi.`, '', o.id); J.toast('Fotoğraf eklendi.'); render(); } } });
 
 /* ---------- Döngü: hareket, varış, sinyal ---------- */
 let last = J.now(), lastBeat = 0, lastSent = null;

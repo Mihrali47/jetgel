@@ -123,6 +123,7 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Yardım al | Müşteri takip ekranından siparişe bağlı destek talebi açar (gecikme, ulaşamama, ödeme, teslim edilmedi, adres, diğer). Talepler Yönetim > Destek sekmesine düşer; yanıt müşterinin takip ekranında görünür. |
 | Paylaşılabilir takip | Müşteri takip bağlantısını paylaşabilir (`takip.html?o=…&k=…`). Sayfa salt okunurdur; teslimat kodu, telefon ve adres tarifi gösterilmez. |
 | Pilot kaydı | Finans sekmesindeki CSV her sipariş için ödeme yolu, paylar, iptal/red nedeni, kurye atama süresi, toplam süre, söz verilen süre, gecikme, sorun bildirimi ve destek taleplerini içerir. |
+| Çiçek | Yemek, Market ve Kahve'nin yanında "Çiçek" bölümü (ana sayfa kartı ve müşteri filtresi; işletme türü "Çiçekçi"). Çiçekçi siparişinde "Hediye olarak gönder": alıcı adı, basılı kart notu, istenirse gönderen adı gizli; alıcının adresi adres defterine eklenip seçilir. Kart notu işletme ekranında ve fişte çıkar. Alıcı teslimat kodunu bilmiyorsa kurye adreste (100 m içinde) fotoğraf çekip "Fotoğrafla teslim et" ile teslim eder; fotoğraf göndericiye gösterilir. Test hesabı: `test10` (Çiçekçi). |
 | Finans ve performans | Yönetimde günlük/7/30 günlük tablo: müşteriden tahsil, işletme, kurye (bahşiş ve hızlı teslimat dahil), platform, indirim, iade. CSV olarak indirilebilir. Aynı dönem için en çok satanlar, işletme tablosu (sipariş, red, iptal, ortalama ve geciken hazırlık, puan, ikaz) ve kurye tablosu (teslimat, ortalama yol süresi, ulaşılamadı, sorun bildirimi, kazanç, puan). |
 
 ## Dosyalar

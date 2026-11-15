@@ -53,12 +53,13 @@ const GUEST_VIEWS = ['liste', 'menu', 'sepet', 'giris', 'profil'];
 function needLogin(next, msg){ afterLogin = next; loginErr = ''; showReg = false; J.toast(msg || 'Devam etmek için giriş yap ya da hesap oluştur.'); go('giris'); }
 let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
+let gift = {on:false, to:'', msg:'', anon:false}, addrBack = null;   // çiçek: hediye gönderimi
 let q = '', group = 'Hepsi', orderNote = '', tip = 0, tipCustom = false, prio = false, sched = null, payM = 'kart', cashFor = '';
 const TIPS = [0, 10, 20, 30, 50];
 const tipBox = (sel, act, custom) => `<div class="m-tips">${TIPS.map(v => `<button class="${sel===v && !custom?'on':''}" data-a="${act}" data-v="${v}">${v?J.tl(v):'Yok'}</button>`).join('')}<button class="${custom?'on':''}" data-a="${act}" data-v="diger">Diğer</button></div>`;
 let map = null, wantMap = false, pendingFit = null;
 const me = () => prof && !prof.guest ? {type:'musteri', id:prof.id, name:prof.name} : null;
-const GROUPS = [['Hepsi','layout-dashboard','Hepsi'],['Yemek','utensils','Yemek'],['Market','shopping-cart','Market'],['Kahve & Tatlı','coffee','Kahve'],['Ücretsiz','gift','Ücretsiz']];
+const GROUPS = [['Hepsi','layout-dashboard','Hepsi'],['Yemek','utensils','Yemek'],['Market','shopping-cart','Market'],['Kahve & Tatlı','coffee','Kahve'],['Çiçek','flower-2','Çiçek'],['Ücretsiz','gift','Ücretsiz']];
 const TABS = ['liste','siparisler','hesap'];
 
 function ensureMap(){ if(!map){ map = J.Map(document.getElementById('map')); map.onClick(p => { if(view==='profil'){ draft.lat = p.lat; draft.lng = p.lng; draft.src = 'harita'; map._fitted = 'p'+p.lat+','+p.lng; render(); } }); } }
@@ -259,6 +260,12 @@ function renderCart(){
   return topBar('Sepetim', 'to-menu') + `<div class="m-body">
     <div class="m-box"><h3>${J.esc(b.name)}</h3>${lines.map(l => `<div class="m-line"><div class="tx">${J.esc(l.m.name)}${l.opts.length?`<div class="tiny" style="color:var(--brand)">${l.opts.map(o => J.esc(o.name)).join(', ')}</div>`:''}<div class="tiny muted">${J.tl(l.unit)}</div></div><div class="m-qty"><button data-a="dec" data-id="${l.key}">−</button><b>${l.qty}</b><button data-a="inc" data-id="${l.key}">+</button></div><b class="money" style="min-width:70px;text-align:right">${J.tl(l.unit*l.qty)}</b></div>`).join('')}
       <button class="ghost sm" data-a="to-menu">+ Ürün ekle</button></div>
+    ${J.bizGroup(b)==='Çiçek' ? `<div class="m-box m-gift"><div class="row"><h3 style="margin:0">${J.ic('gift',16)} Hediye olarak gönder</h3><input type="checkbox" id="gift-on" style="width:22px;height:22px" ${gift.on?'checked':''}></div>
+      ${gift.on ? `<label class="f" for="gift-to">Alıcının adı</label><input id="gift-to" maxlength="60" placeholder="Örn. Ayşe Yılmaz" value="${J.esc(gift.to)}">
+      <label class="f" for="gift-msg">Kart notu <span class="muted">(çiçekle birlikte basılı kartta gider)</span></label><textarea id="gift-msg" class="m-note" maxlength="250" placeholder="Doğum günün kutlu olsun!">${J.esc(gift.msg)}</textarea>
+      <label class="row" style="margin-top:10px;justify-content:flex-start;gap:10px"><input type="checkbox" id="gift-anon" style="width:20px;height:20px" ${gift.anon?'checked':''}><span class="small">Adımı gizle (alıcı gönderenin kim olduğunu görmez)</span></label>
+      <div class="m-giftaddr"><span class="small">${J.ic('map-pin',14)} Teslimat: <b>${J.esc(prof.addr_label||'Adres')}</b> · ${J.esc(prof.note||'')}</span><button class="ghost sm" data-a="gift-addr">Alıcının adresini ekle</button></div>
+      <div class="tiny muted" style="margin-top:6px">Alıcı teslimat kodunu bilmeyebilir; kurye bu durumda kapıda fotoğraf çekerek teslim eder, fotoğraf sana gösterilir.${sched ? '' : ' İleri bir saate planlamak için yukarıdan "Ne zaman gelsin?"i kullan.'} Kartlı online ödeme açılana kadar hediye siparişlerinin ücreti kapıda alıcıdan alınır.</div>` : `<div class="tiny muted" style="margin-top:6px">Alıcı adı, kart notu ve istersen gizli gönderen.</div>`}</div>` : ''}
     <div class="m-box"><h3>İşletmeye not</h3><textarea id="o-note" class="m-note" maxlength="200" placeholder="Örn. soğansız olsun, zile basmayın">${J.esc(orderNote)}</textarea></div>
     ${(() => { const cp = J.activeCoupon(prof); if(!cp) return ''; if(!b.race_join) return `<div class="note" style="margin:0 0 12px">${J.ic('award',14)} Başkan kuponun bu işletmede geçerli değil (işletme kampanyaya katılmıyor).</div>`;
       return `<button class="m-prio ${useCoupon?'on':''}" data-a="coupon"><span class="ic">${J.ic('award',20)}</span><span class="tx"><b>Başkan kuponu · −${J.tl(Math.min(cp.per, cp.left, sub))}</b><small>Kalan bakiye ${J.tl(cp.left)}. İndirimi işletme karşılar.</small></span><span class="sw"></span></button>`; })()}
@@ -340,6 +347,7 @@ function renderTrack(){
     <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0) - (o.refund||0) - (o.claim_refund||0))}</b></div>
     ${J.isDoor(o) ? `${o.state==='aktif' ? `<div class="tiny muted" style="margin-top:6px">Kapıda ödeyeceğin tutar: <b>${J.tl(J.doorAmount(o))}</b>${o.prev_debt ? ` (önceki ${J.tl(o.prev_debt)} borcun dahil)` : ''}${o.cash_for ? ` · ${J.tl(o.cash_for)} ile ödeyeceğini kuryeye ilettik` : ''}. Teslimat kodunu ödemeden sonra söyle.</div>` : ''}${(o.refund || o.claim_refund) && o.state==='teslim' ? `<div class="tiny muted" style="margin-top:6px">İade tutarı sana destek ekibimiz tarafından ödenecek.</div>` : ''}` : ''}
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
+  if(o.gift) h += `<div class="m-box m-gift"><h3>${J.ic('gift',16)} Hediye · ${J.esc(o.gift.to)}</h3>${o.gift.msg ? `<div class="small" style="font-style:italic">“${J.esc(o.gift.msg)}”</div>` : ''}<div class="tiny muted" style="margin-top:6px">${o.gift.anon ? 'Gönderen adı alıcıya gösterilmiyor.' : 'Kartta adın yazacak.'}${o.state==='aktif' ? ' Alıcı teslimat kodunu bilmiyorsa kurye fotoğrafla teslim eder.' : ''}</div>${o.photo_img ? `<img src="${o.photo_img}" alt="Teslimat fotoğrafı" style="width:100%;border-radius:12px;margin-top:10px">` : ''}</div>`;
   if(o.state==='teslim') h += claimBox(o);
   if(o.state==='aktif' && o.share_key) h += `<button class="ghost wide" style="margin-bottom:10px" data-a="share-track">${J.ic('arrow-up-right',15)} Takip bağlantısını paylaş</button>`;
   h += helpBox(o);
@@ -493,7 +501,7 @@ document.addEventListener('click', e => {
   if(a==='save-prof' && isGuest()){
     draft.note = document.getElementById('p-note').value.trim();
     J.store.set('misafir_konum', {lat:draft.lat, lng:draft.lng, note:draft.note || 'Seçilen adres', label:draft.addr_label || 'Ev'}); J.store.set('adres_taslak', ''); J.store.set('konum_taslak', null);
-    draft = null; geoQ = ''; geoMsg = null; go('liste'); render(); return;
+    draft = null; geoQ = ''; geoMsg = null; const nx = addrBack; addrBack = null; go(nx || 'liste'); render(); return;
   }
   if(a==='save-prof'){
     draft.name = document.getElementById('p-name').value.trim(); draft.note = document.getElementById('p-note').value.trim();
@@ -505,7 +513,7 @@ document.addEventListener('click', e => {
     const book = base.filter(x => x.id !== aid).concat([{id:aid, label, note:draft.note, lat:draft.lat, lng:draft.lng}]).slice(-8);
     DB.patch('customers', cuid, {name:draft.name, note:draft.note, lat:draft.lat, lng:draft.lng, addr_label:label, addr_id:aid, addresses:book, loc_src: draft.src==='gps'||draft.src==='harita' ? draft.src : (prof && prof.loc_src) || null});
     if(draft.src==='gps') J.autoRelocate(draft);
-    draft = null; const nx = afterLogin; afterLogin = null; go(nx && nx !== 'giris' && nx !== 'profil' ? nx : 'liste');
+    draft = null; const nx = addrBack || afterLogin; afterLogin = null; addrBack = null; go(nx && nx !== 'giris' && nx !== 'profil' ? nx : 'liste');
   }
   if(a==='show-reg'){ showReg = true; regErr = ''; }
   if(a==='browse'){ const nx = afterLogin === 'sepet' ? 'sepet' : 'liste'; afterLogin = null; go(nx); }
@@ -569,6 +577,8 @@ document.addEventListener('click', e => {
     go(cartCount() ? 'sepet' : 'menu');
   }
   if(a==='paym'){ payM = id; }
+  if(a==='gift-addr'){ addrBack = 'sepet'; draft = Object.assign({}, prof, {addr_id:null, addr_label:'Diğer', note:''}); go('profil'); render(); return; }
+  if(a==='order'){ const bb = DB.get('businesses', curBiz); if(gift.on && bb && J.bizGroup(bb)==='Çiçek' && !gift.to.trim()){ J.toast('Hediye için alıcının adını yaz.'); return; } }
   if(a==='order' && !isGuest() && prof.door_block){ J.toast('Kapıda ödeme hesabında kapalı. Destekle iletişime geç.'); return; }
   if(a==='order' && isGuest()){ needLogin('sepet'); render(); return; }
   if(a==='order'){
@@ -580,8 +590,8 @@ document.addEventListener('click', e => {
     if(dup){ J.toast('Bu siparişi az önce verdin; takip ekranına yönlendiriliyorsun.'); cart = {}; trackId = dup.id; J.store.set('musteri_takip', dup.id); go('takip'); render(); return; }
     placing = true; setTimeout(() => { placing = false; }, 3000);
     if(J.isFull(b) && !sched){ J.toast('İşletme şu an çok yoğun. Birkaç dakika sonra tekrar dene ya da planlı sipariş ver.'); render(); return; }
-    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, pay_method: payM, cash_for: cashFor, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
-    if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; sched = null; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
+    const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, gift: gift.on && J.bizGroup(b)==='Çiçek' ? gift : null, pay_method: payM, cash_for: cashFor, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
+    if(o){ cart = {}; gift = {on:false, to:'', msg:'', anon:false}; orderNote = ''; tip = 0; tipCustom = false; prio = false; sched = null; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
     else J.toast('Sipariş verilemedi. Sepetteki bir ürün tükenmiş ya da işletme yoğun olabilir; sepeti kontrol et.');
   }
   if(a==='prio'){ prio = !prio; }
@@ -653,6 +663,8 @@ function autoLocate(){
 }
 document.addEventListener('change', e => {
   if(e.target.id === 'sched-sel'){ sched = +e.target.value; render(); return; }
+  if(e.target.id === 'gift-on'){ gift.on = e.target.checked; render(); return; }
+  if(e.target.id === 'gift-anon'){ gift.anon = e.target.checked; return; }
   if(e.target.id === 'clm-photo' && e.target.files && e.target.files[0]){
     J.compressImage(e.target.files[0], 720, 0.6).then(d => { clm.photo = d; render(); }).catch(err => J.toast(err.message));
   }
@@ -660,6 +672,8 @@ document.addEventListener('change', e => {
 document.addEventListener('input', e => {
   if(e.target.id==='q'){ q = e.target.value; render(); return; }
   if(e.target.id==='o-note'){ orderNote = e.target.value; return; }
+  if(e.target.id==='gift-to'){ gift.to = e.target.value; return; }
+  if(e.target.id==='gift-msg'){ gift.msg = e.target.value; return; }
   if(e.target.id==='cash-for'){ cashFor = e.target.value.replace(/\D/g,'').slice(0,5); return; }
   if(e.target.id==='rate-note'){ rate.note = e.target.value; return; }
   if(e.target.id==='clm-note'){ clm.note = e.target.value; return; }
@@ -671,7 +685,7 @@ document.addEventListener('input', e => {
   if(e.target.id==='p-search') geoQ = e.target.value;
 });
 // Yazı yazılırken (not, adres) ekranı yeniden çizme
-const typing = () => { const a = document.activeElement; return a && (a.id==='p-search' || a.id==='o-note' || a.id==='clm-note' || a.id==='hlp-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='cash-for' || a.id==='p-name' || a.id==='p-note'); };
+const typing = () => { const a = document.activeElement; return a && (a.id==='p-search' || a.id==='o-note' || a.id==='clm-note' || a.id==='gift-to' || a.id==='gift-msg' || a.id==='hlp-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='cash-for' || a.id==='p-name' || a.id==='p-note'); };
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 function guestLocate(){
