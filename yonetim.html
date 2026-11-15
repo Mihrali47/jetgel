@@ -96,12 +96,12 @@ function renderFin(){
 }
 // Dönem performansı: en çok satanlar, işletme ve kurye tablosu
 function ledgerHtml(){
-  const L = J.doorLedger(), ids = Object.keys(L);
-  if(!ids.length) return '';
-  return `<div class="card"><h3>Kapıda tahsilat · kurye hesapları</h3><div style="overflow-x:auto"><table><tr><th>Kurye</th><th>Tahsil edilen</th><th>Kurye payı</th><th>İşletmelere kalan</th><th>Platforma kalan</th><th></th></tr>${ids.map(cid => { const x = L[cid], c = DB.get('couriers', cid);
-    const biz = Object.keys(x.biz).reduce((t,b) => t + x.biz[b] - (x.paidBiz[b]||0), 0), plat = x.plat + x.refund - x.paidPlat;
-    return `<tr><td>${J.esc(c ? c.name : cid)}</td><td>${J.tl(x.collected)}</td><td>${J.tl(x.keep)}</td><td style="${biz>=0.5?'color:var(--bad)':''}">${J.tl(biz)}</td><td style="${plat>=0.5?'color:var(--bad)':''}">${J.tl(plat)}${x.refund ? `<div class="tiny muted">${J.tl(x.refund)} müşteri iadesi dahil</div>` : ''}</td><td>${plat >= 0.5 ? `<button class="ok sm" data-a="settle-plat" data-id="${cid}" data-v="${plat}">Platform payını aldım</button>` : ''}</td></tr>`; }).join('')}</table></div>
-    <div class="tiny muted" style="margin-top:6px">Müşteri iadeleri (ikaz ve sorun bildirimi) kapıda ödemede kuryenin teslim ettiği paradan müşteriye ödenir.</div></div>`;
+  const rows = J.balances();
+  const pos = J.couriers().filter(c => c.pos_due);
+  if(!rows.length && !pos.length) return '';
+  return `<div class="card"><h3>Kapıda ödeme · hesaplaşma</h3>${rows.length ? `<div style="overflow-x:auto"><table><tr><th>Ödeyecek</th><th>Alacak</th><th>Tutar</th><th></th></tr>${rows.map(x => `<tr><td>${J.esc(J.party(x.from))}</td><td>${J.esc(J.party(x.to))}</td><td><b>${J.tl(x.amount)}</b></td><td>${x.to==='p' ? `<button class="ok sm" data-a="settle-plat" data-id="${x.from}" data-v="${x.amount}">Platform aldı</button>` : '<span class="tiny muted">alan taraf onaylar</span>'}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Açık hesap yok.</div>'}
+    <div class="tiny muted" style="margin-top:6px">Kartla ödemede para işletmenin POS'una girer (işletme kuryeye ve platforma öder); nakitte para kuryede kalır (kurye işletmeye ve platforma öder). Platform payına müşteri iadeleri ve tahsil edilen eski borçlar dahildir.</div>
+    ${pos.length ? `<div class="small" style="margin-top:10px"><b>Kuryede bekleyen POS cihazları:</b> ${pos.map(c => `${J.esc(c.name)} → ${J.esc(J.party('b:' + c.pos_due.bid))} (#${J.esc(c.pos_due.no)}) <button class="sec sm" data-a="pos-clear" data-id="${c.id}">Teslim edildi</button>`).join(' · ')}</div>` : ''}</div>`;
 }
 function perfHtml(){
   const from = J.now() - fin*86400000, os = J.orders().filter(o => o.created_at >= from);
@@ -260,7 +260,8 @@ document.addEventListener('click', async e => {
     if(a0==='cour-no'){ const inp = document.getElementById('rsn-'+id0); DB.patch('couriers', id0, {rejected:true, reject_reason:(inp && inp.value.trim()) || ''}); J.log('Bir kurye başvurusu reddedildi.', 'warn'); render(); return; }
     if(a0==='debt-paid'){ DB.patch('orders', id0, {pay:'borc_odendi', debt_settled_t:J.now()}); J.log('Tahsil edilen borçtan işletme ve kurye payları ödendi.', 'pay', id0); render(); return; }
     if(a0==='door-open'){ DB.patch('customers', id0, {door_block:false}); J.log('Bir müşterinin kapıda ödeme hakkı yeniden açıldı.', 'ok'); render(); return; }
-    if(a0==='settle-plat'){ J.settle(id0, 'platform', +el0.dataset.v, 'yonetim'); render(); return; }
+    if(a0==='settle-plat'){ J.settle(id0, 'p', +el0.dataset.v, 'yonetim'); render(); return; }
+    if(a0==='pos-clear'){ J.posReturned(DB.get('couriers', id0), 'yonetim'); render(); return; }
     if(a0==='inc-ok'){ J.resolveIncident(DB.get('orders', id0)); render(); return; }
     if(a0==='clm-ok' || a0==='clm-no'){ J.decideClaim(DB.get('orders', id0), a0==='clm-ok', 'yonetim'); render(); return; }
     if(a0==='app-ok'){ const ap = DB.get('applications', id0); if(ap && ap.state==='beklemede'){

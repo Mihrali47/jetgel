@@ -90,7 +90,7 @@ function orderCard(o){
     ${o.priority?`<div class="p-note" style="background:var(--bad-soft);margin:0 0 8px">${J.ic('timer',15)} <b>Hızlı teslimat:</b> müşteri ek ücret ödedi, lütfen öne alın.</div>`:''}
     <ul class="p-items">${o.items.map(i => `<li><b>${i.qty}×</b><span>${J.esc(i.name)}${i.opts&&i.opts.length?`<span class="p-opts">${i.opts.map(J.esc).join(' · ')}</span>`:''}</span></li>`).join('')}</ul>
     ${o.note?`<div class="p-note">${J.ic('notebook-pen',15)} <b>Müşteri notu:</b> ${J.esc(o.note)}</div>`:''}
-    ${J.isDoor(o)?`<div class="tiny" style="margin-top:8px">${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',13)} Müşteri kapıda <b>${o.pay_method==='nakit'?'nakit':'kartla'}</b> ödeyecek; kurye tahsil edip payınızı size teslim eder.</div>`:''}
+    ${J.isDoor(o)?`<div class="tiny" style="margin-top:8px">${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',13)} ${o.pay_method==='nakit' ? 'Müşteri kapıda <b>nakit</b> ödeyecek; kurye tahsil edip payınızı size teslim eder.' : 'Müşteri kapıda <b>kartla</b> ödeyecek: <b>POS cihazınızı kuryeye verin</b>. Kurye teslimattan sonra geri getirir.'}</div>`:''}
     <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.loyalty_disc?`<span>Sadakat indirimi (katkınız)</span><b>−${J.tl(o.loyalty_disc)}</b>`:''}${o.discount?`<span>Başkan kuponu (katkınız)</span><b>−${J.tl(o.discount)}</b>`:''}${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
   if(o.prep==='bekliyor'){ const st = J.prepStats(b), est = J.prepEstimate(b);
     h += `<div class="p-timer" style="background:#f6f5f2;color:var(--ink)"><span>${J.ic('timer',16)} Tahmini hazırlık süresi</span><span><b>${est}</b> dk</span></div><div class="tiny muted" style="margin-top:6px">${st.avg!=null?`Son siparişlerinizdeki ortalama ${Math.round(st.avg)} dk`:'Başlangıç süresi'}${st.load?` + şu an hazırlanan ${st.load} sipariş`:''}. Süreyi sistem yoğunluğunuza göre belirler; "Hazır" dediğiniz anlar ortalamayı günceller.</div>
@@ -238,16 +238,22 @@ function reportCard(b){
     <button class="sec wide" style="margin-top:12px" data-a="csv" ${r.os.length?'':'disabled'}>${J.ic('download',15)} Excel için indir (CSV)</button></div>`;
 }
 function courierDueCard(b){
-  const L = J.doorLedger(), rows = Object.keys(L).map(cid => ({c:DB.get('couriers', cid), cid, due:(L[cid].biz[b.id]||0) - (L[cid].paidBiz[b.id]||0)})).filter(r => r.due >= 0.5);
-  if(!rows.length) return '';
-  return `<div class="p-sec">Kuryelerden alacağınız<span class="n hot">${rows.length}</span></div><div class="p-card"><div class="tiny muted" style="margin-bottom:6px">Kapıda ödemeli siparişlerde kurye müşteriden tahsil ettiği tutardan sizin payınızı size teslim eder. Parayı aldığınızda onaylayın.</div>
-    ${rows.map(r => `<div class="p-mini"><span>${J.ic('bike',14)} ${J.esc(r.c ? r.c.name : 'Kurye')}</span><span><b>${J.tl(r.due)}</b> <button class="ok sm" data-a="settle" data-id="${r.cid}" data-v="${r.due}">Teslim aldım</button></span></div>`).join('')}</div>`;
+  const me = 'b:' + b.id, rows = J.balances().filter(x => x.from === me || x.to === me);
+  const pos = J.couriers().filter(c => c.pos_due && c.pos_due.bid === b.id);
+  let h = '';
+  if(pos.length) h += `<div class="p-sec">POS cihazınız kuryede<span class="n hot">${pos.length}</span></div><div class="p-card">${pos.map(c => `<div class="p-mini"><span>${J.ic('bike',14)} ${J.esc(c.name)} · #${J.esc(c.pos_due.no)} <span class="tiny muted">${J.fmtDist(J.dist(c, b))} uzakta</span></span><button class="ok sm" data-a="pos-back" data-id="${c.id}">POS geri geldi</button></div>`).join('')}</div>`;
+  if(!rows.length) return h;
+  const get = rows.filter(x => x.to === me), pay = rows.filter(x => x.from === me);
+  h += `<div class="p-sec">Kapıda ödeme hesabı</div><div class="p-card">
+    ${get.length ? `<div class="small"><b>Alacağınız</b> <span class="tiny muted">(nakit siparişlerde para kuryede kalır)</span></div>${get.map(x => `<div class="p-mini"><span>${J.esc(J.party(x.from))}</span><span><b>${J.tl(x.amount)}</b> <button class="ok sm" data-a="settle" data-id="${x.from}" data-v="${x.amount}">Teslim aldım</button></span></div>`).join('')}` : ''}
+    ${pay.length ? `<div class="small" style="margin-top:8px"><b>Ödemeniz gereken</b> <span class="tiny muted">(kartlı siparişlerde para POS'unuzdan hesabınıza geçti)</span></div>${pay.map(x => `<div class="p-mini"><span>${J.esc(J.party(x.to))}${x.to==='p'?' <span class="tiny muted">hizmet bedeli ve iadeler</span>':' <span class="tiny muted">kurye ücreti ve bahşiş</span>'}</span><b>${J.tl(x.amount)}</b></div>`).join('')}<div class="tiny muted" style="margin-top:6px">Ödediğinizde parayı alan taraf onaylar.</div>` : ''}</div>`;
+  return h;
 }
 function tabEarn(b){
   const paid = J.orders().filter(o => o.rid===b.id && o.pay==='dagitildi' && o.shares);
   const got = paid.reduce((s,o) => s+o.shares.business, 0), would = Math.round(paid.reduce((s,o) => s+o.subtotal, 0)*(1-J.COMMISSION_RATE));
   let h = `<div class="p-card" style="margin-top:14px;background:linear-gradient(135deg,#1f9d55,#2b8a3e);color:#fff"><div class="small" style="opacity:.85">Komisyonsuz sistemle fazladan kazancınız</div><div style="font-size:32px;font-weight:900">+${J.tl(Math.max(0,got-would))}</div><div class="small" style="opacity:.85">${paid.length} tamamlanan sipariş</div></div>
-    <div class="p-card"><div class="row small"><span>Hesabınıza geçen</span><b class="money">${J.tl(got)}</b></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="note">Ödeme şimdilik kapıda alınır: kurye müşteriden tahsil eder, sizin payınızı size teslim eder. Platform ürün bedeline dokunmaz.</div></div>`;
+    <div class="p-card"><div class="row small"><span>Hesabınıza geçen</span><b class="money">${J.tl(got)}</b></div><div class="row small"><span>%35 komisyonlu platformda geçecekti</span><span class="money">${J.tl(would)}</span></div><div class="note">Ödeme şimdilik kapıda alınır: kartla ödemede para POS cihazınızdan doğrudan hesabınıza geçer; nakitte kurye tahsil eder ve payınızı size teslim eder. Platform ürün bedeline dokunmaz.</div></div>`;
   h = courierDueCard(b) + h;
   h += reportCard(b);
   const rt = J.ratingOf(b);
@@ -350,7 +356,8 @@ document.addEventListener('click', async e => {
     }, err => J.toast('Konum alınamadı: ' + (err.code===1 ? 'izin verilmedi' : err.message)), {enableHighAccuracy:true, timeout:20000, maximumAge:0});
     return;
   }
-  if(a==='settle' && b){ if(J.settle(id, b.id, +el.dataset.v, 'isletme')) J.toast('Kuryeden teslim alındı olarak kaydedildi.'); }
+  if(a==='settle' && b){ if(J.settle(id, 'b:' + b.id, +el.dataset.v, 'isletme')) J.toast('Teslim alındı olarak kaydedildi.'); }
+  if(a==='pos-back' && b){ if(J.posReturned(DB.get('couriers', id), 'isletme')) J.toast('POS teslim alındı.'); }
   if(a==='rj-open'){ rj = id; rjWhy = ''; rjOut = []; }
   if(a==='rj-close') rj = null;
   if(a==='rj-why') rjWhy = id;

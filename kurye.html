@@ -169,12 +169,13 @@ function incidentBox(o){
 function tabTask(c){
   const offer = myOffer(), o = myJob();
   let h = '';
+  if(c.pos_due && !o){ const pb = DB.get('businesses', c.pos_due.bid); h += `<div class="card warn"><h3>${J.ic('credit-card',17)} POS cihazını geri götür</h3><div class="small"><b>${J.esc(pb ? pb.name : 'İşletme')}</b> işletmesinin POS'u sende (#${J.esc(c.pos_due.no)}). İşletmeye teslim et; işletme onaylayınca bu uyarı kalkar. O zamana kadar sadece bu işletmeden teklif alırsın.</div>${pb ? `<div class="btns"><a class="btnlink" href="${J.gmaps(pb)}" target="_blank" rel="noopener">${J.ic('navigation',15)} İşletmeye git · ${J.fmtDist(J.dist(pos, pb))}</a></div>` : ''}</div>`; }
   if(locMode === 'gps' && gpsErr && (c.online || o)) h += `<div class="card bad small">${J.ic('locate-fixed',15)} <b>Konumun alınamıyor.</b> ${J.esc(gpsErr)} Telefonun konum servisini açık tut; konum gelmeden müşteri seni haritada göremez.</div>`;
   if(offer){
     const b = DB.get('businesses', offer.rid);
     h += `<div class="p-offer"><div class="top2"><span>${J.ic('bell',17)} Yeni teslimat teklifi</span><span class="cd" data-live="down" data-end="${offer.offer.exp}">…</span></div><div class="amt">${J.tl(J.FEE.courier + (offer.tip||0) + (offer.prio_fee||0))}</div><div class="small" style="opacity:.9">${[`Sabit ${J.tl(J.FEE.courier)}`].concat(offer.priority?[`hızlı teslimat +${J.tl(offer.prio_fee)}`]:[]).concat(offer.tip?[`bahşiş +${J.tl(offer.tip)}`]:[]).join(' · ')}${offer.priority?'<div style="margin-top:6px;font-weight:800">Hızlı teslimat: lütfen öncelik ver</div>':''}</div>
       <div class="leg">${J.ic('store',17)}<span>Alış: <b>${J.esc(offer.rname)}</b></span><b>${J.fmtDist(J.dist(pos,b))}</b></div><div class="leg">${J.ic('house',17)}<span>Teslim: <b>${J.esc(offer.customer.name)}</b></span><b>${J.fmtDist(J.dist(b,offer.customer))}</b></div>
-      ${J.isDoor(offer) ? `<div class="trip">${J.ic(offer.pay_method==='nakit'?'banknote':'credit-card',15)} <span>Kapıda tahsil: <b>${J.tl(J.doorAmount(offer))}</b>${offer.prev_debt ? ` (${J.tl(offer.prev_debt)} önceki borç dahil)` : ''} · ${offer.pay_method==='nakit' ? 'nakit' + (offer.cash_for ? ` (${J.tl(offer.cash_for)} bozdurulacak)` : '') : 'POS ile kart'}</span></div>` : ''}
+      ${J.isDoor(offer) ? `<div class="trip">${J.ic(offer.pay_method==='nakit'?'banknote':'credit-card',15)} <span>Kapıda tahsil: <b>${J.tl(J.doorAmount(offer))}</b>${offer.prev_debt ? ` (${J.tl(offer.prev_debt)} önceki borç dahil)` : ''} · ${offer.pay_method==='nakit' ? 'nakit' + (offer.cash_for ? ` (${J.tl(offer.cash_for)} bozdurulacak)` : '') : 'kart · işletmenin POS\'u, sonra geri götürülür'}</span></div>` : ''}
       ${(() => { const e = J.tripEstimate(pos, offer); return e ? `<div class="trip">${J.ic('clock',15)} <span>Toplam yaklaşık <b>${e.total} dk</b> · ${e.km.toFixed(1).replace('.',',')} km</span><span class="tiny">${e.toB} dk varış${e.wait ? ` + ${e.wait} dk bekleme` : ''} + ${e.ride} dk teslim</span></div>` : ''; })()}
       <div class="acts"><button class="ok" data-a="accept">Kabul et</button><button class="sec" data-a="decline">Reddet</button></div><small>Reddetmenin cezası yok. 30 sn içinde kabul etmezsen teklif sıradaki kuryeye geçer.</small></div>`;
     J.notify('teklif-'+offer.id, 'Yeni teslimat teklifi', `${offer.rname} → ${J.tl(J.FEE.courier + (offer.tip||0) + (offer.prio_fee||0))}${offer.priority?' · hızlı':''}`);
@@ -192,7 +193,7 @@ function tabTask(c){
     h += incidentBox(o);
     if(o.del==='isletmeye') h += `<div class="note">İşletmeye gidiyorsun. ${J.ARRIVE_M} m yaklaşınca varış kendiliğinden kaydedilir.</div>`;
     if(o.del==='isletmede') h += o.prep==='hazir'
-      ? `<div style="margin-top:14px"><b>Paketi al: fişteki kodu gir ya da QR'ı okut</b></div><input id="pick" class="p-pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pick)}" style="margin-top:8px">
+      ? `${o.pay_method==='kart' ? `<div class="card warn small" style="margin-top:12px">${J.ic('credit-card',15)} Müşteri kartla ödeyecek: <b>işletmenin POS cihazını da al</b>, teslimattan sonra geri getir.</div>` : ''}<div style="margin-top:14px"><b>Paketi al: fişteki kodu gir ya da QR'ı okut</b></div><input id="pick" class="p-pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pick)}" style="margin-top:8px">
         ${pickErr?`<div class="small" style="color:var(--bad);margin-top:6px">${J.esc(pickErr)}</div>`:''}
         <div class="p-act">${'BarcodeDetector' in window ? `<button class="sec" data-a="scan">${J.ic('scan-line',17)} QR okut</button>` : ''}<button class="ok" style="flex:2" data-a="pickup">${J.ic('package',18)} Paketi aldım</button></div>`
       : `<div class="p-timer"><span>${J.ic('hourglass',16)} Sipariş hazırlanıyor</span><span>${o.prep_until?`<b data-live="mdown" data-end="${o.prep_until}">…</b> dk`:''}</span></div><div class="tiny muted" style="margin-top:6px">İşletme "hazır" deyince buton açılır.</div>`;
@@ -200,7 +201,7 @@ function tabTask(c){
     if(o.del==='kapida'){
       const called = J.calls().some(k => k.order_id===o.id && k.from.type==='kurye' && k.from.id===cid && k.start >= (o.arrived_at||0));
       const waitEnd = (o.arrived_at||J.now()) + J.D(J.WAIT_MS);
-      if(J.isDoor(o)) h += `<div class="p-collect ${collected===o.id?'on':''}"><div class="row"><span>${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',18)} ${o.pay_method==='nakit'?'Nakit tahsil et':'POS ile kartı çek'}</span><b>${J.tl(J.doorAmount(o))}</b></div>${o.prev_debt ? `<div class="tiny">Sipariş ${J.tl(J.custPaid(o))} + müşterinin önceki borcu ${J.tl(o.prev_debt)}</div>` : ''}${o.pay_method==='nakit' && o.cash_for ? `<div class="tiny">Müşteri ${J.tl(o.cash_for)} verecek · para üstü <b>${J.tl(Math.max(0, o.cash_for - J.doorAmount(o)))}</b></div>` : ''}<button class="${collected===o.id?'ok':'sec'} wide" style="margin-top:8px" data-a="collect">${collected===o.id ? J.ic('circle-check',16) + ' Ödeme alındı' : 'Ödemeyi aldım'}</button></div>`;
+      if(J.isDoor(o)) h += `<div class="p-collect ${collected===o.id?'on':''}"><div class="row"><span>${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',18)} ${o.pay_method==='nakit'?'Nakit tahsil et':'İşletmenin POS\'u ile kartı çek'}</span><b>${J.tl(J.doorAmount(o))}</b></div>${o.prev_debt ? `<div class="tiny">Sipariş ${J.tl(J.custPaid(o))} + müşterinin önceki borcu ${J.tl(o.prev_debt)}</div>` : ''}${o.pay_method==='nakit' && o.cash_for ? `<div class="tiny">Müşteri ${J.tl(o.cash_for)} verecek · para üstü <b>${J.tl(Math.max(0, o.cash_for - J.doorAmount(o)))}</b></div>` : ''}<button class="${collected===o.id?'ok':'sec'} wide" style="margin-top:8px" data-a="collect">${collected===o.id ? J.ic('circle-check',16) + ' Ödeme alındı' : 'Ödemeyi aldım'}</button></div>`;
       h += `<div style="margin-top:14px"><b>Müşteriden 4 haneli kodu iste</b></div><input id="pin" class="p-pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pin)}" style="margin-top:8px">
         ${pinErr?`<div class="small" style="color:var(--bad);margin-top:6px">${J.esc(pinErr)}</div>`:''}
         <button class="ok p-big" data-a="pin">${J.ic('circle-check',18)} Kodu onayla ve teslim et</button>
@@ -218,14 +219,14 @@ function tabTask(c){
   return h;
 }
 function ledgerCard(c){
-  const x = J.doorLedger()[c.id]; if(!x) return '';
-  const rows = Object.keys(x.biz).map(bid => ({b:DB.get('businesses', bid), owe: x.biz[bid] - (x.paidBiz[bid]||0)})).filter(r => Math.abs(r.owe) >= 0.5);
-  const plat = x.plat + x.refund - x.paidPlat, total = rows.reduce((t,r) => t + r.owe, 0) + plat;
-  return `<div class="p-sec">Kapıda tahsilat hesabı</div><div class="p-card"><div class="row"><span>Toplam tahsil ettiğin</span><b>${J.tl(x.collected)}</b></div><div class="row"><span>Senin payın (ücret + bahşiş)</span><b style="color:var(--ok)">${J.tl(x.keep)}</b></div>
-    <div class="row" style="margin-top:6px"><span><b>Teslim etmen gereken</b></span><b style="font-size:18px">${J.tl(Math.max(0,total))}</b></div>
-    ${rows.map(r => `<div class="p-mini"><span>${J.esc(r.b ? r.b.name : 'İşletme')}</span><b>${J.tl(r.owe)}</b></div>`).join('')}
-    ${plat >= 0.5 ? `<div class="p-mini"><span>Platform (hizmet bedeli${x.refund ? ' + müşteri iadeleri' : ''})</span><b>${J.tl(plat)}</b></div>` : ''}
-    <div class="tiny muted" style="margin-top:8px">İşletme parayı teslim aldığında kendi ekranından onaylar; platform payını yönetim onaylar. Onaylanan tutarlar buradan düşer.</div></div>`;
+  const me = 'c:' + c.id, rows = J.balances().filter(x => x.from === me || x.to === me), col = J.collectedBy(me);
+  if(!rows.length && !col.n) return '';
+  const pay = rows.filter(x => x.from === me), get = rows.filter(x => x.to === me);
+  return `<div class="p-sec">Kapıda ödeme hesabı</div><div class="p-card">
+    ${col.n ? `<div class="row"><span>Nakit tahsil ettiğin</span><b>${J.tl(col.sum)}</b></div>` : ''}
+    ${pay.length ? `<div class="small" style="margin-top:8px"><b>Teslim etmen gereken</b></div>${pay.map(x => `<div class="p-mini"><span>${J.esc(J.party(x.to))}</span><b>${J.tl(x.amount)}</b></div>`).join('')}` : ''}
+    ${get.length ? `<div class="small" style="margin-top:8px"><b>Alacağın</b> <span class="tiny muted">(kartlı siparişlerde para işletmenin POS'una girer, payını işletme öder)</span></div>${get.map(x => `<div class="p-mini"><span>${J.esc(J.party(x.from))}</span><span><b>${J.tl(x.amount)}</b> <button class="ok sm" data-a="settle-in" data-id="${x.from}" data-v="${x.amount}">Aldım</button></span></div>`).join('')}` : ''}
+    <div class="tiny muted" style="margin-top:8px">Parayı alan taraf onaylar; onaylanan tutarlar buradan düşer.</div></div>`;
 }
 function tabEarn(c){
   const jobs = c.jobs||[];
@@ -318,6 +319,7 @@ document.addEventListener('click', async e => {
     J.log(`Yeni kurye başvurusu: ${name}. Yönetim onayı bekleniyor.`, 'warn');
   }
   if(a==='notif'){ const p = await J.askNotif(); if(p==='granted' && c) DB.patch('couriers', c.id, {notif_ok:true}); }
+  if(a==='settle-in' && c){ if(J.settle(el.dataset.id, 'c:' + c.id, +el.dataset.v, 'kurye')) J.toast('Ödeme alındı olarak kaydedildi.'); }
   if(a==='inc-open') inc = true;
   if(a==='inc-close') inc = false;
   if(a==='inc' && c){ const r = J.reportIncident(c, myJob(), el.dataset.id); inc = false; if(r==='aktarildi'){ DB.patch('couriers', c.id, {online:false}); J.toast('Bildirildi. Sipariş başka kuryeye aktarıldı; seni çevrimdışı yaptık. Geçmiş olsun.'); } else if(r) J.toast('Destek ekibine bildirildi.'); }

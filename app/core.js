@@ -330,7 +330,7 @@ J.courierHasOffer = cid => J.orders().some(o => o.state==='aktif' && o.offer && 
 J.candidates = function(o){
   const b = DB.get('businesses', o.rid); if(!b) return [];
   return J.couriers()
-    .filter(c => c.approved !== false && c.online && c.notif_ok && J.isAlive(c) && !c.busy && !(o.tried||[]).includes(c.id) && !J.courierHasOffer(c.id) && J.dist(c,b) <= J.RADIUS_M)
+    .filter(c => c.approved !== false && (!c.pos_due || c.pos_due.bid === o.rid) && c.online && c.notif_ok && J.isAlive(c) && !c.busy && !(o.tried||[]).includes(c.id) && !J.courierHasOffer(c.id) && J.dist(c,b) <= J.RADIUS_M)
     .sort((a,b2) => J.dist(a,b) - J.dist(b2,b));
 };
 J.dispatchTick = function(o){
@@ -388,6 +388,7 @@ function finishCourier(c, o){
 }
 J.complete = function(c, o, how){
   DB.patch('orders', o.id, {state:'teslim', del:'teslim', delivered_at:J.now(), how});
+  if(o.pay_method === 'kart') DB.patch('couriers', c.id, {pos_due:{bid:o.rid, oid:o.id, no:o.no, t:J.now()}});
   finishCourier(c, o);
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
@@ -737,20 +738,47 @@ J.unreachable = function(c, o){
   J.log(`#${o.no} müşteriye ulaşılamadı (kurye bekledi ve aradı). Kurallar gereği iade yok.`, 'bad', o.id);
   payout(o);
 };
-// Hesaplaşma: kuryenin kapıda topladığı paradan işletmeye ve platforma borcu
+/* Hesaplaşma (kapıda ödeme). Taraflar: 'c:<kuryeId>', 'b:<işletmeId>', 'p' (platform).
+   Kartla ödemede para işletmenin POS'una girer: işletme kuryenin payını ve platform payını öder.
+   Nakitte para kuryede kalır: kurye kendi payını alır, işletme ve platform paylarını teslim eder.
+   Platform payı = hizmet bedeli + müşteri iadeleri (ikaz, sorun bildirimi) + tahsil edilen eski müşteri borcu. */
 J.settlements = () => DB.rows('settlements');
-J.doorLedger = function(){
-  const L = {};   // L[courierId] = {biz:{bid:tutar}, plat, refund, collected, paidBiz:{bid}, paidPlat}
-  const get = cid => L[cid] = L[cid] || {biz:{}, plat:0, refund:0, collected:0, keep:0, paidBiz:{}, paidPlat:0};
+J.party = k => k === 'p' ? 'Platform' : k.startsWith('c:') ? ((DB.get('couriers', k.slice(2))||{}).name || 'Kurye') : ((DB.get('businesses', k.slice(2))||{}).name || 'İşletme');
+J.balances = function(){
+  const owe = {};   // "borçlu>alacaklı" → tutar
+  const add = (from, to, v) => { if(from === to || !v) return; owe[from+'>'+to] = (owe[from+'>'+to]||0) + v; };
   J.orders().filter(o => J.isDoor(o) && o.state === 'teslim' && o.shares && o.courier_id).forEach(o => {
-    const x = get(o.courier_id), sh = o.shares;
-    x.collected += o.collected || J.doorAmount(o); x.keep += sh.courier;
-    x.plat += (o.prev_debt || 0);   // tahsil edilen eski borç platforma teslim edilir, platform ilgili işletme ve kuryeye öder
-    x.biz[o.rid] = (x.biz[o.rid]||0) + sh.business;   // sorun bildirimi iadesi düşülmüş pay
-    x.plat += sh.platform; x.refund += (sh.refund||0) + (o.claim_refund||0);   // müşteriye geri verilecekler platform üzerinden ödenir
+    const sh = o.shares, holder = o.pay_method === 'nakit' ? 'c:' + o.courier_id : 'b:' + o.rid;
+    add(holder, 'b:' + o.rid, sh.business);
+    add(holder, 'c:' + o.courier_id, sh.courier);
+    add(holder, 'p', sh.platform + (sh.refund||0) + (o.claim_refund||0) + (o.prev_debt||0));
   });
-  J.settlements().forEach(s => { const x = get(s.cid); if(s.to === 'platform') x.paidPlat += s.amount; else x.paidBiz[s.to] = (x.paidBiz[s.to]||0) + s.amount; });
-  return L;
+  J.settlements().forEach(st => {
+    const from = st.from || ('c:' + st.cid), to = st.to.includes(':') || st.to === 'p' ? st.to : (st.to === 'platform' ? 'p' : 'b:' + st.to);
+    add(from, to, -st.amount);
+  });
+  // Karşılıklı borçları netleştir
+  const out = [];
+  Object.keys(owe).forEach(k => { const [a, b] = k.split('>'); const back = owe[b+'>'+a] || 0, net = owe[k] - back;
+    if(net >= 0.5 && !out.some(x => x.from === b && x.to === a)) out.push({from:a, to:b, amount:Math.round(net*100)/100}); });
+  return out;
+};
+// Tahsilat özeti (kurye ya da işletme için)
+J.collectedBy = function(key){
+  let sum = 0, n = 0;
+  J.orders().filter(o => J.isDoor(o) && o.state === 'teslim' && o.shares && o.courier_id).forEach(o => {
+    const holder = o.pay_method === 'nakit' ? 'c:' + o.courier_id : 'b:' + o.rid;
+    if(holder === key){ sum += o.collected || J.doorAmount(o); n++; }
+  });
+  return {sum, n};
+};
+// POS iadesi: kartla ödemede işletmenin POS'u kuryeyle gider, teslimden sonra işletmeye geri götürülür
+J.posReturned = function(c, by){
+  if(!c || !c.pos_due) return false;
+  const b = DB.get('businesses', c.pos_due.bid);
+  DB.patch('couriers', c.id, {pos_due:null});
+  J.log(`${c.name} POS cihazını ${b ? b.name : 'işletmeye'} geri teslim etti (${by} onayladı).`, 'ok', c.pos_due.oid);
+  return true;
 };
 // Kurye kapıda borcu da tahsil edince müşterinin borcu kapanır; borçlu siparişler "platformdan ödenecek" olur
 J.clearDebt = function(o){
@@ -761,11 +789,10 @@ J.clearDebt = function(o){
   open.forEach(d => DB.patch('orders', d.oid, {pay:'borc_tahsil', debt_paid_t:J.now(), debt_via:o.no}));
   J.log(`#${o.no} ile müşterinin önceki ${J.tl(o.prev_debt)} borcu tahsil edildi.`, 'pay', o.id);
 };
-J.settle = function(cid, to, amount, by){
+J.settle = function(from, to, amount, by){
   if(!(amount > 0)) return false;
-  DB.put('settlements', J.uid('s'), {cid, to, amount:Math.round(amount*100)/100, t:J.now(), by});
-  const c = DB.get('couriers', cid), b = to === 'platform' ? null : DB.get('businesses', to);
-  J.log(`Hesaplaşma: ${c ? c.name : 'kurye'} → ${b ? b.name : 'platform'} ${J.tl(amount)} teslim etti (${by} onayladı).`, 'pay');
+  DB.put('settlements', J.uid('s'), {from, to, amount:Math.round(amount*100)/100, t:J.now(), by});
+  J.log(`Hesaplaşma: ${J.party(from)} → ${J.party(to)} ${J.tl(amount)} ödedi (${by} onayladı).`, 'pay');
   return true;
 };
 
