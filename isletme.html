@@ -95,7 +95,8 @@ function orderCard(o){
     <div class="p-money"><span>Sipariş tutarı</span><b>${J.tl(o.subtotal)}</b><span>Sabit teslimat + hizmet</span><b>−${J.tl(o.fees.biz)}</b>${o.loyalty_disc?`<span>Sadakat indirimi (katkınız)</span><b>−${J.tl(o.loyalty_disc)}</b>`:''}${o.discount?`<span>Başkan kuponu (katkınız)</span><b>−${J.tl(o.discount)}</b>`:''}${o.refund?`<span style="color:var(--bad)">İkaz iadesi</span><b style="color:var(--bad)">−${J.tl(o.refund)}</b>`:''}<span><b style="color:var(--ink)">Hesabınıza geçecek</b></span><b class="big">${J.tl(net)}</b><span>%35 komisyonla olurdu</span><span style="text-align:right">${J.tl(o.subtotal*(1-J.COMMISSION_RATE))}</span></div>`;
   if(o.prep==='bekliyor'){ const st = J.prepStats(b), est = J.prepEstimate(b);
     h += `<div class="p-timer" style="background:#f6f5f2;color:var(--ink)"><span>${J.ic('timer',16)} Tahmini hazırlık süresi</span><span><b>${est}</b> dk</span></div><div class="tiny muted" style="margin-top:6px">${st.avg!=null?`Son siparişlerinizdeki ortalama ${Math.round(st.avg)} dk`:'Başlangıç süresi'}${st.load?` + şu an hazırlanan ${st.load} sipariş`:''}. Süreyi sistem yoğunluğunuza göre belirler; "Hazır" dediğiniz anlar ortalamayı günceller.</div>
-    ${rj===o.id ? rejectBox(o) : `<div class="p-act"><button class="ok" style="flex:2;padding:15px;font-size:16px" data-a="accept" data-id="${o.id}">${J.ic('circle-check',18)} Siparişi onayla</button><button class="sec" data-a="rj-open" data-id="${o.id}">Reddet</button></div>`}`; }
+    ${o.pay==='havale_bekliyor' ? `<div class="p-note" style="background:#fff4e5;margin-top:10px">${J.ic('wallet',15)} <b>Havale bekleniyor: ${J.tl(J.custPaid(o))}</b> · açıklama "Jetgel ${J.esc(o.no)}".${o.transfer_sent ? ' Müşteri ödemeyi yaptığını bildirdi; hesabınızı kontrol edin.' : ' Müşteri henüz ödeme bildirmedi.'} Para hesabınıza geçmeden siparişi hazırlamayın.</div><div class="p-act"><button class="ok" data-a="transfer-ok" data-id="${o.id}">Ödeme hesabıma geçti</button><button class="sec" data-a="rj-open" data-id="${o.id}">Reddet</button></div>` : ''}
+    ${o.pay==='havale_bekliyor' ? '' : rj===o.id ? rejectBox(o) : `<div class="p-act"><button class="ok" style="flex:2;padding:15px;font-size:16px" data-a="accept" data-id="${o.id}">${J.ic('circle-check',18)} Siparişi onayla</button><button class="sec" data-a="rj-open" data-id="${o.id}">Reddet</button></div>`}`; }
   if(o.pick_code && o.prep!=='bekliyor' && !['yolda','kapida'].includes(o.del)) h += `<div class="p-pick">${J.ic('package',15)} Kurye alış kodu <b>${J.esc(o.pick_code)}</b><span class="tiny muted">Paketi verirken kuryeye söyleyin ya da fişteki QR'ı okutun.</span></div>`;
   if(o.prep==='hazirlaniyor'){
     const over = J.now() > o.prep_until, left = J.PREP_EXT_MAX - (o.prep_ext||0);
@@ -139,10 +140,12 @@ function printTicket(o){
 }
 function payCard(b){
   const acc = J.payAccept(b);
-  return `<div class="p-sec">Kapıda ödeme seçenekleri</div><div class="p-card">
+  return `<div class="p-sec">Ödeme seçenekleri</div><div class="p-card">
     <div class="row"><label for="pa-kart" style="flex:1"><b>Kartla ödeme (POS)</b><div class="tiny muted">Taşınabilir POS cihazınızı kuryeye verirsiniz; para doğrudan hesabınıza geçer, kurye cihazı geri getirir.</div></label><input type="checkbox" id="pa-kart" style="width:22px;height:22px" ${acc.includes('kart')?'checked':''}></div>
     <div class="row" style="margin-top:10px"><label for="pa-nakit" style="flex:1"><b>Nakit</b><div class="tiny muted">Kurye nakit tahsil eder, payınızı size teslim eder.</div></label><input type="checkbox" id="pa-nakit" style="width:22px;height:22px" ${acc.includes('nakit')?'checked':''}></div>
-    <div class="tiny muted" style="margin-top:8px">Müşteri yalnızca açık olan seçenekleri görür. En az biri açık kalmalı.</div></div>`;
+    <div class="tiny muted" style="margin-top:8px">Müşteri yalnızca açık olan seçenekleri görür. En az biri açık kalmalı.</div>
+    ${J.bizGroup(b)==='Çiçek' ? `<div style="margin-top:14px"><b>Hediye siparişleri için banka hesabı</b><div class="tiny muted">Hediye gönderen müşteri ödemeyi önceden bu hesaba havale/EFT ile yapar. Bilgi girilmezse hediye gönderimi kapalı kalır.</div>
+      <input id="iban-name" placeholder="Hesap sahibi (işletme ünvanı)" style="margin-top:8px" value="${J.esc(ibd.name != null ? ibd.name : (b.iban_name||''))}"><input id="iban" placeholder="TR00 0000 0000 0000 0000 0000 00" style="margin-top:8px" value="${J.esc(ibd.iban != null ? ibd.iban : (b.iban||''))}"><button class="sec wide" style="margin-top:8px" data-a="iban-save">Kaydet</button></div>` : ''}</div>`;
 }
 function locCard(b){
   return `<div class="p-sec">Dükkân konumu</div><div class="p-card"><div class="small">${b.loc_real ? `${J.ic('circle-check',15)} Konum dükkândayken GPS ile kaydedildi${b.loc_t ? ' · ' + new Date(b.loc_t).toLocaleDateString('tr-TR') : ''}.` : `${J.ic('triangle-alert',15)} Konum henüz dükkânda doğrulanmadı. Kuryeler ve müşteriler sizi bu noktada görür.`}</div>
@@ -229,7 +232,7 @@ function tabMenu(b){
 }
 
 let rp = 7;   // rapor dönemi (gün)
-let rj = null, rjWhy = '', rjOut = [];   // reddetme: sipariş, gerekçe, tükenen ürünler
+let rj = null, rjWhy = '', rjOut = [], ibd = {};   // ibd: yazılmakta olan banka bilgisi   // reddetme: sipariş, gerekçe, tükenen ürünler
 function reportData(b, days){
   const since = days === 1 ? new Date().setHours(0,0,0,0) : J.now() - days*864e5;
   const os = J.orders().filter(o => o.rid===b.id && o.state==='teslim' && (o.created_at||0) >= since);
@@ -367,6 +370,12 @@ document.addEventListener('click', async e => {
   }
   if(a==='settle' && b){ if(J.settle(id, 'b:' + b.id, +el.dataset.v, 'isletme')) J.toast('Teslim alındı olarak kaydedildi.'); }
   if(a==='pos-back' && b){ if(J.posReturned(DB.get('couriers', id), 'isletme')) J.toast('POS teslim alındı.'); }
+  if(a==='iban-save' && b){
+    const nm = document.getElementById('iban-name').value.trim(), ib = document.getElementById('iban').value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(!nm || !/^TR\d{24}$/.test(ib)){ J.toast('Hesap sahibini ve 26 haneli TR IBAN\'ı girin.'); return; }
+    DB.patch('businesses', b.id, {iban_name:nm, iban:ib.replace(/(.{4})/g,'$1 ').trim()}); ibd = {}; J.toast('Banka hesabı kaydedildi. Hediye gönderimi açıldı.');
+  }
+  if(a==='transfer-ok'){ if(J.transferOk(DB.get('orders', id))) J.toast('Ödeme teyit edildi. Şimdi siparişi onaylayabilirsiniz.'); }
   if(a==='rj-open'){ rj = id; rjWhy = ''; rjOut = []; }
   if(a==='rj-close') rj = null;
   if(a==='rj-why') rjWhy = id;
@@ -503,6 +512,8 @@ document.addEventListener('change', async e => {
 });
 document.addEventListener('input', e => {
   const ap = /^ap-(name|owner|phone|addr|user|pass)$/.exec(e.target.id||''); if(ap && apply){ apply[ap[1]] = e.target.value; return; }
+  if(e.target.id==='iban-name'){ ibd.name = e.target.value; return; }
+  if(e.target.id==='iban'){ ibd.iban = e.target.value; return; }
   const m = /^new-(name|price|cat|desc|opts)$/.exec(e.target.id||''); if(m) nf[m[1]] = e.target.value;
   const k = /^ed-(name|price|cat|desc|opts|stock)$/.exec(e.target.id||''); if(k && ed) ed[k[1]] = e.target.value;
 });

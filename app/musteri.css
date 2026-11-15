@@ -257,3 +257,4 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-gift{border:1.5px solid #f3c7d8;background:#fff8fb}
 .m-gift h3{display:flex;align-items:center;gap:6px}
 .m-giftaddr{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin-top:10px;background:#fff;border-radius:10px;padding:8px 10px}
+.m-iban{display:grid;gap:8px;background:#fff;border:1px solid #efebe4;border-radius:12px;padding:12px;margin-top:10px}.m-iban>div{display:flex;flex-direction:column}.m-iban b{word-break:break-all}.m-havale{border:1.5px solid #f2d27a;background:#fffaf0}
