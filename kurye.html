@@ -126,7 +126,7 @@ async function ensureRoute(o){
 }
 
 /* ---------- Ekranlar ---------- */
-let loginErr = '', regErr = '', showReg = false;
+let loginErr = '', regErr = '', showReg = location.hash === '#basvuru';
 function renderProfile(){
   const top = `<div class="p-login"><div class="logo">Jet<span>gel</span> Kurye</div><div class="small muted">Teslimat başına sabit ${J.tl(J.FEE.courier)}, ceza puanı yok.</div></div><div class="p-body">`;
   if(showReg) return top + `<div class="card"><h3>Kurye başvurusu</h3><div class="small muted">Başvurun yönetim tarafından incelenir; kimlik, ehliyet ve araç belgelerin kontrol edildikten sonra hesabın açılır.</div>
@@ -201,7 +201,7 @@ function tabTask(c){
     if(o.del==='kapida'){
       const called = J.calls().some(k => k.order_id===o.id && k.from.type==='kurye' && k.from.id===cid && k.start >= (o.arrived_at||0));
       const waitEnd = (o.arrived_at||J.now()) + J.D(J.WAIT_MS);
-      if(J.isDoor(o)) h += `<div class="p-collect ${collected===o.id?'on':''}"><div class="row"><span>${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',18)} ${o.pay_method==='nakit'?'Nakit tahsil et':'İşletmenin POS\'u ile kartı çek'}</span><b>${J.tl(J.doorAmount(o))}</b></div>${o.prev_debt ? `<div class="tiny">Sipariş ${J.tl(J.custPaid(o))} + müşterinin önceki borcu ${J.tl(o.prev_debt)}</div>` : ''}${o.pay_method==='nakit' && o.cash_for ? `<div class="tiny">Müşteri ${J.tl(o.cash_for)} verecek · para üstü <b>${J.tl(Math.max(0, o.cash_for - J.doorAmount(o)))}</b></div>` : ''}<button class="${collected===o.id?'ok':'sec'} wide" style="margin-top:8px" data-a="collect">${collected===o.id ? J.ic('circle-check',16) + ' Ödeme alındı' : 'Ödemeyi aldım'}</button></div>`;
+      if(J.isDoor(o)) h += `<div class="p-collect ${collected===o.id?'on':''}"><div class="row"><span>${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',18)} ${o.pay_method==='nakit'?'Nakit tahsil et':'İşletmenin POS\'u ile kartı çek'}</span><b>${J.tl(J.doorAmount(o))}</b></div>${o.prev_debt ? `<div class="tiny">Sipariş ${J.tl(J.custPaid(o))} + müşterinin önceki borcu ${J.tl(o.prev_debt)}</div>` : ''}${o.pay_method==='nakit' && o.cash_for ? `<div class="tiny">Müşteri ${J.tl(o.cash_for)} verecek · para üstü <b>${J.tl(Math.max(0, o.cash_for - J.doorAmount(o)))}</b></div>` : ''}<button class="${collected===o.id?'ok':'sec'} wide" style="margin-top:8px" data-a="collect">${collected===o.id ? J.ic('circle-check',16) + ' Ödeme alındı' : 'Ödemeyi aldım'}</button>${o.pay_method==='kart' && collected!==o.id ? `<button class="ghost wide" style="margin-top:4px;font-size:13px" data-a="pos-fail">POS çalışmıyor · müşteri nakit ödeyecek</button>` : ''}</div>`;
       h += `<div style="margin-top:14px"><b>Müşteriden 4 haneli kodu iste</b></div><input id="pin" class="p-pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pin)}" style="margin-top:8px">
         ${pinErr?`<div class="small" style="color:var(--bad);margin-top:6px">${J.esc(pinErr)}</div>`:''}
         <button class="ok p-big" data-a="pin">${J.ic('circle-check',18)} Kodu onayla ve teslim et</button>
@@ -338,6 +338,7 @@ document.addEventListener('click', async e => {
   if(a==='pickup'){ const o = myJob(); if(o) doPickup(o, pick); }
   if(a==='scan'){ startScan(); return; }
   if(a==='scan-close'){ stopScan(); return; }
+  if(a==='pos-fail'){ const o = myJob(); if(o && o.pay_method==='kart'){ DB.patch('orders', o.id, {pay_method:'nakit', pos_fail:true}); J.log(`#${o.no} POS çalışmadı; müşteri nakit ödüyor.`, 'warn', o.id); J.toast('Ödeme nakite çevrildi. Müşterinin nakdi yoksa "Sorun bildir" ile destek iste.'); } }
   if(a==='collect'){ const o = myJob(); if(o) collected = collected === o.id ? null : o.id; }
   if(a==='pin'){
     const o = myJob(); if(!o) return;

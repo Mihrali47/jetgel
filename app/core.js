@@ -169,6 +169,8 @@ J.partyName = function(p){
    Hesaplaşmalar 'settlements' tablosuna kaydedilir. */
 J.ONLINE_PAY = false;   // ödeme kuruluşu bağlanınca true
 J.PAY_METHODS = {kart:'Kapıda kartla (POS)', nakit:'Kapıda nakit'};
+// İşletmenin kabul ettiği kapıda ödeme yolları (varsayılan ikisi de)
+J.payAccept = b => Object.keys(J.PAY_METHODS).filter(k => !b || !b.pay_accept || b.pay_accept[k] !== false);
 J.isDoor = o => o && (o.pay_method === 'kart' || o.pay_method === 'nakit');
 J.PAY_TXT = {kapida:'Kapıda ödenecek', yok:'Ödeme alınmadı', borc:'Müşteriye borç yazıldı', borc_tahsil:'Borç tahsil edildi · paylar ödenecek', borc_odendi:'Borç tahsil edildi · paylar ödendi', blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi', iade:'Tamamı iade edildi'};
 J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':(o.pay==='kalkti'||o.pay==='yok')?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',12)} ${J.isDoor(o) && o.pay==='dagitildi' ? (o.pay_method==='nakit'?'Kapıda nakit tahsil edildi':'Kapıda kartla tahsil edildi') : J.isDoor(o) && o.pay==='kapida' ? J.PAY_METHODS[o.pay_method] : (J.PAY_TXT[o.pay]||o.pay)}</span>`;
@@ -228,12 +230,13 @@ J.placeOrder = function(b, cart, cust, extra){
   if(J.cartLines(b, cart).some(l => J.optsMissing(l.m, l.opts.map(o => (l.m.opts||[]).indexOf(o))).length)) return null;   // zorunlu seçim eksik
   if(b.min_order > 0 && J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0) < b.min_order) return null;   // minimum tutar
   if(!J.stockOk(b, items)) return null;   // stok yetmiyor
+  if(extra && J.PAY_METHODS[extra.pay_method] && !J.payAccept(b).includes(extra.pay_method)) return null;   // işletme bu ödeme yolunu kabul etmiyor
   const subtotal = items.reduce((s,i) => s + i.price*i.qty, 0);
   const F = J.FEE;
   const fees = b.free_delivery ? {cust:0, biz:F.custDel+F.custPlat+F.bizDel+F.bizPlat} : {cust:F.custDel+F.custPlat, biz:F.bizDel+F.bizPlat};
   const id = J.uid('o');
   const o = {
-    id, no: String(Date.now()).slice(-5), rid:b.id, rname:b.name, items, subtotal, fees,
+    eta_max: J.etaRange(b, cust)[1], id, no: String(Date.now()).slice(-5), share_key: Math.random().toString(36).slice(2, 12), rid:b.id, rname:b.name, items, subtotal, fees,
     state:'aktif', prep:'bekliyor', del:'yok', pay: J.PAY_METHODS[extra && extra.pay_method] ? 'kapida' : 'blokaj', pay_method: J.PAY_METHODS[extra && extra.pay_method] ? extra.pay_method : 'online', cash_for: extra && extra.pay_method === 'nakit' ? Math.max(0, parseInt(extra.cash_for,10) || 0) : 0, prev_debt: J.PAY_METHODS[extra && extra.pay_method] && cust.debt > 0 ? cust.debt : 0, refund:0,
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||'', mahalle:cust.mahalle||''},
     note: String((extra && extra.note) || '').slice(0, 200),
@@ -362,7 +365,7 @@ J.courierAccept = async function(c, o){
   if(!o.offer || o.offer.cid !== c.id || o.offer.exp < J.now()) { J.toast('Teklifin süresi doldu.'); return; }
   const ok = await DB.claim('orders', o.id, 'kabul_' + (o.assign_n || 0));   // yeniden atamada sayaç artar
   if(!ok){ J.toast('Bu sipariş başka bir kuryeye geçti.'); return; }
-  DB.patch('orders', o.id, {courier_id:c.id, cname:c.name, offer:null, del:'isletmeye'});
+  DB.patch('orders', o.id, {courier_id:c.id, cname:c.name, offer:null, del:'isletmeye', assigned_at:J.now()});
   DB.patch('couriers', c.id, {busy:o.id});
   J.log(`#${o.no} ${c.name} kabul etti, işletmeye gidiyor.`, 'ok', o.id);
 };
@@ -388,7 +391,7 @@ function finishCourier(c, o){
 }
 J.complete = function(c, o, how){
   DB.patch('orders', o.id, {state:'teslim', del:'teslim', delivered_at:J.now(), how});
-  if(o.pay_method === 'kart') DB.patch('couriers', c.id, {pos_due:{bid:o.rid, oid:o.id, no:o.no, t:J.now()}});
+  if(o.pay_method === 'kart' || o.pos_fail) DB.patch('couriers', c.id, {pos_due:{bid:o.rid, oid:o.id, no:o.no, t:J.now()}});
   finishCourier(c, o);
   J.log(`#${o.no} teslim edildi (${how})${o.photo?', fotoğraflı':''}.`, 'ok', o.id);
   payout(Object.assign({}, o, {state:'teslim'}));
@@ -539,6 +542,19 @@ J.tripEstimate = function(from, o){
 };
 // Kapıda alınacak tutar: sipariş + müşterinin önceki borcu
 J.doorAmount = o => J.custPaid(o) + (o.prev_debt || 0);
+// Siparişe bağlı destek talebi (müşteri → yönetim)
+J.HELP_TOPICS = {gecikme:'Siparişim gecikti', ulasamiyorum:'İşletmeye ya da kuryeye ulaşamıyorum', odeme:'Ödemeyle ilgili sorun', teslim:'Teslim edildi görünüyor ama gelmedi', adres:'Adresimi değiştirmem gerekiyor', diger:'Başka bir konu'};
+J.openHelp = function(o, topic, note){
+  if(!o || !J.HELP_TOPICS[topic]) return false;
+  const list = (o.help||[]).concat([{id:J.uid('h'), topic, note:String(note||'').slice(0,300), t:J.now(), state:'acik'}]);
+  DB.patch('orders', o.id, {help:list});
+  J.log(`#${o.no} müşteri destek istedi: ${J.HELP_TOPICS[topic]}.`, 'warn', o.id);
+  return true;
+};
+J.answerHelp = function(o, hid, reply){
+  DB.patch('orders', o.id, {help:(o.help||[]).map(h => h.id === hid ? Object.assign({}, h, {state:'cozuldu', reply:String(reply||'').slice(0,300), rt:J.now()}) : h)});
+};
+J.openHelps = () => J.orders().flatMap(o => (o.help||[]).filter(h => h.state === 'acik').map(h => ({o, h})));
 J.custPaid = o => o.subtotal + (o.fees ? o.fees.cust : 0) + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0);
 /* ===================== SORUN BİLDİRİMİ VE İADE =====================
    Müşteri teslimden sonra 24 saat içinde eksik/yanlış/bozuk ürünü (isteğe bağlı fotoğrafla) bildirir, siparişte bir kez.
@@ -659,6 +675,17 @@ J.couponReturn = function(o){
 };
 J.maskName = n => { const f = String(n||'').trim().split(/\s+/)[0] || 'Komşu'; return f.charAt(0).toLocaleUpperCase('tr') + '***'; };
 // Konumdan mahalle adı (OpenStreetMap Nominatim). Ulaşılamazsa boş döner; uygulama çalışmaya devam eder.
+// Yazılan adresi koordinata çevirir (Türkiye içinde). Bulunamazsa null.
+J.geocode = async function(text, near){
+  try{
+    const vb = near ? `&viewbox=${near.lng-0.3},${near.lat+0.3},${near.lng+0.3},${near.lat-0.3}` : '';
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=tr&accept-language=tr${vb}&q=${encodeURIComponent(text)}`, {headers:{'Accept':'application/json'}});
+    if(!r.ok) return null;
+    const j = await r.json(); if(!j.length) return null;
+    return {lat:+j[0].lat, lng:+j[0].lon, label:j[0].display_name};
+  }catch(e){ return null; }
+};
+J.SERVICE_M = 5000;   // müşteriye bu mesafedeki işletmeler listelenir
 J.lookupMahalle = async function(pos){
   try{
     const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&accept-language=tr&lat=${pos.lat}&lon=${pos.lng}`, {headers:{'Accept':'application/json'}});

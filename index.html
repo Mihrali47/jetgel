@@ -116,7 +116,7 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
   .hero .c{grid-template-columns:1fr;padding-top:34px;padding-bottom:40px}
   .hero h1{font-size:34px}
   .hero p{font-size:16px}
-  .phone{display:none}
+  .phone{transform:scale(.78);transform-origin:top center;margin:-10px auto -110px}
   .cats{grid-template-columns:repeat(3,1fr)}
   .why,.steps3{grid-template-columns:1fr 1fr}
   .compare,.join{grid-template-columns:1fr}
@@ -126,18 +126,25 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
   section h2{font-size:26px}
 }
 @media (max-width:560px){
-  .hd nav a:not(.btn){display:none}
+  .hd nav{gap:12px}
+  .hd nav a:not(.btn){font-size:13px}
+  .hd nav a.btn{padding:8px 12px}
+  .hd nav .lg{display:none}
+  .hd nav .sm{display:inline!important}
   .find{flex-wrap:wrap}
   .find .in{flex-basis:100%;padding:0 6px}
   .find .loc,.find .go{flex:1}
   .why,.steps3{grid-template-columns:1fr}
 }
+.hd nav a{white-space:nowrap}.hd nav .sm{display:none}
+.ph-lbl{position:absolute;top:-26px;left:0;right:0;text-align:center;font-size:11.5px;font-weight:700;color:rgba(255,255,255,.85);letter-spacing:.3px}
+.phone{position:relative}
 </style>
 </head>
 <body>
 <header class="hd"><div class="c">
   <a class="logo" href="./">Jet<span>gel</span></a>
-  <nav><a href="#isletme">Restoranını ekle</a><a href="#kurye">Kurye ol</a><a class="btn" href="musteri.html">Giriş yap</a></nav>
+  <nav><a href="isletme.html#basvuru"><span class="lg">İşletme başvurusu</span><span class="sm">İşletme</span></a><a href="kurye.html#basvuru"><span class="lg">Kurye başvurusu</span><span class="sm">Kurye ol</span></a><a class="btn" href="#find" onclick="setTimeout(()=>document.getElementById('adres').focus(),50)">Adres seç</a></nav>
 </div></header>
 
 <div class="hero"><div class="c">
@@ -151,7 +158,7 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
     </form>
     <div class="mini"><span><span data-ic="circle-check"></span>Gizli ücret yok</span><span><span data-ic="lock"></span>Kodla güvenli teslimat</span><span><span data-ic="phone"></span>Numaran gizli kalır</span></div>
   </div>
-  <div class="phone" aria-hidden="true"><div class="screen">
+  <div class="phone" aria-label="Örnek takip ekranı"><div class="ph-lbl">Örnek takip ekranı</div><div class="screen">
     <div class="bar"><small>Tahmini varış</small><div class="eta">12-17 dk</div><b>Kuryen siparişini getiriyor</b><div class="prog"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
     <div class="map"><div class="route"></div><div class="pin c1" data-ic="bike"></div><div class="pin c2" data-ic="house"></div></div>
     <div class="card2"><div class="av" data-ic="bike"></div><div><b style="font-size:13px">Kuryen yolda</b><div class="tiny muted">650 m uzakta</div></div><div class="call" data-ic="phone"></div></div>
@@ -164,12 +171,12 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
   <h2>Ne istersin?</h2>
   <p class="lead">Yemekten markete, kahveden manava; mahallendeki işletmeler tek uygulamada.</p>
   <div class="cats">
-    <a class="cat" href="musteri.html"><i data-ic="utensils"></i>Yemek</a>
-    <a class="cat" href="musteri.html"><i data-ic="shopping-cart"></i>Market</a>
-    <a class="cat" href="musteri.html"><i data-ic="coffee"></i>Kahve</a>
-    <a class="cat" href="musteri.html"><i data-ic="cake-slice"></i>Tatlı</a>
-    <a class="cat" href="musteri.html"><i data-ic="carrot"></i>Manav</a>
-    <a class="cat" href="musteri.html"><i data-ic="pizza"></i>Pide ve pizza</a>
+    <a class="cat" href="musteri.html?g=Yemek"><i data-ic="utensils"></i>Yemek</a>
+    <a class="cat" href="musteri.html?g=Market"><i data-ic="shopping-cart"></i>Market</a>
+    <a class="cat" href="musteri.html?g=Kahve%20%26%20Tatl%C4%B1&q=kahve"><i data-ic="coffee"></i>Kahve</a>
+    <a class="cat" href="musteri.html?g=Kahve%20%26%20Tatl%C4%B1&q=tatl%C4%B1"><i data-ic="cake-slice"></i>Tatlı</a>
+    <a class="cat" href="musteri.html?g=Market&q=manav"><i data-ic="carrot"></i>Manav</a>
+    <a class="cat" href="musteri.html?g=Yemek&q=pide"><i data-ic="pizza"></i>Pide ve pizza</a>
   </div>
 </div></section>
 
@@ -189,7 +196,7 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
   <p class="lead">Üç adımda siparişin kapında.</p>
   <div class="steps3" style="counter-reset:s">
     <div style="background:#f6f5f2"><b>Adresini seç, işletmeni bul</b><p>Yakınındaki açık restoran ve marketler, tahmini süre ve teslimat ücretiyle listelenir.</p></div>
-    <div style="background:#f6f5f2"><b>Sepetini onayla</b><p>Ürünleri ekle, işletmeye notunu yaz. Ödeme önce sadece kartında bloke edilir, işletme onaylayınca çekilir.</p></div>
+    <div style="background:#f6f5f2"><b>Sepetini onayla</b><p>Ürünleri ekle, işletmeye notunu yaz. Ödemeyi sipariş kapına gelince kuryeye yaparsın: kartla (işletmenin POS'u) ya da nakit.</p></div>
     <div style="background:#f6f5f2"><b>Canlı takip et, kodla teslim al</b><p>Kuryeni haritada izle, gerekirse uygulamadan ara. Kapıda kodunu söyle, siparişin tamam.</p></div>
   </div>
 </div></section>
@@ -197,14 +204,14 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
 <section class="gray" id="isletme"><div class="c compare">
   <div>
     <h2>İşletmeler için: komisyon yok.</h2>
-    <p class="lead">Sipariş başına sabit 55 TL ödersin; satışından yüzde alınmaz, aidat yok. Ürün bedeli doğrudan senin hesabına geçer.</p>
+    <p class="lead">Sipariş başına sabit 55 TL ödersin; satışından yüzde alınmaz, aidat yok. Kartla ödemelerde para POS'undan doğrudan senin hesabına geçer.</p>
     <a class="btnlink" style="background:var(--ink);color:#fff;padding:12px 16px;font-size:14px" href="isletme.html"><span data-ic="store"></span> İşletme paneline git</a>
   </div>
   <div class="bars">
-    <div class="t">400 TL'lik bir siparişte işletmenin eline geçen</div>
+    <div class="t">Örnek karşılaştırma: 400 TL'lik bir siparişte işletmeye kalan</div>
     <div class="r"><div class="l"><span>%35 komisyonlu platform</span><b>260 TL</b></div><div class="b"><i style="width:65%;background:#c9c2b8"></i></div></div>
     <div class="r"><div class="l"><span><b>Jetgel</b> (sabit 55 TL)</span><b style="color:var(--ok)">345 TL</b></div><div class="b"><i style="width:86.25%;background:var(--ok)"></i></div></div>
-    <div class="tiny muted">Fark: sipariş başına 85 TL. Günde 30 siparişte ayda yaklaşık 76.500 TL.</div>
+    <div class="tiny muted">Fark: sipariş başına 85 TL; günde 30 siparişte ayda yaklaşık 76.500 TL. %35 komisyon oranı varsayımdır; hesap ürün maliyeti ve diğer giderler hariç bir senaryodur.</div>
   </div>
 </div></section>
 
@@ -224,7 +231,7 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
 
 <footer><div class="c">
   <div><div class="logo" style="color:#fff">Jet<span>gel</span></div><p style="margin:10px 0 0;max-width:280px">Komisyonsuz, sabit ücretli yemek ve market teslimatı.</p></div>
-  <div><b>Sipariş</b><a href="musteri.html">Sipariş ver</a><a href="musteri.html">Siparişlerim</a></div>
+  <div><b>Sipariş</b><a href="musteri.html">Sipariş ver</a><a href="musteri.html?v=siparisler">Siparişlerim</a></div>
   <div><b>İş ortakları</b><a href="isletme.html">İşletme paneli</a><a href="kurye.html">Kurye uygulaması</a><a href="yonetim.html">Yönetim</a></div>
   <div><b>Diğer</b><a href="yasal.html">Yasal metinler</a><a href="yasal.html#kvkk">KVKK aydınlatma metni</a><a href="ekip.html">Ekip girişi</a></div>
   <div class="cp">© <span id="yil"></span> Jetgel · Ön sürüm: ödeme şimdilik kapıda, kurye aracılığıyla kartla (POS) ya da nakit alınır.</div>

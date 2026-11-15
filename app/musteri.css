@@ -252,3 +252,5 @@ body.m .toast{bottom:calc(90px + env(safe-area-inset-bottom))}
 .m-sheet .lbl .req{color:var(--bad);font-weight:700}
 .m-live{color:#1f7a3d;font-weight:700}.m-live::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#22a45d;margin-right:5px;vertical-align:1px;animation:mlive 1.4s infinite}@keyframes mlive{50%{opacity:.25}}
 .m-low{color:#c2410c;font-weight:700;font-size:12px}
+.m-geo{display:flex;gap:8px;margin-top:10px}.m-geo input{flex:1}.m-geo button{flex:none;display:flex;align-items:center;gap:5px}
+.m-help-it{border-top:1px solid #efebe4;padding:8px 0;display:flex;flex-direction:column;gap:2px}.m-help-it:first-of-type{border-top:0}

@@ -44,12 +44,12 @@ let prof = null;                       // giriş yapan müşterinin kaydı (DB '
 // Giriş yapmamış ziyaretçi: menüleri gezebilir, sepet doldurabilir; sipariş anında giriş istenir
 function guestProf(){
   const k = J.store.get('misafir_konum', null) || J.store.get('konum_taslak', null), c0 = J.settings().center || J.DEFAULT_POS;
-  return {id:null, guest:true, name:'', note: J.store.get('adres_taslak', '') || (k ? 'Konumun' : 'Konum seçilmedi'), lat: k ? k.lat : c0.lat, lng: k ? k.lng : c0.lng, loc_src: k ? 'gps' : null};
+  return {id:null, guest:true, name:'', note: (k && k.note) || J.store.get('adres_taslak', '') || (k ? 'Konumun' : 'Konum seçilmedi'), lat: k ? k.lat : c0.lat, lng: k ? k.lng : c0.lng, loc_src: k ? 'gps' : null};
 }
 const loadProf = () => { prof = cuid ? (DB.get('customers', cuid) || null) : guestProf(); return prof; };
 const isGuest = () => !prof || prof.guest;
-let afterLogin = null, placing = false;   // placing: çift dokunuşta iki sipariş oluşmasın   // girişten sonra dönülecek ekran
-const GUEST_VIEWS = ['liste', 'menu', 'sepet', 'giris'];
+let afterLogin = null, placing = false, geoQ = '', geoMsg = null;   // geoQ/geoMsg: adres arama   // placing: çift dokunuşta iki sipariş oluşmasın   // girişten sonra dönülecek ekran
+const GUEST_VIEWS = ['liste', 'menu', 'sepet', 'giris', 'profil'];
 function needLogin(next, msg){ afterLogin = next; loginErr = ''; showReg = false; J.toast(msg || 'Devam etmek için giriş yap ya da hesap oluştur.'); go('giris'); }
 let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
@@ -125,10 +125,13 @@ function renderProfile(){
     <div class="m-body"><div class="m-box"><div class="small muted">Haritaya dokunarak ya da konumunu bularak teslimat noktanı seç. Telefon numarası istemiyoruz; kuryeyle uygulama içinden konuşursun.</div>
     <button class="sec wide" style="margin-top:10px" data-a="gps">${J.ic('locate-fixed',16)} Konumumu bul</button>
     <div class="tiny muted" style="margin-top:6px">Seçili nokta: ${(draft.src||draft.loc_src)==='gps'?'telefonunun konumu':(draft.src||draft.loc_src)==='harita'?'haritada seçtiğin nokta':'kayıtlı nokta'}</div>
-    <label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">
+    <div class="m-geo"><input id="p-search" placeholder="Adres ara: mahalle, cadde, no" value="${J.esc(geoQ)}"><button class="sec" data-a="geo">${J.ic('search',16)} Bul</button></div>${geoMsg ? `<div class="tiny" style="margin-top:6px;color:${geoMsg.bad?'var(--bad)':'var(--muted)'}">${J.esc(geoMsg.t)}</div>` : ''}
+    <div class="tiny muted" style="margin-top:6px">İşaretin doğru binada olduğundan emin ol; gerekirse haritaya dokunarak düzelt.</div>
+    ${isGuest() ? '' : `<label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">`}
     <label class="f">Adres adı</label><div class="m-sort" style="margin:0">${['Ev','İş','Diğer'].map(l => `<button class="${(draft.addr_label||'Ev')===l?'on':''}" data-a="lbl" data-v="${l}">${l}</button>`).join('')}</div>
     <label class="f" for="p-note">Adres tarifi</label><input id="p-note" value="${J.esc(draft.note)}" placeholder="Örn. Moda Cd. No 12, kat 3, zil: Yılmaz">
-    <button class="brand wide" style="margin-top:14px" data-a="save-prof">Kaydet</button></div></div>`;
+    ${(() => { const n = J.businesses().filter(b => !b.suspended && J.dist(b, draft) < J.SERVICE_M).length; return n ? `<div class="tiny" style="margin-top:10px;color:var(--ok)">${J.ic('circle-check',13)} Bu adrese ${n} işletme teslimat yapıyor.</div>` : `<div class="tiny" style="margin-top:10px;color:var(--bad)">${J.ic('triangle-alert',13)} Bu adres şu an hizmet alanımızın dışında; yakında açılacak.</div>`; })()}
+    <button class="brand wide" style="margin-top:14px" data-a="save-prof">${isGuest() ? 'Bu adresi kullan' : 'Kaydet'}</button></div></div>`;
 }
 
 /* ---------- Keşfet ---------- */
@@ -142,7 +145,7 @@ function restCard(x){
   const fee = b.free_delivery ? '<span class="tag ok">Ücretsiz teslimat</span>' : '';
   return `<div class="m-rest ${open?'':'m-closed'}" ${open?`data-a="open-biz" data-id="${b.id}"`:''}>
     <div class="m-cover" style="${cover(b)}"><div class="bdg">${b.id===starId?`<span class="tag star">${J.ic('award',13)} Mahallenin Yıldızı</span>`:''}${fee}${b.race_join && J.activeCoupon(prof)?'<span class="tag star">Kupon geçerli</span>':''}${open && J.isFull(b)?'<span class="tag busy">Şu an çok yoğun</span>':''}<span class="tag dark">Komisyonsuz</span></div><button class="m-fav ${favs().includes(b.id)?'on':''}" data-a="fav" data-id="${b.id}" aria-label="Favorilere ekle">${J.ic('heart',18)}</button><span class="cv-ic">${J.bizIcon(b,30)}</span>${open?`<span class="eta">${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}</div>
-    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span><span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span>${!open && J.hoursState(b) && J.hoursState(b).next?`<span style="color:var(--brand);font-weight:700">${J.ic('clock',13)} Açılış: ${J.esc(J.hoursState(b).next)}</span>`:''}</div></div></div>`;
+    <div class="inf"><div class="nm">${J.esc(b.name)}</div><div class="m-meta">${J.ratingBadge(b)}<span>${J.esc(b.kind||J.bizGroup(b))}</span><span>${J.ic('map-pin',13)} ${J.fmtDist(d)}</span>${open?`<span>${J.ic('clock',13)} ${etaTxt(b)}</span>`:''}<span>${J.ic('bike',13)} ${b.free_delivery?'Ücretsiz teslimat':'Teslimat '+J.tl(J.FEE.custDel)}</span>${b.min_order>0?`<span>Min. ${J.tl(b.min_order)}</span>`:''}${!open && J.hoursState(b) && J.hoursState(b).next?`<span style="color:var(--brand);font-weight:700">${J.ic('clock',13)} Açılış: ${J.esc(J.hoursState(b).next)}</span>`:''}</div></div></div>`;
 }
 function raceCard(){
   if(isGuest()) return '';
@@ -191,7 +194,7 @@ function renderList(){
       const b = DB.get('businesses', o.rid);
       return `<div class="m-again"><div class="n">${J.esc(o.rname)}</div><div class="i">${o.items.map(i => i.qty+'× '+J.itemLabel(i)).join(', ')}</div><button class="sm sec" data-a="reorder" data-id="${o.id}" ${bizOpen(b)?'':'disabled'}>${bizOpen(b)?J.ic('rotate-ccw',14)+' Tekrarla':'Şu an kapalı'}</button></div>`; }).join('')}</div>`;
   }
-  let list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: bizOpen(b)})).filter(x => x.d < 5000);
+  let list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: bizOpen(b)})).filter(x => x.d < J.SERVICE_M);
   if(group==='Ücretsiz') list = list.filter(x => x.b.free_delivery);
   else if(group==='Kupon') list = list.filter(x => x.b.race_join);
   else if(group!=='Hepsi') list = list.filter(x => J.bizGroup(x.b)===group);
@@ -214,7 +217,9 @@ function renderList(){
   const openN = list.filter(x => x.open).length;
   h += `<div class="m-h"><b>${qn?'Restoranlar ve marketler':group==='Hepsi'?'Yakınındakiler':group}</b><span>${openN} açık</span></div>`;
   h += `<div class="m-sort">${SORTS.map(([k,l]) => `<button class="${sort===k?'on':''}" data-a="sort" data-id="${k}">${l}</button>`).join('')}</div>`;
-  if(!list.length) h += `<div class="m-empty"><div>${J.ic('search',36)}</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
+  const anyNear = J.businesses().some(b => !b.suspended && J.dist(b, prof) < J.SERVICE_M);
+  if(!anyNear) h += `<div class="m-empty"><div>${J.ic('map-pin',36)}</div><b>Bu adrese henüz hizmet vermiyoruz</b><div class="small" style="margin-top:6px">Jetgel şimdilik sınırlı bir bölgede çalışıyor. Başka bir adres seçebilirsin.</div><button class="sec" style="margin-top:12px" data-a="addr-pick">Adresi değiştir</button></div>`;
+  else if(!list.length) h += `<div class="m-empty"><div>${J.ic('search',36)}</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
   list.forEach(x => h += restCard(x));
   if(J.notifPermission()==='default') h += `<div class="m-box small"><b>${J.ic('bell',15)} Kurye kapına gelince haber verelim mi?</b><div class="muted">Zorunlu değil.</div><div class="btns"><button class="sm brand" data-a="notif">Bildirimleri aç</button></div></div>`;
   return h + `</div>`;
@@ -258,11 +263,11 @@ function renderCart(){
     ${(() => { const cp = J.activeCoupon(prof); if(!cp) return ''; if(!b.race_join) return `<div class="note" style="margin:0 0 12px">${J.ic('award',14)} Başkan kuponun bu işletmede geçerli değil (işletme kampanyaya katılmıyor).</div>`;
       return `<button class="m-prio ${useCoupon?'on':''}" data-a="coupon"><span class="ic">${J.ic('award',20)}</span><span class="tx"><b>Başkan kuponu · −${J.tl(Math.min(cp.per, cp.left, sub))}</b><small>Kalan bakiye ${J.tl(cp.left)}. İndirimi işletme karşılar.</small></span><span class="sw"></span></button>`; })()}
     <div class="m-box"><h3>${J.ic('clock',16)} Ne zaman gelsin?</h3><div class="m-sort" style="margin:0"><button class="${sched?'':'on'}" data-a="sched-now">Hemen</button><button class="${sched?'on':''}" data-a="sched-later">İleri bir saat</button></div>
-      ${sched?`<select id="sched-sel" style="margin-top:10px">${J.schedSlots(b).map(t => `<option value="${t}" ${t===sched?'selected':''}>${J.fmtSched(t)}</option>`).join('')}</select><div class="tiny muted" style="margin-top:6px">Siparişin teslim saatinden ${J.SCHED_LEAD} dk önce işletmeye iletilir. Ödeme o zamana kadar sadece bloke edilir.</div>`:''}</div>
+      ${sched?`<select id="sched-sel" style="margin-top:10px">${J.schedSlots(b).map(t => `<option value="${t}" ${t===sched?'selected':''}>${J.fmtSched(t)}</option>`).join('')}</select><div class="tiny muted" style="margin-top:6px">Siparişin teslim saatinden ${J.SCHED_LEAD} dk önce işletmeye iletilir. Ödemeyi teslimatta kapıda yaparsın.</div>`:''}</div>
     <button class="m-prio ${prio?'on':''}" data-a="prio"><span class="ic">${J.ic('timer',20)}</span><span class="tx"><b>Hızlı teslimat · +${J.tl(J.FEE.priority)}</b><small>İşletme siparişini öne alır, kurye daha hızlı atanır. Hedef: 5-10 dk daha erken. Ücretin tamamı kuryeye.</small></span><span class="sw"></span></button>
     <div class="m-box"><h3>${J.ic('heart-handshake',16)} Kuryeye bahşiş</h3><div class="tiny muted" style="margin:-4px 0 10px">İsteğe bağlı. Bahşişin tamamı kuryeye gider, kesinti yapılmaz.</div>${tipBox(tip, 'tip', tipCustom)}${tipCustom?`<input id="tip-in" inputmode="numeric" placeholder="Tutar (TL)" value="${tip||''}" style="margin-top:8px">`:''}</div>
     <div class="m-box"><h3>${J.ic('wallet',16)} Ödeme</h3>${prof.door_block ? `<div class="card bad small" style="margin:0">#${J.esc(prof.door_block_order||'')} siparişinde sana ulaşılamadığı için kapıda ödeme hesabında kapatıldı. Açtırmak için destekle iletişime geç.</div>` : `
-      <div class="m-sort" style="margin:0">${Object.entries(J.PAY_METHODS).map(([k,t]) => `<button class="${payM===k?'on':''}" data-a="paym" data-id="${k}">${J.ic(k==='nakit'?'banknote':'credit-card',15)} ${t}</button>`).join('')}</div>
+      ${(() => { const acc = J.payAccept(b); if(!acc.includes(payM)) payM = acc[0] || 'kart'; return ''; })()}<div class="m-sort" style="margin:0">${Object.entries(J.PAY_METHODS).filter(([k]) => J.payAccept(b).includes(k)).map(([k,t]) => `<button class="${payM===k?'on':''}" data-a="paym" data-id="${k}">${J.ic(k==='nakit'?'banknote':'credit-card',15)} ${t}</button>`).join('')}</div>
       ${payM==='nakit' ? `<label class="f" for="cash-for">Kaç TL'lik banknotla ödeyeceksin? <span class="muted">(kurye para üstünü hazırlasın, isteğe bağlı)</span></label><input id="cash-for" inputmode="numeric" placeholder="Örn. 500" value="${J.esc(cashFor)}">` : `<div class="tiny muted" style="margin-top:8px">Kurye işletmenin POS cihazını getirir; kartını kapıda okutursun, fişin işletme adına kesilir.</div>`}`}</div>
     <div class="m-box m-sum"><h3>Ödeme özeti</h3>
       <div class="row"><span>Ürünler</span><span class="money">${J.tl(sub)}</span></div>
@@ -333,9 +338,11 @@ function renderTrack(){
     ${o.tip||o.tip_after?`<div class="row"><span>Kurye bahşişi</span><span class="money">${J.tl((o.tip||0)+(o.tip_after||0))}</span></div>`:''}
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
     <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0) - (o.refund||0) - (o.claim_refund||0))}</b></div>
-    ${J.isDoor(o) ? `<div class="row"><span>Ödeme</span><span>${J.payPill(o)}</span></div>${o.state==='aktif' ? `<div class="tiny muted" style="margin-top:6px">Kapıda ödeyeceğin tutar: <b>${J.tl(J.doorAmount(o))}</b>${o.prev_debt ? ` (önceki ${J.tl(o.prev_debt)} borcun dahil)` : ''}${o.cash_for ? ` · ${J.tl(o.cash_for)} ile ödeyeceğini kuryeye ilettik` : ''}. Teslimat kodunu ödemeden sonra söyle.</div>` : ''}${(o.refund || o.claim_refund) && o.state==='teslim' ? `<div class="tiny muted" style="margin-top:6px">İade tutarı sana destek ekibimiz tarafından ödenecek.</div>` : ''}` : ''}
+    ${J.isDoor(o) ? `${o.state==='aktif' ? `<div class="tiny muted" style="margin-top:6px">Kapıda ödeyeceğin tutar: <b>${J.tl(J.doorAmount(o))}</b>${o.prev_debt ? ` (önceki ${J.tl(o.prev_debt)} borcun dahil)` : ''}${o.cash_for ? ` · ${J.tl(o.cash_for)} ile ödeyeceğini kuryeye ilettik` : ''}. Teslimat kodunu ödemeden sonra söyle.</div>` : ''}${(o.refund || o.claim_refund) && o.state==='teslim' ? `<div class="tiny muted" style="margin-top:6px">İade tutarı sana destek ekibimiz tarafından ödenecek.</div>` : ''}` : ''}
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
   if(o.state==='teslim') h += claimBox(o);
+  if(o.state==='aktif' && o.share_key) h += `<button class="ghost wide" style="margin-bottom:10px" data-a="share-track">${J.ic('arrow-up-right',15)} Takip bağlantısını paylaş</button>`;
+  h += helpBox(o);
   if(o.state==='teslim' && !o.rated){
     if(rate.id !== o.id) rate = {id:o.id, biz:0, cour:0, note:''};
     h += `<div class="m-box m-rate"><h3>Siparişin nasıldı?</h3>
@@ -352,6 +359,17 @@ function renderTrack(){
   return h + `</div>`;
 }
 
+let hlp = {id:null, open:false, topic:'', note:''};
+function helpBox(o){
+  const past = (o.help||[]).map(x => `<div class="m-help-it"><b>${J.esc(J.HELP_TOPICS[x.topic])}</b><span class="tiny muted">${new Date(x.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} · ${x.state==='acik' ? 'Destek ekibimiz bakıyor' : 'Yanıtlandı'}</span>${x.reply ? `<div class="small">${J.esc(x.reply)}</div>` : ''}</div>`).join('');
+  if(!(hlp.open && hlp.id === o.id)) return `${past ? `<div class="m-box"><h3>${J.ic('message-square',16)} Destek</h3>${past}</div>` : ''}<button class="ghost wide" style="margin-bottom:10px" data-a="hlp-open">${J.ic('headphones',15)} Yardım al</button>`;
+  const topics = Object.entries(J.HELP_TOPICS).filter(([k]) => o.state==='aktif' ? k !== 'teslim' : !['gecikme','adres'].includes(k));
+  return `<div class="m-box"><h3>${J.ic('headphones',16)} Yardım al · #${J.esc(o.no)}</h3><div class="tiny muted" style="margin:-4px 0 8px">Talebin bu siparişle birlikte destek ekibimize iletilir.${o.state==='teslim' ? ' Eksik ya da hatalı ürün için yukarıdaki "Siparişte sorun mu var?" ile iade iste.' : ''}</div>
+    <div class="m-sort" style="margin:0;flex-wrap:wrap">${topics.map(([k,t]) => `<button class="${hlp.topic===k?'on':''}" data-a="hlp-t" data-id="${k}">${J.esc(t)}</button>`).join('')}</div>
+    <textarea id="hlp-note" class="m-note" maxlength="300" placeholder="Kısaca anlat (isteğe bağlı)" style="margin-top:10px">${J.esc(hlp.note)}</textarea>
+    <div class="p-act" style="display:flex;gap:8px;margin-top:10px"><button class="brand" style="flex:2" data-a="hlp-send" ${hlp.topic?'':'disabled'}>Gönder</button><button class="sec" style="flex:1" data-a="hlp-close">Vazgeç</button></div>
+    ${past}</div>`;
+}
 function claimBox(o){
   if(o.claim){
     const c = o.claim, ok = c.state === 'onaylandi';
@@ -470,6 +488,13 @@ document.addEventListener('click', e => {
     return;
   }
   if(a==='jump'){ const t = document.getElementById(id); if(t) t.scrollIntoView({behavior:'smooth', block:'start'}); return; }
+  if(a==='geo'){ const t = (document.getElementById('p-search').value || '').trim(); geoQ = t; if(!t) return; geoMsg = {t:'Aranıyor…'}; render();
+    J.geocode(t, draft).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; if(!draft.note) draft.note = t; geoMsg = {t:'Bulundu: ' + r.label.split(',').slice(0,3).join(',')}; map._fitted = null; } else geoMsg = {t:'Adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; render(); }); return; }
+  if(a==='save-prof' && isGuest()){
+    draft.note = document.getElementById('p-note').value.trim();
+    J.store.set('misafir_konum', {lat:draft.lat, lng:draft.lng, note:draft.note || 'Seçilen adres', label:draft.addr_label || 'Ev'}); J.store.set('adres_taslak', ''); J.store.set('konum_taslak', null);
+    draft = null; geoQ = ''; geoMsg = null; go('liste'); render(); return;
+  }
   if(a==='save-prof'){
     draft.name = document.getElementById('p-name').value.trim(); draft.note = document.getElementById('p-note').value.trim();
     if(!draft.name){ J.toast('Lütfen adını yaz.'); return; }
@@ -567,7 +592,7 @@ document.addEventListener('click', e => {
   if(a==='sort') sort = id;
   if(a==='fav' && isGuest()){ needLogin('liste', 'Favorilere eklemek için giriş yap.'); render(); return; }
   if(a==='fav' && prof){ const f = favs(); DB.patch('customers', prof.id, {favs: f.includes(id) ? f.filter(x => x !== id) : f.concat([id])}); J.toast(f.includes(id) ? 'Favorilerden çıkarıldı.' : 'Favorilere eklendi.'); }
-  if(a==='addr-pick' && isGuest()){ guestLocate(); return; }
+  if(a==='addr-pick' && isGuest()){ draft = Object.assign({}, prof, {src: prof.loc_src || 'varsayilan'}); go('profil'); render(); return; }
   if(a==='addr-pick'){ addrPick = true; }
   if(a==='addr-acc'){ addrPick = true; go('liste'); }
   if(a==='addr-close'){ addrPick = false; }
@@ -576,6 +601,12 @@ document.addEventListener('click', e => {
   if(a==='addr-edit'){ addrPick = false; const ad = addrs().find(x => x.id === id); draft = Object.assign({}, prof, ad ? {lat:ad.lat, lng:ad.lng, note:ad.note, addr_label:ad.label, addr_id:ad.id} : {}); go('profil'); render(); return; }
   if(a==='addr-del' && prof){ DB.patch('customers', prof.id, {addresses: addrs().filter(x => x.id !== id)}); }
   if(a==='lbl' && draft){ draft.addr_label = el.dataset.v; }
+  if(a==='share-track'){ const o = DB.get('orders', trackId); if(o){ const url = new URL('takip.html?o=' + o.id + '&k=' + o.share_key, location.href).href;
+      if(navigator.share) navigator.share({title:'Siparişimi takip et', text:o.rname + ' siparişim yolda', url}).catch(() => {}); else { try{ navigator.clipboard.writeText(url); J.toast('Takip bağlantısı kopyalandı.'); }catch(e){ prompt('Takip bağlantısı', url); } } } return; }
+  if(a==='hlp-open'){ hlp = {id:trackId, open:true, topic:'', note:''}; }
+  if(a==='hlp-close'){ hlp.open = false; }
+  if(a==='hlp-t'){ hlp.topic = id; }
+  if(a==='hlp-send'){ const o = DB.get('orders', trackId); if(J.openHelp(o, hlp.topic, hlp.note)){ J.toast('Talebin iletildi. Destek ekibimiz bu sipariş üzerinden dönecek.'); hlp = {id:null, open:false, topic:'', note:''}; } }
   if(a==='clm-open'){ clm = {id:trackId, open:true, picks:{}, reason:'eksik', note:'', photo:null}; }
   if(a==='clm-close'){ clm.open = false; }
   if(a==='clm-item'){ const i = el.dataset.i, o = DB.get('orders', trackId); if(clm.picks[i]) delete clm.picks[i]; else clm.picks[i] = o.items[i].qty; }
@@ -602,7 +633,10 @@ function applyDraftAddr(){
   const k = J.store.get('konum_taslak', null), a = J.store.get('adres_taslak', '');
   const patch = {};
   if(k && k.lat != null){ patch.lat = k.lat; patch.lng = k.lng; patch.loc_src = 'gps'; J.autoRelocate(k); }
-  if(a && (!prof.note || prof.note === 'Test adresi')) patch.note = a;
+  if(a && !(k && k.lat != null)){   // yalnızca yazılı adres: haritada onaylat
+    draft = Object.assign({}, prof, {note:a, addr_id:null}); geoQ = a; geoMsg = {t:'Aranıyor…'}; view = 'profil';
+    J.geocode(a, prof).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; geoMsg = {t:'Adresin haritada işaretlendi. Doğruysa kaydet.'}; } else geoMsg = {t:'Yazdığın adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; if(map) map._fitted = null; render(); });
+  } else if(a && (!prof.note || prof.note === 'Test adresi')) patch.note = a;
   if(Object.keys(patch).length) DB.patch('customers', prof.id, patch);
   J.store.set('konum_taslak', null); J.store.set('adres_taslak', '');
 }
@@ -629,23 +663,36 @@ document.addEventListener('input', e => {
   if(e.target.id==='cash-for'){ cashFor = e.target.value.replace(/\D/g,'').slice(0,5); return; }
   if(e.target.id==='rate-note'){ rate.note = e.target.value; return; }
   if(e.target.id==='clm-note'){ clm.note = e.target.value; return; }
+  if(e.target.id==='hlp-note'){ hlp.note = e.target.value; return; }
   if(e.target.id==='tip-in'){ tip = Math.max(0, Math.min(J.TIP_MAX, parseInt(e.target.value.replace(/\D/g,''),10) || 0)); renderBar(); return; }
   if(!draft) return;
   if(e.target.id==='p-name') draft.name = e.target.value;
   if(e.target.id==='p-note') draft.note = e.target.value;
+  if(e.target.id==='p-search') geoQ = e.target.value;
 });
 // Yazı yazılırken (not, adres) ekranı yeniden çizme
-const typing = () => { const a = document.activeElement; return a && (a.id==='o-note' || a.id==='clm-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='cash-for' || a.id==='p-name' || a.id==='p-note'); };
+const typing = () => { const a = document.activeElement; return a && (a.id==='p-search' || a.id==='o-note' || a.id==='clm-note' || a.id==='hlp-note' || a.id==='rate-note' || a.id==='tip-in' || a.id==='cash-for' || a.id==='p-name' || a.id==='p-note'); };
 DB.on(() => { if(view !== 'profil' && view !== 'giris' && !typing()) render(); else { renderCall(); renderBar(); } });
 setInterval(() => { const m = me(); if(m) J.callTick(m); J.strikeTick(); J.live(); renderCall(); }, 1000);
 function guestLocate(){
   if(!navigator.geolocation){ J.toast('Adres seçmek için giriş yap.'); return; }
   J.toast('Konum alınıyor…');
   navigator.geolocation.getCurrentPosition(p => { J.store.set('misafir_konum', {lat:p.coords.latitude, lng:p.coords.longitude}); J.autoRelocate({lat:p.coords.latitude, lng:p.coords.longitude}); render(); J.toast('Yakınındaki işletmeler gösteriliyor.'); },
-    () => J.toast('Konum alınamadı. Adres kaydetmek için giriş yap.'), {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
+    () => { J.toast('Konum alınamadı. Adresini yazarak ya da haritada seçerek devam et.'); draft = Object.assign({}, prof); go('profil'); render(); }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
 }
 DB.init().then(() => {
-  if(!cuid){ view = 'liste'; loadProf(); if(!J.store.get('misafir_konum', null) && !J.store.get('konum_taslak', null)) setTimeout(guestLocate, 400); openPendingBiz(); }
+  const P = new URLSearchParams(location.search);
+  if(P.get('g') && GROUPS.some(g => g[0] === P.get('g'))) group = P.get('g');
+  if(P.get('q')) q = P.get('q');
+  const typed = J.store.get('adres_taslak', ''), hasPos = J.store.get('misafir_konum', null) || J.store.get('konum_taslak', null);
+  if(!cuid){
+    view = 'liste'; loadProf();
+    if(typed && !hasPos){ draft = Object.assign({}, prof, {note:typed}); geoQ = typed; view = 'profil'; geoMsg = {t:'Aranıyor…'}; J.geocode(typed).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; geoMsg = {t:'Adresin haritada işaretlendi. Doğruysa onayla.'}; } else geoMsg = {t:'Yazdığın adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; map && (map._fitted = null); render(); }); }
+    else if(!hasPos) setTimeout(guestLocate, 400);
+    openPendingBiz();
+  }
+  if(P.get('v') === 'siparisler') view = cuid ? 'siparisler' : (afterLogin = 'siparisler', 'giris');
+  if(!cuid){}
   else if(loadProf()){ view = 'liste'; applyDraftAddr(); openPendingBiz(); setTimeout(autoLocate, 500); if(trackId){ const o = DB.get('orders', trackId); if(o && o.state==='aktif' && o.customer.id===prof.id) view = 'takip'; } }
   render();
 });

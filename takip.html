@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jetgel · Sipariş takibi</title>
+<meta name="theme-color" content="#e8590c">
+<meta name="robots" content="noindex">
+<link rel="icon" href="ikonlar/ikon-192.png">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="app/app.css">
+<link rel="stylesheet" href="app/musteri.css">
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/supabase/supabase.js"></script>
+<script src="app/config.js"></script>
+<script src="app/core.js"></script>
+<script src="app/ikon.js"></script>
+<style>
+.tk-top{padding:16px 18px 6px}.tk-top .logo{font-weight:900;font-size:20px}.tk-top .logo span{color:var(--brand)}
+#tmap{height:260px;margin:0 0 12px}
+</style>
+</head>
+<body class="m">
+<div class="wrap"><div class="tk-top"><div class="logo">Jet<span>gel</span></div><div class="tiny muted">Paylaşılan sipariş takibi</div></div>
+<div id="tmap" class="map"></div><div id="panel"></div></div>
+<script>
+/* Herkese açık, salt okunur takip sayfası: takip.html?o=<sipariş>&k=<anahtar>.
+   Teslimat kodu, telefon ve tam adres gösterilmez. */
+const {DB} = J, P = new URLSearchParams(location.search), oid = P.get('o'), key = P.get('k');
+let map = null;
+function render(){
+  const o = oid && DB.get('orders', oid);
+  if(!o || !o.share_key || o.share_key !== key){ J.render(document.getElementById('panel'), `<div class="m-body"><div class="m-empty"><div>${J.ic('search',36)}</div><b>Takip bağlantısı geçersiz</b><div class="small">Bağlantının süresi dolmuş ya da yanlış kopyalanmış olabilir.</div></div></div>`); document.getElementById('tmap').style.display = 'none'; return; }
+  const b = DB.get('businesses', o.rid), c = o.courier_id && DB.get('couriers', o.courier_id);
+  const steps = ['Onay','Hazırlık','Yolda','Teslim'];
+  const done = [o.prep!=='bekliyor', o.prep==='hazir' || ['yolda','kapida','teslim'].includes(o.del), ['kapida','teslim'].includes(o.del) || o.state==='teslim', o.state==='teslim'];
+  const now = o.state==='aktif' ? done.indexOf(false) : -1;
+  let v = '', sub = '';
+  if(o.state==='teslim'){ v = 'Teslim edildi'; sub = new Date(o.delivered_at || J.now()).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); }
+  else if(o.state!=='aktif'){ v = 'Sipariş kapandı'; sub = ''; }
+  else if(o.del==='kapida'){ v = 'Kurye kapıda'; }
+  else if(o.del==='yolda' && c){ v = Math.max(1, Math.round(J.dist(c, o.customer)*1.3/J.M_PER_MIN)) + ' dk'; sub = 'Kurye yolda'; }
+  else if(o.prep==='bekliyor'){ v = 'Onay bekleniyor'; }
+  else { v = 'Hazırlanıyor'; sub = o.courier_id ? 'Kurye atandı' : 'Kurye aranıyor'; }
+  J.render(document.getElementById('panel'), `<div class="m-body"><div class="m-eta" style="margin:0 0 12px"><div class="k">${J.esc(o.rname)} · #${J.esc(o.no)}</div><div class="v">${v}</div><div class="s">${J.esc(sub)}</div>
+    ${o.state==='aktif' ? `<div class="m-prog">${done.map((d,i) => `<span class="${d?'done':i===now?'now':''}"></span>`).join('')}</div><div class="m-prog-l">${steps.map((t,i) => `<span class="${i===now?'now':''}">${t}</span>`).join('')}</div>` : ''}</div>
+    <div class="note">Bu sayfa siparişi veren kişinin paylaştığı takip bağlantısıdır. Teslimat kodu yalnızca siparişi verenin ekranında görünür.</div></div>`);
+  const m = document.getElementById('tmap');
+  if(!map){ map = J.Map(m); }
+  if(!map.ok) return;
+  map.set('ev', o.customer, J.ic('house',16), 'home');
+  if(b) map.set('biz', b, J.bizIcon(b,16), '');
+  const showC = c && ['isletmeye','isletmede','yolda','kapida'].includes(o.del) && o.state==='aktif';
+  if(showC) map.set('kurye', c, J.ic('bike',16), 'cour busy', 'Kurye'); else map.remove('kurye');
+  map.keep(['ev','biz','kurye']);
+  const fk = o.id + o.del; if(map._fitted !== fk){ map._fitted = fk; setTimeout(() => { map.invalidate(); map.fit([o.customer, b, showC ? c : null].filter(Boolean)); }, 50); }
+}
+DB.on(() => render());
+DB.init().then(render);
+setInterval(render, 5000);
+</script>
+</body>
+</html>

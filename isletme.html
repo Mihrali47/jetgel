@@ -114,7 +114,7 @@ function orderCard(o){
 }
 
 function rejectBox(o){
-  return `<div class="p-rj"><b>Neden kabul edemiyorsunuz?</b><div class="tiny muted">Müşteriye bu gerekçe gösterilir, kartındaki blokaj hemen kalkar.</div>
+  return `<div class="p-rj"><b>Neden kabul edemiyorsunuz?</b><div class="tiny muted">Müşteriye bu gerekçe gösterilir; müşteriden ödeme alınmaz.</div>
     <div class="p-chips">${Object.entries(J.REJECT_REASONS).map(([k,t]) => `<button class="${rjWhy===k?'on':''}" data-a="rj-why" data-id="${k}">${J.esc(k==='diger'?'Diğer':t)}</button>`).join('')}</div>
     ${rjWhy==='tukendi' ? `<div class="tiny" style="margin:8px 0 4px">Hangi ürün tükendi? (menünüzde "tükendi" olarak işaretlenir)</div><div class="p-chips">${o.items.map((it,i) => `<button class="${rjOut.includes(i)?'on':''}" data-a="rj-item" data-id="${i}">${J.esc(it.name)}</button>`).join('')}</div>` : ''}
     <div class="p-act"><button class="bad" data-a="reject" data-id="${o.id}" ${rjWhy?'':'disabled'}>Reddet ve müşteriye bildir</button><button class="sec" data-a="rj-close">Vazgeç</button></div></div>`;
@@ -134,6 +134,13 @@ function printTicket(o){
   <div>${J.esc(o.customer.name)}</div><div>${J.esc(o.customer.note || '')}</div><hr>${o.pick_code ? `<div class="c">KURYE ALIŞ KODU</div><div class="no" style="font-size:24px">${J.esc(o.pick_code)}</div><div class="c qr">${J.qrSvg(J.pickQr(o), 4)}</div><div class="c">Kurye bu QR'ı okutarak ya da kodu girerek paketi alır.</div>` : ''}
   <script>window.onload=()=>{window.print();}<\/script></body></html>`);
   w.document.close();
+}
+function payCard(b){
+  const acc = J.payAccept(b);
+  return `<div class="p-sec">Kapıda ödeme seçenekleri</div><div class="p-card">
+    <div class="row"><label for="pa-kart" style="flex:1"><b>Kartla ödeme (POS)</b><div class="tiny muted">Taşınabilir POS cihazınızı kuryeye verirsiniz; para doğrudan hesabınıza geçer, kurye cihazı geri getirir.</div></label><input type="checkbox" id="pa-kart" style="width:22px;height:22px" ${acc.includes('kart')?'checked':''}></div>
+    <div class="row" style="margin-top:10px"><label for="pa-nakit" style="flex:1"><b>Nakit</b><div class="tiny muted">Kurye nakit tahsil eder, payınızı size teslim eder.</div></label><input type="checkbox" id="pa-nakit" style="width:22px;height:22px" ${acc.includes('nakit')?'checked':''}></div>
+    <div class="tiny muted" style="margin-top:8px">Müşteri yalnızca açık olan seçenekleri görür. En az biri açık kalmalı.</div></div>`;
 }
 function locCard(b){
   return `<div class="p-sec">Dükkân konumu</div><div class="p-card"><div class="small">${b.loc_real ? `${J.ic('circle-check',15)} Konum dükkândayken GPS ile kaydedildi${b.loc_t ? ' · ' + new Date(b.loc_t).toLocaleDateString('tr-TR') : ''}.` : `${J.ic('triangle-alert',15)} Konum henüz dükkânda doğrulanmadı. Kuryeler ve müşteriler sizi bu noktada görür.`}</div>
@@ -284,7 +291,7 @@ function loyaltyCard(b){
     <div class="p-grid2" style="margin-top:10px"><label class="tiny">Kaçıncı siparişte<input id="ly-every" type="number" min="2" max="30" value="${L.every}"></label><label class="tiny">İndirim (TL)<input id="ly-amount" type="number" min="1" max="1000" value="${L.amount}"></label></div></div>`;
 }
 function tabSettings(b){
-  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}${hoursCard(b)}${locCard(b)}${capCard(b)}${loyaltyCard(b)}${linkCard(b)}
+  return `<div class="p-sec">Ayarlar</div>${b.open ? J.batteryCard() : ''}${hoursCard(b)}${payCard(b)}${locCard(b)}${capCard(b)}${loyaltyCard(b)}${linkCard(b)}
     <div class="p-card"><div class="row"><label for="free" style="flex:1"><b>Müşterinin teslimat payını ben üstleneyim</b><div class="tiny muted">Müşteri "Ücretsiz teslimat" görür; ${J.tl(J.FEE.custDel+J.FEE.custPlat)} sizin payınıza eklenir.</div></label><input type="checkbox" id="free" data-a="free" style="width:22px;height:22px" ${b.free_delivery?'checked':''}></div></div>
     <div class="p-card"><div class="row"><label for="racej" style="flex:1"><b>Mahalle Başkanı kampanyasına katıl</b><div class="tiny muted">Haftanın en çok sipariş veren müşterisi ${J.tl(J.COUPON.total)} kupon kazanır. Başkan sizden sipariş verirse, siparişte en fazla ${J.tl(J.COUPON.per)} indirim sizin payınızdan düşer. Katılan işletmeler müşterilere "Kupon geçerli" etiketiyle gösterilir. İstediğiniz zaman ayrılabilirsiniz.</div></label><input type="checkbox" id="racej" data-a="racej" style="width:22px;height:22px" ${b.race_join?'checked':''}></div></div>
     <div class="p-card small"><h3>Ücretler</h3><div class="row"><span>Sipariş başına sabit ücret</span><b>${J.tl(J.FEE.bizDel+J.FEE.bizPlat)}</b></div><div class="row"><span>Yüzde komisyon</span><b>Yok</b></div><div class="row"><span>Aidat</span><b>Yok</b></div></div>
@@ -466,6 +473,11 @@ document.addEventListener('change', async e => {
     if(e.target.id==='ly-every') L.every = Math.max(2, Math.min(30, parseInt(e.target.value,10) || 10));
     if(e.target.id==='ly-amount') L.amount = Math.max(1, Math.min(1000, parseInt(e.target.value,10) || 100));
     DB.patch('businesses', b0.id, {loyalty:L}); J.toast('Sadakat kartı güncellendi.'); return;
+  }
+  if(/^pa-(kart|nakit)$/.test(e.target.id||'') && b0){
+    const pa = Object.assign({kart:true, nakit:true}, b0.pay_accept); pa[e.target.id.slice(3)] = e.target.checked;
+    if(!pa.kart && !pa.nakit){ e.target.checked = true; J.toast('En az bir ödeme seçeneği açık olmalı.'); return; }
+    DB.patch('businesses', b0.id, {pay_accept:pa}); J.toast('Ödeme seçenekleri kaydedildi.'); return;
   }
   if(e.target.id==='minord' && b0){ DB.patch('businesses', b0.id, {min_order: parseInt(e.target.value,10) || 0}); J.toast('Minimum tutar kaydedildi.'); return; }
   if(e.target.id==='cap' && b0){ DB.patch('businesses', b0.id, {cap: parseInt(e.target.value,10) || 0}); J.toast('Kapasite kaydedildi.'); return; }

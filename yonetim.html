@@ -88,7 +88,7 @@ function renderFin(){
   let h = `<div class="card"><div class="row"><h3 style="margin:0">Finans ve performans</h3><div class="m-sort" style="margin:0">${[1,7,30].map(d => `<button class="${fin===d?'on':''}" data-a="fin" data-id="${d}">${d===1?'Bugün':d+' gün'}</button>`).join('')}</div></div>
     <div class="adm-kpi">${[['Müşteriden tahsil', sum('paid')],['İşletmelere', sum('biz')],['Kuryelere', sum('cour')],['Platform geliri', sum('plat')],['İndirim / kupon', sum('disc')],['İade', sum('ref')]].map(([l,v]) => `<div><span class="tiny muted">${l}</span><b>${J.tl(v)}</b></div>`).join('')}</div>
     <div class="tiny muted" style="margin-top:6px">${done.length} teslim · ${cxN} iptal · ${redN} red. Para platform hesabından geçmez; tablo ödeme kuruluşunun yaptığı dağıtımı gösterir.</div>
-    <div class="p-act"><button class="sec" data-a="fin-csv">${J.ic('download',14)} CSV indir</button></div></div>`;
+    <div class="p-act"><button class="sec" data-a="fin-csv">${J.ic('download',14)} Pilot kaydı (CSV) indir</button></div></div>`;
   h += `<div class="card"><div style="overflow-x:auto"><table><tr><th>#</th><th>Tarih</th><th>İşletme</th><th>Durum</th><th>Tahsil</th><th>İşletme</th><th>Kurye</th><th>Platform</th><th>İndirim</th><th>İade</th></tr>${rows.slice(0,200).map(r => `<tr><td>${J.esc(r.o.no)}</td><td class="tiny">${new Date(r.o.created_at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td>${J.esc(r.o.rname)}</td><td>${stTxt(r.o)}</td><td>${J.tl(r.paid)}</td><td>${J.tl(r.biz)}</td><td>${J.tl(r.cour)}${r.o.tip||r.o.tip_after||r.o.prio_fee ? `<div class="tiny muted">bahşiş/hızlı dahil</div>` : ''}</td><td>${J.tl(r.plat)}</td><td>${J.tl(r.disc)}</td><td>${J.tl(r.ref)}</td></tr>`).join('') || '<tr><td colspan="10" class="muted small">Bu dönemde kapanan sipariş yok.</td></tr>'}</table></div></div>`;
   h += ledgerHtml();
   h += perfHtml();
@@ -125,8 +125,10 @@ function perfHtml(){
 }
 function finCsv(){
   const q = v => '"' + String(v).replace(/"/g,'""') + '"';
-  const lines = [['Sipariş','Tarih','İşletme','Durum','Tahsil','İşletme payı','Kurye payı','Platform','İndirim','İade','İptal nedeni'].map(q).join(';')];
-  finRows().forEach(r => lines.push([r.o.no, new Date(r.o.created_at).toLocaleString('tr-TR'), r.o.rname, r.o.state, r.paid, r.biz, r.cour, r.plat, r.disc, r.ref, r.o.cancel_reason||''].map(q).join(';')));
+  const lines = [['Sipariş','Tarih','İşletme','Kurye','Durum','Ödeme yolu','Tahsil','İşletme payı','Kurye payı','Platform','İndirim','İade','İptal/red nedeni','Kurye atama (dk)','Toplam süre (dk)','Söz verilen (dk)','Gecikme (dk)','Sorun bildirimi','Destek talebi'].map(q).join(';')];
+  const mn = (a, b) => a && b ? Math.round((b - a)/60000) : '';
+  finRows().forEach(r => { const o = r.o, tot = mn(o.created_at, o.delivered_at), late = tot !== '' && o.eta_max ? Math.max(0, tot - o.eta_max) : '';
+    lines.push([o.no, new Date(o.created_at).toLocaleString('tr-TR'), o.rname, o.cname||'', o.state, {kart:'Kapıda kart',nakit:'Kapıda nakit'}[o.pay_method]||'Online', r.paid, r.biz, r.cour, r.plat, r.disc, r.ref, o.cancel_reason || (o.reject_reason ? J.REJECT_REASONS[o.reject_reason] : ''), mn(o.accepted_at, o.assigned_at), tot, o.eta_max||'', late, o.incident ? J.INCIDENTS[o.incident.kind] : '', (o.help||[]).map(h => J.HELP_TOPICS[h.topic]).join(', ')].map(q).join(';')); });
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], {type:'text/csv;charset=utf-8'})); a.download = `finans-${fin}gun.csv`; a.click();
 }
 
@@ -217,7 +219,16 @@ function doorBlocks(){
   if(!cs.length) return h;
   return h + `<div class="p-sec">Kapıda ödemesi kapatılan müşteriler<span class="n">${cs.length}</span></div>` + cs.map(c => `<div class="p-card"><div class="row"><div><b>${J.esc(c.name||'Müşteri')}</b><div class="tiny muted">Borcu varken #${J.esc(c.door_block_order||'')} siparişinde de ulaşılamadı · ${c.door_block_t ? new Date(c.door_block_t).toLocaleString('tr-TR') : ''}</div></div><button class="sec sm" data-a="door-open" data-id="${c.id}">Kapıda ödemeyi aç</button></div></div>`).join('');
 }
+function helpHtml(){
+  const hs = J.openHelps();
+  let h = `<div class="p-sec">Destek talepleri<span class="n ${hs.length?'hot':''}">${hs.length}</span></div>`;
+  if(!hs.length) return h + `<div class="p-empty">Açık destek talebi yok.</div>`;
+  return h + hs.map(({o,h:x}) => `<div class="p-card"><div class="row"><b>#${J.esc(o.no)} · ${J.esc(o.rname)}</b><span class="tiny muted">${new Date(x.t).toLocaleString('tr-TR')}</span></div>
+    <div class="small"><b>${J.esc(J.HELP_TOPICS[x.topic])}</b> · ${J.esc(o.customer.name)} · ${stTxt(o)}</div>${x.note ? `<div class="p-note">${J.esc(x.note)}</div>` : ''}
+    <input id="rsn-h${x.id}" placeholder="Müşteriye yanıt (müşteri takip ekranında görür)" style="margin-top:8px"><div class="p-act"><button class="ok" data-a="help-ok" data-id="${o.id}" data-h="${x.id}">Yanıtla ve kapat</button>${o.state==='aktif' ? `<button class="sec" data-a="tab" data-id="genel">Siparişe müdahale et</button>` : ''}</div></div>`).join('');
+}
 function renderClaims(){
+  const helps = helpHtml();
   const esc = pendingClaims(), appeals = J.businesses().flatMap(b => (b.strikes||[]).filter(s => s.appeal==='beklemede').map(s => ({b,s})));
   let h = `<div class="p-sec">İade itirazları<span class="n ${esc.length?'hot':''}">${esc.length}</span></div>`;
   if(!esc.length) h += `<div class="p-empty">Bekleyen iade itirazı yok.</div>`;
@@ -229,12 +240,13 @@ function renderClaims(){
   if(!appeals.length) h += `<div class="p-empty">Bekleyen ikaz itirazı yok.</div>`;
   appeals.forEach(({b,s}) => h += `<div class="p-card"><div class="row"><b>${J.esc(b.name)} · #${J.esc(s.no)}</b><span class="money">${J.tl(s.refund)}</span></div><div class="tiny muted">${new Date(s.t).toLocaleString('tr-TR')} · arama kayıtlarını "Aramalar" sekmesinden kontrol edin</div><div class="p-act"><button class="ok" data-a="appeal-ok" data-b="${b.id}" data-id="${s.id}">İtirazı kabul et (ikazı sil)</button><button class="sec" data-a="appeal-no" data-b="${b.id}" data-id="${s.id}">Reddet</button></div></div>`);
   h += doorBlocks();
+  h = helps + h;
   return h;
 }
 function render(){
   document.getElementById('ahead').innerHTML = header();
-  const nA = pendingApps().length, nC = pendingClaims().length + J.businesses().reduce((t,b) => t + (b.strikes||[]).filter(s => s.appeal==='beklemede').length, 0);
-  document.getElementById('tabs').innerHTML = [['genel','Genel',new Set(J.orderAlerts().map(x => x.o.id)).size],['finans','Finans'],['sikayet','Şikâyetler',nC],['basvuru','Başvurular',nA],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l,n]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}${n?` <span class="cnt">${n}</span>`:''}</button>`).join('');
+  const nA = pendingApps().length, nC = J.openHelps().length + pendingClaims().length + J.businesses().reduce((t,b) => t + (b.strikes||[]).filter(s => s.appeal==='beklemede').length, 0);
+  document.getElementById('tabs').innerHTML = [['genel','Genel',new Set(J.orderAlerts().map(x => x.o.id)).size],['finans','Finans'],['sikayet','Destek',nC],['basvuru','Başvurular',nA],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l,n]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}${n?` <span class="cnt">${n}</span>`:''}</button>`).join('');
   const showMap = tab==='genel' || tab==='isletmeler';
   document.getElementById('genel-grid').style.display = showMap ? '' : 'none';
   J.render(document.getElementById('side'), tab==='isletmeler' ? renderBiz() : renderSide());
@@ -259,6 +271,7 @@ document.addEventListener('click', async e => {
     if(a0==='cour-ok'){ const c = DB.get('couriers', id0); DB.patch('couriers', id0, {approved:true, approved_t:J.now()}); J.log(`Kurye onaylandı: ${c ? c.name : ''}.`, 'ok'); render(); return; }
     if(a0==='cour-no'){ const inp = document.getElementById('rsn-'+id0); DB.patch('couriers', id0, {rejected:true, reject_reason:(inp && inp.value.trim()) || ''}); J.log('Bir kurye başvurusu reddedildi.', 'warn'); render(); return; }
     if(a0==='debt-paid'){ DB.patch('orders', id0, {pay:'borc_odendi', debt_settled_t:J.now()}); J.log('Tahsil edilen borçtan işletme ve kurye payları ödendi.', 'pay', id0); render(); return; }
+    if(a0==='help-ok'){ const inp = document.getElementById('rsn-h' + el0.dataset.h); J.answerHelp(DB.get('orders', id0), el0.dataset.h, inp ? inp.value.trim() : ''); render(); return; }
     if(a0==='door-open'){ DB.patch('customers', id0, {door_block:false}); J.log('Bir müşterinin kapıda ödeme hakkı yeniden açıldı.', 'ok'); render(); return; }
     if(a0==='settle-plat'){ J.settle(id0, 'p', +el0.dataset.v, 'yonetim'); render(); return; }
     if(a0==='pos-clear'){ J.posReturned(DB.get('couriers', id0), 'yonetim'); render(); return; }
