@@ -2,6 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jetgel · İşletme</title>
 <meta name="theme-color" content="#1d1b18">
@@ -28,6 +29,7 @@
 <script>
 const {DB} = J;
 let bid = J.store.get('isletme_id', null);
+J.currentId = () => bid;
 let tab = 'siparis';
 const me = () => bid ? {type:'isletme', id:bid} : null;
 const biz = () => bid && DB.get('businesses', bid);
@@ -60,7 +62,7 @@ function renderApply(){
 function renderPick(){
   if(apply) return renderApply();
   return `<div class="p-login"><div class="logo">Jet<span>gel</span> İşletme</div><div class="small muted">Komisyonsuz sipariş paneli</div></div><div class="p-body">` +
-    J.loginForm({title:'İşletme girişi', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'test1', hint:'test1 … test9', err:loginErr}) +
+    J.loginForm({title:'İşletme girişi', sub:'Bu cihaz giriş yaptığınız işletmenin sipariş ekranı olur.', ph:'', err:loginErr}) +
     `<div class="p-card" style="text-align:center"><b>İşletmeniz henüz Jetgel'de değil mi?</b><div class="small muted" style="margin:4px 0 10px">Komisyon yok, aidat yok. Başvurun, onaylanınca hemen sipariş almaya başlayın.</div><button class="brand wide" data-a="apply-open">Başvuru yap</button></div></div>`;
 }
 

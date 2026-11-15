@@ -7,6 +7,8 @@
 // Publishable key tarayıcıda görünmek üzere tasarlanmıştır.
 // "Secret" anahtarı (sb_secret_) veya veritabanı şifresini ASLA buraya yazmayın.
 window.JETGEL_CONFIG = {
+  // Yönetim paneli şifresinin özeti (şifrenin kendisi değil). Şifre değişince bu satır güncellenir.
+  adminHash: 'a26a8405f972e6bcaf959e3a34de577c8cb71122fda52bb655a8ffa87598d698',
   supabaseUrl: 'https://bohzusavzqvszwblcpka.supabase.co',
   supabaseKey: 'sb_publishable_nqaYSUirCylhagBeEUVgiA_OWHpnKlF',
   // Sesli arama sunucuları. STUN: telefonların internetteki adresini bulur.

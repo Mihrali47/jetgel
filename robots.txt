@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /jetgel/isletme.html
+Disallow: /jetgel/kurye.html
+Disallow: /jetgel/yonetim.html
+Disallow: /jetgel/ekip.html
+Disallow: /jetgel/takip.html

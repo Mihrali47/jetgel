@@ -337,7 +337,7 @@ J.courierHasOffer = cid => J.orders().some(o => o.state==='aktif' && o.offer && 
 J.candidates = function(o){
   const b = DB.get('businesses', o.rid); if(!b) return [];
   return J.couriers()
-    .filter(c => c.approved !== false && (!c.pos_due || c.pos_due.bid === o.rid) && c.online && c.notif_ok && J.isAlive(c) && !c.busy && !(o.tried||[]).includes(c.id) && !J.courierHasOffer(c.id) && J.dist(c,b) <= J.RADIUS_M)
+    .filter(c => c.approved !== false && J.isTestId(c.id) === J.isTestId(o.rid) && (!c.pos_due || c.pos_due.bid === o.rid) && c.online && c.notif_ok && J.isAlive(c) && !c.busy && !(o.tried||[]).includes(c.id) && !J.courierHasOffer(c.id) && J.dist(c,b) <= J.RADIUS_M)
     .sort((a,b2) => J.dist(a,b) - J.dist(b2,b));
 };
 J.dispatchTick = function(o){
@@ -1277,9 +1277,14 @@ J.hashPass = async function(user, pass){
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 };
 J.makeLogin = async (user, pass) => ({user: String(user).trim(), hash: await J.hashPass(user, pass)});
+// Test hesapları gerçek trafikten ayrıdır: test dükkânları yalnızca test müşterisine görünür, siparişleri yalnızca test kuryelerine gider.
+// Yönetim test girişlerini tamamen kapatabilir (settings.tests_closed).
+J.isTestId = id => /^(b_test\d+|c_\dtest|m_test)$/.test(String(id||''));
+J.testsClosed = () => !!J.settings().tests_closed;
 J.login = async function(tbl, user, pass){
   const r = J.findLogin(tbl, user);
   if(!r) return {error:'Bu kullanıcı adı bulunamadı.'};
+  if(J.isTestId(r.id) && J.testsClosed()) return {error:'Test hesapları kapalı.'};
   if(r.login.hash){
     if(r.login.hash !== await J.hashPass(r.login.user, pass)) return {error:'Şifre yanlış.'};
   } else {
@@ -1372,6 +1377,7 @@ J.relocateTests = function(center){
 // Gerçek konum test dükkânlarından 5 km'den uzaksa test hesaplarını otomatik olarak o çevreye taşır
 J.autoRelocate = function(pos){
   if(!pos || pos.lat == null || J._autoRel) return false;
+  if(!J.isTestId(J.currentId && J.currentId())) return false;   // yalnızca test hesabıyla girenler test dükkânlarını taşır
   const tests = DB.rows('businesses').filter(b => /^b_test\d+$/.test(b.id));
   if(!tests.length || tests.some(b => J.dist(b, pos) < 5000)) return false;
   J._autoRel = true;
@@ -1393,7 +1399,7 @@ J.loginForm = function(o){
     <label class="f" for="l-pass">Şifre</label><input id="l-pass" type="password" autocomplete="current-password">
     ${o.err?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(o.err)}</div>`:''}
     <button class="brand wide" style="margin-top:12px" data-a="login">Giriş yap</button>
-    <div class="note">Test hesapları: ${o.hint} · şifre: <b>test</b></div></div>`;
+    </div>`;
 };
 
 /* ===================== ORTAK SAYFA İSKELETİ ===================== */

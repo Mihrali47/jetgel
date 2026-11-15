@@ -73,6 +73,13 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 - Her aramanın bağlantı teşhisi (doğrudan / aktarma / bağlanamadı ve aday türleri) **Yönetim → Aramalar** sekmesinde görünür.
 - Ses bağlanmasa bile çalma, kayıt ve ikaz kuralı çalışır.
 
+## Yayın notları
+
+- **Yönetim paneli şifreli.** Şifrenin yalnızca özeti `app/config.js` içinde (`adminHash`). Şifre değişecekse yeni özet oraya yazılır.
+- **Test trafiği ayrı.** Test dükkânlarını yalnızca test müşterisi görür; test dükkânlarının siparişleri yalnızca test kuryelerine, gerçek dükkânların siparişleri yalnızca gerçek kuryelere gider. Test girişleri Yönetim > Ayarlar'dan kapatılır. Test dükkânlarını yalnızca test hesabıyla giren biri kendi konumuna taşıyabilir.
+- **Giriş ekranlarında test bilgisi yok;** panel sayfaları arama motorlarına kapalı (noindex, robots.txt). 404 sayfası var.
+- **Bilinen sınır:** veritabanı erişimi uygulama tarafında denetleniyor; teknik bilgisi olan biri herkese açık anahtarla verileri okuyup değiştirebilir. Büyümeden önce Supabase Auth ve satır güvenliğiyle (RLS) sunucu tarafı yetkiye geçilmeli.
+
 ## Kurallar
 
 | Konu | Kural |

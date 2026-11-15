@@ -40,6 +40,7 @@ function openPendingBiz(){
   curBiz = id; cart = {}; view = 'menu'; return true;
 }
 let cuid = J.store.get('musteri_id', null);
+J.currentId = () => cuid;
 let prof = null;                       // giriş yapan müşterinin kaydı (DB 'customers')
 // Giriş yapmamış ziyaretçi: menüleri gezebilir, sepet doldurabilir; sipariş anında giriş istenir
 function guestProf(){
@@ -107,10 +108,10 @@ function renderLogin(){
     <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ayşe">
     <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
-    <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
+    <div class="tiny muted" style="margin-top:8px">Şifren en az 6 karakter olmalı. Telefon numaran istenmez.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
     <button class="brand wide" style="margin-top:12px" data-a="register">Hesap oluştur</button><div class="tiny muted" style="text-align:center;margin-top:8px">Devam ederek <a href="yasal.html#sartlar" target="_blank">kullanım koşullarını</a> ve <a href="yasal.html#kvkk" target="_blank">aydınlatma metnini</a> kabul etmiş olursun.</div><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
-  return top + `<div class="m-body">` + J.loginForm({title: afterLogin==='sepet' ? 'Siparişi tamamla' : 'Hoş geldin', sub: afterLogin==='sepet' ? 'Sepetin hazır. Siparişi vermek için giriş yap ya da hızlıca hesap oluştur.' : 'Sipariş vermek için giriş yap.', ph:'test', hint:'test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button><button class="ghost wide" data-a="browse">${afterLogin==='sepet' ? 'Sepete geri dön' : 'Giriş yapmadan göz at'}</button></div>`;
+  return top + `<div class="m-body">` + J.loginForm({title: afterLogin==='sepet' ? 'Siparişi tamamla' : 'Hoş geldin', sub: afterLogin==='sepet' ? 'Sepetin hazır. Siparişi vermek için giriş yap ya da hızlıca hesap oluştur.' : 'Sipariş vermek için giriş yap.', ph:'', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Hesabın yok mu? Oluştur</button><button class="ghost wide" data-a="browse">${afterLogin==='sepet' ? 'Sepete geri dön' : 'Giriş yapmadan göz at'}</button></div>`;
 }
 
 /* ---------- Adres / profil ---------- */
@@ -131,7 +132,7 @@ function renderProfile(){
     ${isGuest() ? '' : `<label class="f" for="p-name">Adın</label><input id="p-name" value="${J.esc(draft.name)}" placeholder="Örn. Ayşe" autocomplete="given-name">`}
     <label class="f">Adres adı</label><div class="m-sort" style="margin:0">${['Ev','İş','Diğer'].map(l => `<button class="${(draft.addr_label||'Ev')===l?'on':''}" data-a="lbl" data-v="${l}">${l}</button>`).join('')}</div>
     <label class="f" for="p-note">Adres tarifi</label><input id="p-note" value="${J.esc(draft.note)}" placeholder="Örn. Moda Cd. No 12, kat 3, zil: Yılmaz">
-    ${(() => { const n = J.businesses().filter(b => !b.suspended && J.dist(b, draft) < J.SERVICE_M).length; return n ? `<div class="tiny" style="margin-top:10px;color:var(--ok)">${J.ic('circle-check',13)} Bu adrese ${n} işletme teslimat yapıyor.</div>` : `<div class="tiny" style="margin-top:10px;color:var(--bad)">${J.ic('triangle-alert',13)} Bu adres şu an hizmet alanımızın dışında; yakında açılacak.</div>`; })()}
+    ${(() => { const n = J.businesses().filter(b => !b.suspended && J.isTestId(b.id) === (prof && prof.id === 'm_test') && J.dist(b, draft) < J.SERVICE_M).length; return n ? `<div class="tiny" style="margin-top:10px;color:var(--ok)">${J.ic('circle-check',13)} Bu adrese ${n} işletme teslimat yapıyor.</div>` : `<div class="tiny" style="margin-top:10px;color:var(--bad)">${J.ic('triangle-alert',13)} Bu adres şu an hizmet alanımızın dışında; yakında açılacak.</div>`; })()}
     <button class="brand wide" style="margin-top:14px" data-a="save-prof">${isGuest() ? 'Bu adresi kullan' : 'Kaydet'}</button></div></div>`;
 }
 
@@ -195,7 +196,7 @@ function renderList(){
       const b = DB.get('businesses', o.rid);
       return `<div class="m-again"><div class="n">${J.esc(o.rname)}</div><div class="i">${o.items.map(i => i.qty+'× '+J.itemLabel(i)).join(', ')}</div><button class="sm sec" data-a="reorder" data-id="${o.id}" ${bizOpen(b)?'':'disabled'}>${bizOpen(b)?J.ic('rotate-ccw',14)+' Tekrarla':'Şu an kapalı'}</button></div>`; }).join('')}</div>`;
   }
-  let list = J.businesses().filter(b => !b.suspended).map(b => ({b, d:J.dist(b, prof), open: bizOpen(b)})).filter(x => x.d < J.SERVICE_M);
+  let list = J.businesses().filter(b => !b.suspended && J.isTestId(b.id) === (prof && prof.id === 'm_test')).map(b => ({b, d:J.dist(b, prof), open: bizOpen(b)})).filter(x => x.d < J.SERVICE_M);
   if(group==='Ücretsiz') list = list.filter(x => x.b.free_delivery);
   else if(group==='Kupon') list = list.filter(x => x.b.race_join);
   else if(group!=='Hepsi') list = list.filter(x => J.bizGroup(x.b)===group);
@@ -218,7 +219,7 @@ function renderList(){
   const openN = list.filter(x => x.open).length;
   h += `<div class="m-h"><b>${qn?'Restoranlar ve marketler':group==='Hepsi'?'Yakınındakiler':group}</b><span>${openN} açık</span></div>`;
   h += `<div class="m-sort">${SORTS.map(([k,l]) => `<button class="${sort===k?'on':''}" data-a="sort" data-id="${k}">${l}</button>`).join('')}</div>`;
-  const anyNear = J.businesses().some(b => !b.suspended && J.dist(b, prof) < J.SERVICE_M);
+  const anyNear = J.businesses().some(b => !b.suspended && J.isTestId(b.id) === (prof && prof.id === 'm_test') && J.dist(b, prof) < J.SERVICE_M);
   if(!anyNear) h += `<div class="m-empty"><div>${J.ic('map-pin',36)}</div><b>Bu adrese henüz hizmet vermiyoruz</b><div class="small" style="margin-top:6px">Jetgel şimdilik sınırlı bir bölgede çalışıyor. Başka bir adres seçebilirsin.</div><button class="sec" style="margin-top:12px" data-a="addr-pick">Adresi değiştir</button></div>`;
   else if(!list.length) h += `<div class="m-empty"><div>${J.ic('search',36)}</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
   list.forEach(x => h += restCard(x));

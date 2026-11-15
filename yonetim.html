@@ -2,6 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jetgel · Yönetim</title>
 <meta name="theme-color" content="#1d1b18">
@@ -173,7 +174,7 @@ function renderCalls(){
 
 function renderSettings(){
   const s = J.settings();
-  return `<div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
+  return `<div class="card"><div class="row"><h3 style="margin:0">Oturum</h3><button class="sec sm" data-a="adm-out">Bu cihazda yönetimden çık</button></div></div><div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
     ${DB.mode!=='canli' && window.JETGEL_CONFIG.supabaseUrl ? `<div class="btns"><button class="sm sec" data-a="force-live">Canlı moda dön</button></div>` : ''}</div>
     <div class="card"><h3>Sesli arama · aktarma sunucusu (TURN)</h3>
       <div class="small muted">Telefonlar birbirine doğrudan bağlanamadığında (mobil veri, bazı modemler) sesi bu sunucu taşır. Metered panelinde <b>TURN Server → Add Credential → Show ICE Servers Array</b> ile çıkan metnin tamamını buraya yapıştırıp kaydedin. Tüm telefonlar otomatik kullanır.</div>
@@ -184,7 +185,7 @@ function renderSettings(){
       <div class="small muted" style="margin-top:6px">Eksik olanlar ilk açılışta kendiliğinden oluşturulur. "Sıfırla" test hesaplarını ilk haline getirir (açık/kapalı durumu, kazanç, ikazlar sıfırlanır; siparişler silinmez).</div>
       <div class="btns"><button class="sec" data-a="seed">Eksik test hesaplarını oluştur</button><button class="sec" data-a="reset-test">Test hesaplarını sıfırla</button></div>
       <div class="card soft" style="margin-top:12px"><b>Test dükkânlarını bulunduğun yere taşı</b><div class="small muted">9 test dükkânı, 9 test kuryesi ve test müşterisi, bu cihazın şu anki konumunun çevresine (yaklaşık 1 km içine) taşınır. Böylece her şeyi kendi mahallende deneyebilirsin.${s.center?` Şu anki merkez: ${s.center.lat.toFixed(4)}, ${s.center.lng.toFixed(4)}`:' Şu an Moda/Kadıköy\'de.'}</div><div class="btns"><button class="brand" data-a="relocate">Konumumu bul ve taşı</button>${s.center?'<button class="sec" data-a="relocate-moda">Moda\'ya geri al</button>':''}</div></div>
-      <div class="note">Prototip girişi: şifreler veritabanında düz metin durur ve veritabanı herkese açıktır. Bu gerçek bir güvenlik değildir; gerçek kullanımdan önce değiştirilecek.</div></div>
+      <div class="card ${s.tests_closed?'soft':'warn'}" style="margin-top:12px"><div class="row"><div><b>Test girişleri ${s.tests_closed?'kapalı':'açık'}</b><div class="small muted">Test hesaplarının şifresi herkesçe bilinen "test"tir. Test trafiği gerçek trafikten ayrıdır: test dükkânlarını yalnızca test müşterisi görür, siparişleri yalnızca test kuryelerine gider. Pilot bitince kapatın.</div></div><button class="${s.tests_closed?'sec':'bad'}" data-a="tests-toggle">${s.tests_closed?'Aç':'Kapat'}</button></div></div></div>
     <div class="card bad"><h3>Tüm verileri sil</h3><div class="small">İşletmeler, kuryeler, siparişler, aramalar ve günlük kalıcı olarak silinir. ${DB.mode==='canli'?'<b>Canlı modda tüm cihazlardan silinir.</b>':''}</div>
       <div class="btns">${confirmReset ? `<button class="bad" data-a="reset-yes">Evet, hepsini sil</button><button class="sec" data-a="reset-no">Vazgeç</button>` : `<button class="bad" data-a="reset">Tüm verileri sil…</button>`}</div></div>`;
 }
@@ -243,7 +244,23 @@ function renderClaims(){
   h = helps + h;
   return h;
 }
+// Yönetim girişi: şifrenin özeti config.js'teki adminHash ile karşılaştırılır
+const ADMIN_HASH = (window.JETGEL_CONFIG || {}).adminHash || '';
+const adminOk = () => !ADMIN_HASH || J.store.get('yonetim_ok', '') === ADMIN_HASH;
+let admErr = '';
+async function adminLogin(pass){
+  const data = new TextEncoder().encode('jetgel:v1:yonetim:' + pass);
+  const h = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data))).map(b => b.toString(16).padStart(2,'0')).join('');
+  if(h === ADMIN_HASH){ J.store.set('yonetim_ok', h); admErr = ''; J.log('Yönetim paneline giriş yapıldı.'); } else { admErr = 'Şifre yanlış.'; await new Promise(r => setTimeout(r, 800)); }
+  render();
+}
 function render(){
+  if(!adminOk()){
+    document.getElementById('ahead').innerHTML = `<div class="p-head"><div class="adm-in"><div class="r1"><div class="av">${J.ic('lock',22)}</div><div class="tx"><div class="nm">Jetgel Yönetim</div><div class="sb">Giriş gerekli</div></div></div></div></div>`;
+    document.getElementById('tabs').innerHTML = ''; document.getElementById('genel-grid').style.display = 'none';
+    J.render(document.getElementById('panel'), `<div class="card" style="max-width:380px;margin:30px auto"><h3>Yönetici girişi</h3><label class="f" for="adm-pass">Şifre</label><input id="adm-pass" type="password" autocomplete="current-password">${admErr ? `<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(admErr)}</div>` : ''}<button class="brand wide" style="margin-top:12px" data-a="adm-login">Giriş yap</button></div>`);
+    return;
+  }
   document.getElementById('ahead').innerHTML = header();
   const nA = pendingApps().length, nC = J.openHelps().length + pendingClaims().length + J.businesses().reduce((t,b) => t + (b.strikes||[]).filter(s => s.appeal==='beklemede').length, 0);
   document.getElementById('tabs').innerHTML = [['genel','Genel',new Set(J.orderAlerts().map(x => x.o.id)).size],['finans','Finans'],['sikayet','Destek',nC],['basvuru','Başvurular',nA],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l,n]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}${n?` <span class="cnt">${n}</span>`:''}</button>`).join('');
@@ -267,6 +284,7 @@ function textToMenu(txt, old){
 function readForm(){ if(!edit) return; const g = id => document.getElementById(id); if(g('e-name')){ edit.name = g('e-name').value; edit.kind = g('e-kind').value; edit.menuText = g('e-menu').value; edit.free_delivery = g('e-free').checked; edit.user = g('e-user').value.trim(); edit.pass = g('e-pass').value; } }
 
 document.addEventListener('click', async e => {
+  { const g = e.target.closest('[data-a]'); if(g && g.dataset.a === 'adm-login'){ adminLogin(document.getElementById('adm-pass').value); return; } if(!adminOk()) return; }
   { const el0 = e.target.closest('[data-a]'); if(el0){ const a0 = el0.dataset.a, id0 = el0.dataset.id;
     if(a0==='cour-ok'){ const c = DB.get('couriers', id0); DB.patch('couriers', id0, {approved:true, approved_t:J.now()}); J.log(`Kurye onaylandı: ${c ? c.name : ''}.`, 'ok'); render(); return; }
     if(a0==='cour-no'){ const inp = document.getElementById('rsn-'+id0); DB.patch('couriers', id0, {rejected:true, reject_reason:(inp && inp.value.trim()) || ''}); J.log('Bir kurye başvurusu reddedildi.', 'warn'); render(); return; }
@@ -344,6 +362,8 @@ document.addEventListener('click', async e => {
   }
   if(a==='clear-turn'){ DB.patch('settings','ayar',{turn:[]}); J.log('Aktarma sunucusu kaldırıldı.', 'warn'); }
   if(a==='force-demo'){ J.store.set('force_demo', true); location.reload(); return; }
+  if(a==='tests-toggle'){ const v = !J.settings().tests_closed; if(DB.get('settings','ayar')) DB.patch('settings','ayar',{tests_closed:v}); else DB.put('settings','ayar',{tests_closed:v}); J.log(`Test girişleri ${v?'kapatıldı':'açıldı'}.`, 'warn'); }
+  if(a==='adm-out'){ J.store.set('yonetim_ok', ''); render(); return; }
   if(a==='force-live'){ J.store.set('force_demo', false); location.reload(); return; }
   if(a==='reset') confirmReset = true;
   if(a==='reset-no') confirmReset = false;
@@ -351,8 +371,9 @@ document.addEventListener('click', async e => {
   render();
 });
 document.addEventListener('input', () => readForm());
+document.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target.id === 'adm-pass') adminLogin(e.target.value); });
 
-DB.on(() => { const ae = document.activeElement; if(!edit && !cx && !(ae && (ae.id==='turn-txt' || /^rsn-/.test(ae.id)))) render(); else { drawMap(); document.getElementById('ahead').innerHTML = header(); } });
+DB.on(() => { const ae = document.activeElement; if(!adminOk()){ if(!(ae && ae.id === 'adm-pass')) render(); return; } if(!edit && !cx && !(ae && (ae.id==='turn-txt' || /^rsn-/.test(ae.id)))) render(); else { drawMap(); document.getElementById('ahead').innerHTML = header(); } });
 setInterval(() => { J.strikeTick(); J.live(); if(tab==='genel') drawMap();
   const sig = J.orderAlerts().map(x => x.o.id + x.kind).join(); if(sig !== alertSig){ alertSig = sig; if(!edit && !cx) render(); } }, 2000);
 DB.init().then(() => { render(); if(J.businesses().length) map.fit(J.businesses()); });

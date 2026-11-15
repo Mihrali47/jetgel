@@ -2,6 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jetgel · Kurye</title>
 <meta name="theme-color" content="#16351f">
@@ -32,6 +33,7 @@
 const {DB} = J;
 let cid = J.store.get('kurye_id', null);
 // Konum her zaman telefonun gerçek GPS'i. Simülasyon yalnızca geliştirme bilgisayarındaki otomatik testlerde kullanılır.
+J.currentId = () => cid;
 let locMode = (J.store.get('kurye_konum2', 'gps') === 'demo' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) ? 'demo' : 'gps';
 let pos = J.store.get('kurye_pos', {lat:40.98880, lng:29.02830});
 let gpsWatch = null, gpsErr = '', gpsAcc = null;
@@ -133,10 +135,10 @@ function renderProfile(){
     <label class="f" for="r-name">Adın</label><input id="r-name" placeholder="Örn. Ali">
     <label class="f" for="r-user">Kullanıcı adı</label><input id="r-user" autocapitalize="none">
     <label class="f" for="r-pass">Şifre</label><input id="r-pass" type="password">
-    <div class="note">Prototip: şifreler güvenli saklanmıyor, gerçek şifreni kullanma.</div>
+    <div class="tiny muted" style="margin-top:8px">Şifren en az 6 karakter olmalı.</div>
     ${regErr?`<div class="small" style="color:var(--bad);margin-top:8px">${J.esc(regErr)}</div>`:''}
     <button class="brand wide" style="margin-top:12px" data-a="create">Başvur</button><div class="tiny muted" style="text-align:center;margin-top:8px">Devam ederek <a href="yasal.html#sartlar" target="_blank">kullanım koşullarını</a> ve <a href="yasal.html#kvkk" target="_blank">aydınlatma metnini</a> kabul etmiş olursun.</div><button class="ghost wide" data-a="show-login">‹ Girişe dön</button></div></div>`;
-  return top + J.loginForm({title:'Kurye girişi', sub:'', ph:'1test', hint:'1test … 9test', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Kurye olmak mı istiyorsun? Başvur</button></div>`;
+  return top + J.loginForm({title:'Kurye girişi', sub:'', ph:'', err:loginErr}) + `<button class="ghost wide" data-a="show-reg">Kurye olmak mı istiyorsun? Başvur</button></div>`;
 }
 function renderGate(){
   const p = J.notifPermission();
