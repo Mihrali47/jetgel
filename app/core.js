@@ -51,7 +51,7 @@ J.store = {
    Canlı mod: Supabase "kayitlar" tablosu + realtime (tüm cihazlar). */
 const TABLES = ['businesses','couriers','customers','orders','calls','events','settings','applications', 'settlements', 'prova'];
 // Yayındaki sürüm (sw.js önbellek adıyla birlikte artırılır)
-J.VERSION = '44';
+J.VERSION = '45';
 const DB = J.DB = {mode:'demo', status:'baglaniyor', cache:{}, listeners:[]};
 TABLES.forEach(t => DB.cache[t] = new Map());
 DB.rows = t => Array.from(DB.cache[t].values());
