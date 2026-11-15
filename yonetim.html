@@ -85,12 +85,34 @@ function finRows(){
 function renderFin(){
   const rows = finRows(), sum = k => rows.reduce((t,r) => t + r[k], 0), done = rows.filter(r => r.o.pay==='dagitildi');
   const cxN = rows.filter(r => r.o.state==='iptal').length, redN = rows.filter(r => r.o.state==='red').length;
-  let h = `<div class="card"><div class="row"><h3 style="margin:0">Finans</h3><div class="m-sort" style="margin:0">${[1,7,30].map(d => `<button class="${fin===d?'on':''}" data-a="fin" data-id="${d}">${d===1?'Bugün':d+' gün'}</button>`).join('')}</div></div>
+  let h = `<div class="card"><div class="row"><h3 style="margin:0">Finans ve performans</h3><div class="m-sort" style="margin:0">${[1,7,30].map(d => `<button class="${fin===d?'on':''}" data-a="fin" data-id="${d}">${d===1?'Bugün':d+' gün'}</button>`).join('')}</div></div>
     <div class="adm-kpi">${[['Müşteriden tahsil', sum('paid')],['İşletmelere', sum('biz')],['Kuryelere', sum('cour')],['Platform geliri', sum('plat')],['İndirim / kupon', sum('disc')],['İade', sum('ref')]].map(([l,v]) => `<div><span class="tiny muted">${l}</span><b>${J.tl(v)}</b></div>`).join('')}</div>
     <div class="tiny muted" style="margin-top:6px">${done.length} teslim · ${cxN} iptal · ${redN} red. Para platform hesabından geçmez; tablo ödeme kuruluşunun yaptığı dağıtımı gösterir.</div>
     <div class="p-act"><button class="sec" data-a="fin-csv">${J.ic('download',14)} CSV indir</button></div></div>`;
   h += `<div class="card"><div style="overflow-x:auto"><table><tr><th>#</th><th>Tarih</th><th>İşletme</th><th>Durum</th><th>Tahsil</th><th>İşletme</th><th>Kurye</th><th>Platform</th><th>İndirim</th><th>İade</th></tr>${rows.slice(0,200).map(r => `<tr><td>${J.esc(r.o.no)}</td><td class="tiny">${new Date(r.o.created_at).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</td><td>${J.esc(r.o.rname)}</td><td>${stTxt(r.o)}</td><td>${J.tl(r.paid)}</td><td>${J.tl(r.biz)}</td><td>${J.tl(r.cour)}${r.o.tip||r.o.tip_after||r.o.prio_fee ? `<div class="tiny muted">bahşiş/hızlı dahil</div>` : ''}</td><td>${J.tl(r.plat)}</td><td>${J.tl(r.disc)}</td><td>${J.tl(r.ref)}</td></tr>`).join('') || '<tr><td colspan="10" class="muted small">Bu dönemde kapanan sipariş yok.</td></tr>'}</table></div></div>`;
+  h += perfHtml();
   return h;
+}
+// Dönem performansı: en çok satanlar, işletme ve kurye tablosu
+function perfHtml(){
+  const from = J.now() - fin*86400000, os = J.orders().filter(o => o.created_at >= from);
+  const avg = a => a.length ? Math.round(a.reduce((t,x) => t+x, 0) / a.length) : null, mn = ms => ms / 60000;
+  const top = {}; os.filter(o => o.state==='teslim').forEach(o => o.items.forEach(i => { const k = i.name + '|' + o.rname; top[k] = (top[k]||0) + i.qty; }));
+  const tops = Object.entries(top).sort((a,b) => b[1]-a[1]).slice(0, 8);
+  const pct = (a, b) => b ? Math.round(a*100/b) + '%' : '—';
+  const bz = J.businesses().map(b => {
+    const mine = os.filter(o => o.rid === b.id), done = mine.filter(o => o.state==='teslim');
+    const prep = mine.filter(o => o.ready_at && o.accepted_at), late = prep.filter(o => o.prep_until && o.ready_at > o.prep_until + 60000);
+    return {b, n:mine.length, done:done.length, red:mine.filter(o => o.state==='red').length, cx:mine.filter(o => o.state==='iptal').length, prep:avg(prep.map(o => mn(o.ready_at - o.accepted_at))), late:pct(late.length, prep.length), r:J.ratingOf(b)};
+  }).filter(x => x.n).sort((a,b) => b.n - a.n);
+  const cs = J.couriers().map(c => {
+    const mine = os.filter(o => o.courier_id === c.id), done = mine.filter(o => o.state==='teslim' && o.delivered_at && o.picked_at);
+    return {c, n:mine.filter(o => o.state==='teslim').length, ride:avg(done.map(o => mn(o.delivered_at - o.picked_at))), inc:mine.filter(o => o.incident).length, un:mine.filter(o => o.state==='ulasilamadi').length, earn:mine.filter(o => o.state==='teslim').reduce((t,o) => t + ((o.shares && o.shares.courier) || 0), 0), r:J.ratingOf(c)};
+  }).filter(x => x.n || x.inc).sort((a,b) => b.n - a.n);
+  const rt = r => r.n ? `${J.fmtRating(r.avg)} (${r.n})` : '—';
+  return `<div class="card"><h3>En çok satanlar</h3>${tops.length ? `<table><tr><th>Ürün</th><th>İşletme</th><th>Adet</th></tr>${tops.map(([k,q]) => { const [n, r] = k.split('|'); return `<tr><td>${J.esc(n)}</td><td>${J.esc(r)}</td><td><b>${q}</b></td></tr>`; }).join('')}</table>` : '<div class="small muted">Bu dönemde teslim edilen sipariş yok.</div>'}</div>
+    <div class="card"><h3>İşletmeler</h3>${bz.length ? `<div style="overflow-x:auto"><table><tr><th>İşletme</th><th>Sipariş</th><th>Teslim</th><th>Red</th><th>İptal</th><th>Ort. hazırlık</th><th>Geciken hazırlık</th><th>Puan</th><th>İkaz</th></tr>${bz.map(x => `<tr><td>${J.esc(x.b.name)}</td><td>${x.n}</td><td>${x.done}</td><td style="${x.red?'color:var(--bad)':''}">${x.red}</td><td>${x.cx}</td><td>${x.prep!=null?x.prep+' dk':'—'}</td><td>${x.late}</td><td>${rt(x.r)}</td><td>${(x.b.strikes||[]).filter(s => !s.removed).length}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Bu dönemde sipariş yok.</div>'}</div>
+    <div class="card"><h3>Kuryeler</h3>${cs.length ? `<div style="overflow-x:auto"><table><tr><th>Kurye</th><th>Teslimat</th><th>Ort. yol süresi</th><th>Ulaşılamadı</th><th>Sorun bildirimi</th><th>Kazanç</th><th>Puan</th></tr>${cs.map(x => `<tr><td>${J.esc(x.c.name)}</td><td>${x.n}</td><td>${x.ride!=null?x.ride+' dk':'—'}</td><td>${x.un}</td><td>${x.inc}</td><td>${J.tl(x.earn)}</td><td>${rt(x.r)}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Bu dönemde teslimat yok.</div>'}</div>`;
 }
 function finCsv(){
   const q = v => '"' + String(v).replace(/"/g,'""') + '"';

@@ -216,11 +216,12 @@ J.cartLines = function(b, cart){
 };
 J.itemLabel = i => J.esc(i.name) + (i.opts && i.opts.length ? ` <span class="opt">(${i.opts.map(J.esc).join(', ')})</span>` : '');
 J.placeOrder = function(b, cart, cust, extra){
-  const items = J.cartLines(b, cart).map(l => Object.assign({name:l.m.name, price:l.unit, qty:l.qty}, l.opts.length ? {opts:l.opts.map(o => o.name)} : {}));
+  const items = J.cartLines(b, cart).map(l => Object.assign({mid:l.m.id, name:l.m.name, price:l.unit, qty:l.qty}, l.opts.length ? {opts:l.opts.map(o => o.name)} : {}));
   if(!items.length) return null;
   if(J.isFull(b) && !(extra && extra.sched_at)) return null;   // işletme kapasitesi dolu
   if(J.cartLines(b, cart).some(l => J.optsMissing(l.m, l.opts.map(o => (l.m.opts||[]).indexOf(o))).length)) return null;   // zorunlu seçim eksik
   if(b.min_order > 0 && J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0) < b.min_order) return null;   // minimum tutar
+  if(!J.stockOk(b, items)) return null;   // stok yetmiyor
   const subtotal = items.reduce((s,i) => s + i.price*i.qty, 0);
   const F = J.FEE;
   const fees = b.free_delivery ? {cust:0, biz:F.custDel+F.custPlat+F.bizDel+F.bizPlat} : {cust:F.custDel+F.custPlat, biz:F.bizDel+F.bizPlat};
@@ -249,6 +250,7 @@ J.placeOrder = function(b, cart, cust, extra){
     }
   }
   DB.put('orders', id, o);
+  J.stockMove(b.id, items, -1);
   J.log(`#${o.no} ${b.name} için sipariş (${J.tl(subtotal)}). Kartta ${J.tl(subtotal+fees.cust+o.tip+o.prio_fee-o.discount-o.loyalty_disc)} bloke.${o.loyalty_disc?` Sadakat indirimi −${J.tl(o.loyalty_disc)}.`:''}${o.discount?` Başkan kuponu −${J.tl(o.discount)}.`:''}${o.priority?' Hızlı teslimat.':''}${o.tip?` (Kuryeye ${J.tl(o.tip)} bahşiş dahil)`:''}`, 'order', id);
   return o;
 };
@@ -271,7 +273,7 @@ J.prepEstimate = function(b, extraLoad){
 J.acceptOrder = function(o, prepMin){
   const b = DB.get('businesses', o.rid);
   if(!prepMin) prepMin = b ? J.prepEstimate(b) : 12;
-  DB.patch('orders', o.id, {prep:'hazirlaniyor', prep_until: J.now() + prepMin*J.minMs(), prep_min:prepMin, pay:'bekletiliyor', del:'araniyor', accepted_at:J.now()});
+  DB.patch('orders', o.id, {pick_code: o.pick_code || String(1000 + Math.floor(Math.random()*9000)), prep:'hazirlaniyor', prep_until: J.now() + prepMin*J.minMs(), prep_min:prepMin, pay:'bekletiliyor', del:'araniyor', accepted_at:J.now()});
   J.log(`#${o.no} işletme onayladı (tahmini hazırlık ${prepMin} dk). Ödeme çekildi, teslimata kadar bekletiliyor.`, 'order', o.id);
 };
 J.REJECT_REASONS = {yogun:'Şu an çok yoğunuz', tukendi:'Siparişteki bir ürün tükendi', kapaniyor:'Mutfağımız kapanmak üzere', adres:'Adresiniz hizmet alanımızın dışında', diger:'İşletme siparişi kabul edemedi'};
@@ -280,12 +282,30 @@ J.rejectOrder = function(o, reason, outIdx){
   reason = J.REJECT_REASONS[reason] ? reason : 'diger';
   const out = (outIdx||[]).map(i => o.items[i] && o.items[i].name).filter(Boolean);
   DB.patch('orders', o.id, {state:'red', pay:'kalkti', reject_reason:reason, reject_items:out});
+  J.stockMove(o.rid, o.items.filter(i => !out.includes(i.name)), +1);
   if(out.length){ const b = DB.get('businesses', o.rid); if(b) DB.patch('businesses', b.id, {menu:(b.menu||[]).map(m => out.includes(m.name) ? Object.assign({}, m, {available:false}) : m)}); }
   if(o.discount && o.coupon_id) J.couponReturn(o);
   J.log(`#${o.no} işletme reddetti (${J.REJECT_REASONS[reason]}${out.length ? ': ' + out.join(', ') : ''}). Blokaj kaldırıldı.`, 'bad', o.id);
 };
 // Hazırlık süresi aşılınca işletme ek süre ister; müşterinin tahmini güncellenir
 J.PREP_EXT_MAX = 3;
+// Stok: ürünün stock alanı sayı ise takip edilir (boş = sınırsız). Sipariş düşer, red/iptal geri ekler; 0'a inen ürün tükendi olur.
+J.stockNeed = items => { const n = {}; items.forEach(i => { if(i.mid) n[i.mid] = (n[i.mid]||0) + i.qty; }); return n; };
+J.stockOk = function(b, items){
+  const need = J.stockNeed(items);
+  return Object.keys(need).every(mid => { const m = (b.menu||[]).find(x => x.id === mid); return !m || m.stock == null || m.stock >= need[mid]; });
+};
+J.stockMove = function(bid, items, sign){
+  const b = DB.get('businesses', bid), need = J.stockNeed(items);
+  if(!b || !(b.menu||[]).some(m => m.stock != null && need[m.id])) return;
+  DB.patch('businesses', bid, {menu: b.menu.map(m => {
+    if(m.stock == null || !need[m.id]) return m;
+    const stock = Math.max(0, m.stock + sign*need[m.id]);
+    const n = Object.assign({}, m, {stock});
+    if(stock === 0) n.available = false; else if(sign > 0 && m.available === false && m.stock === 0) n.available = true;
+    return n;
+  })});
+};
 J.extendPrep = function(o, min){
   if(!o || o.prep !== 'hazirlaniyor' || (o.prep_ext||0) >= J.PREP_EXT_MAX) return false;
   DB.patch('orders', o.id, {prep_until: Math.max(o.prep_until, J.now()) + min*J.minMs(), prep_ext:(o.prep_ext||0)+1, prep_ext_min:(o.prep_ext_min||0)+min});
@@ -345,6 +365,14 @@ J.courierDecline = function(c, o, why){
   J.log(`#${o.no} ${c.name} ${why||'teklifi reddetti'}.`, 'warn', o.id);
 };
 J.arriveBusiness = o => { DB.patch('orders', o.id, {del:'isletmede'}); J.log(`#${o.no} kurye işletmede.`, '', o.id); };
+// Alış kodu: fişte ve işletme ekranında yazar; QR'da "JETGEL-ALIS:<siparişNo>:<kod>" bulunur
+J.pickQr = o => `JETGEL-ALIS:${o.no}:${o.pick_code}`;
+J.checkPick = function(o, input){
+  if(!o || !o.pick_code) return true;   // eski siparişler
+  const s = String(input||'').trim(), m = s.match(/^JETGEL-ALIS:([^:]+):(\d{4})$/);
+  if(m) return m[1] === String(o.no) && m[2] === o.pick_code ? true : 'Bu fiş başka bir siparişe ait.';
+  return s.replace(/\D/g,'') === o.pick_code ? true : 'Alış kodu yanlış. Fişteki ya da işletmenin ekranındaki 4 haneli kodu girin.';
+};
 J.pickup = o => { DB.patch('orders', o.id, {del:'yolda', picked_at:J.now()}); J.log(`#${o.no} paket alındı (fiş QR), müşteriye gidiyor.`, '', o.id); };
 J.arriveCustomer = o => { DB.patch('orders', o.id, {del:'kapida', arrived_at:J.now()}); J.log(`#${o.no} kurye müşterinin kapısında.`, '', o.id); };
 function finishCourier(c, o){
@@ -476,6 +504,7 @@ J.adminCancel = function(o, reason){
   if(!o || o.state !== 'aktif') return false;
   if(o.courier_id) DB.patch('couriers', o.courier_id, {busy:null});
   const refunded = o.pay === 'bekletiliyor';
+  J.stockMove(o.rid, o.items, +1);
   DB.patch('orders', o.id, {state:'iptal', pay: refunded ? 'iade' : 'kalkti', cancel_reason: reason || 'Yönetim iptali', cancelled_at:J.now(), offer:null});
   if(o.discount && o.coupon_id) J.couponReturn(o);
   J.log(`#${o.no} yönetim tarafından iptal edildi (${reason||'-'}). ${refunded ? 'Ödemenin tamamı iade edildi.' : 'Blokaj kaldırıldı.'}`, 'bad', o.id);

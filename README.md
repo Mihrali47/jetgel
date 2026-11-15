@@ -114,7 +114,9 @@ Veritabanı kurulumu: `supabase/kurulum.sql` dosyası Supabase SQL Editor'da bir
 | Kurye sorun bildirimi | Görev ekranında "Sorun bildir": kaza, arıza, paket hasarlı, adres bulunamıyor, güvenlik, diğer. Yönetime uyarı düşer. Paket alınmadıysa kaza/arıza/güvenlikte sipariş başka kuryeye geçer ve kurye çevrimdışı olur. |
 | Kurye başvurusu | Yeni kurye hesabı yönetim onayıyla açılır; onaya kadar teklif alamaz. Onay/red Yönetim > Başvurular'dan. |
 | Canlı konum | Kurye hareket ederken konumu saniyede bir paylaşılır (GPS yeni konum verdiği anda). Müşteri ve işletme haritasında kurye işaretçisi zıplamadan kayarak ilerler; müşteri "canlı konum" ya da son konumun yaşını görür. Tarayıcıda ekran kapanınca konum durur; kesintisiz takip için Android uygulaması kullanılmalı. |
-| Finans | Yönetimde günlük/7/30 günlük tablo: müşteriden tahsil, işletme, kurye (bahşiş ve hızlı teslimat dahil), platform, indirim, iade. CSV olarak indirilebilir. |
+| Paket alımı | İşletme onaylayınca siparişe 4 haneli alış kodu verilir; işletme ekranında ve fişte (QR ile) yazar. Kurye paketi kodu girerek ya da fiş QR'ını kamerayla okutarak alır; yanlış kod kaydedilir. |
+| Stok | İşletme ürüne stok adedi girerse sistem takip eder: sipariş düşer, red/iptal geri ekler, 0'a inen ürün kendiliğinden tükendi olur. Müşteri az kalan üründe "son N adet" görür, stoktan fazlasını sepete ekleyemez. |
+| Finans ve performans | Yönetimde günlük/7/30 günlük tablo: müşteriden tahsil, işletme, kurye (bahşiş ve hızlı teslimat dahil), platform, indirim, iade. CSV olarak indirilebilir. Aynı dönem için en çok satanlar, işletme tablosu (sipariş, red, iptal, ortalama ve geciken hazırlık, puan, ikaz) ve kurye tablosu (teslimat, ortalama yol süresi, ulaşılamadı, sorun bildirimi, kazanç, puan). |
 
 ## Dosyalar
 

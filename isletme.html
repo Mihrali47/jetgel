@@ -94,6 +94,7 @@ function orderCard(o){
   if(o.prep==='bekliyor'){ const st = J.prepStats(b), est = J.prepEstimate(b);
     h += `<div class="p-timer" style="background:#f6f5f2;color:var(--ink)"><span>${J.ic('timer',16)} Tahmini hazırlık süresi</span><span><b>${est}</b> dk</span></div><div class="tiny muted" style="margin-top:6px">${st.avg!=null?`Son siparişlerinizdeki ortalama ${Math.round(st.avg)} dk`:'Başlangıç süresi'}${st.load?` + şu an hazırlanan ${st.load} sipariş`:''}. Süreyi sistem yoğunluğunuza göre belirler; "Hazır" dediğiniz anlar ortalamayı günceller.</div>
     ${rj===o.id ? rejectBox(o) : `<div class="p-act"><button class="ok" style="flex:2;padding:15px;font-size:16px" data-a="accept" data-id="${o.id}">${J.ic('circle-check',18)} Siparişi onayla</button><button class="sec" data-a="rj-open" data-id="${o.id}">Reddet</button></div>`}`; }
+  if(o.pick_code && o.prep!=='bekliyor' && !['yolda','kapida'].includes(o.del)) h += `<div class="p-pick">${J.ic('package',15)} Kurye alış kodu <b>${J.esc(o.pick_code)}</b><span class="tiny muted">Paketi verirken kuryeye söyleyin ya da fişteki QR'ı okutun.</span></div>`;
   if(o.prep==='hazirlaniyor'){
     const over = J.now() > o.prep_until, left = J.PREP_EXT_MAX - (o.prep_ext||0);
     h += over ? `<div class="p-timer late"><span>${J.ic('triangle-alert',16)} Hazırlık süresi aşıldı</span><span><b>${Math.max(1, Math.round((J.now()-o.prep_until)/J.minMs()))}</b> dk</span></div>
@@ -124,12 +125,12 @@ function printTicket(o){
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>#${J.esc(o.no)}</title><style>
     @page{size:80mm auto;margin:3mm}body{font:13px/1.35 ui-monospace,Menlo,Consolas,monospace;width:72mm;margin:0 auto;color:#000}
     h1{font-size:15px;text-align:center;margin:0 0 2px}.c{text-align:center}.no{font-size:30px;font-weight:800;text-align:center;letter-spacing:1px;margin:6px 0}
-    hr{border:0;border-top:1px dashed #000;margin:6px 0}.r{display:flex;justify-content:space-between;gap:8px}.o{padding-left:14px;font-size:12px}.big{font-weight:800}
+    hr{border:0;border-top:1px dashed #000;margin:6px 0}.qr svg{width:34mm;height:34mm}.r{display:flex;justify-content:space-between;gap:8px}.o{padding-left:14px;font-size:12px}.big{font-weight:800}
   </style></head><body><h1>${J.esc(b.name)}</h1><div class="c">${d}</div><div class="no">#${J.esc(o.no)}</div>
   ${o.priority ? '<div class="c big">*** HIZLI TESLİMAT ***</div>' : ''}${o.sched_at ? `<div class="c big">PLANLI: ${J.esc(J.fmtSched(o.sched_at))}</div>` : ''}<hr>
   ${o.items.map(i => row(`${i.qty} x ${J.esc(i.name)}`, J.tl(i.price*i.qty)) + (i.opts && i.opts.length ? `<div class="o">${i.opts.map(J.esc).join(', ')}</div>` : '')).join('')}<hr>
   ${row('Ara toplam', J.tl(o.subtotal))}${o.note ? `<hr><div class="big">NOT: ${J.esc(o.note)}</div>` : ''}<hr>
-  <div>${J.esc(o.customer.name)}</div><div>${J.esc(o.customer.note || '')}</div><hr><div class="c">Kurye bu fişteki sipariş numarasıyla paketi alır.</div>
+  <div>${J.esc(o.customer.name)}</div><div>${J.esc(o.customer.note || '')}</div><hr>${o.pick_code ? `<div class="c">KURYE ALIŞ KODU</div><div class="no" style="font-size:24px">${J.esc(o.pick_code)}</div><div class="c qr">${J.qrSvg(J.pickQr(o), 4)}</div><div class="c">Kurye bu QR'ı okutarak ya da kodu girerek paketi alır.</div>` : ''}
   <script>window.onload=()=>{window.print();}<\/script></body></html>`);
   w.document.close();
 }
@@ -196,6 +197,7 @@ function importCard(b){
 function editForm(cats){
   return `<div class="p-edit"><input id="ed-name" placeholder="Ürün adı" value="${J.esc(ed.name)}"><div class="p-grid2" style="margin-top:8px"><input id="ed-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(ed.price)}"><input id="ed-cat" placeholder="Kategori" list="cats" value="${J.esc(ed.cat)}"></div>
     <input id="ed-desc" placeholder="Kısa açıklama" style="margin-top:8px" value="${J.esc(ed.desc)}">
+    <div class="row" style="margin-top:8px;align-items:center"><label for="ed-stock" class="tiny" style="flex:1"><b>Stok adedi</b> <span class="muted">· boş bırakırsanız takip edilmez; 0'a inince ürün kendiliğinden tükendi olur</span></label><input id="ed-stock" inputmode="numeric" placeholder="Sınırsız" style="width:110px" value="${J.esc(ed.stock||'')}"></div>
     <div class="p-photo">${ed.photo?`<img src="${ed.photo}" alt=""><button class="sm sec" data-a="ed-photo-del">Fotoğrafı kaldır</button>`:`<label class="btnlink" style="cursor:pointer">${J.ic('camera',15)} Ürün fotoğrafı ekle<input type="file" accept="image/*" id="ed-photo" style="display:none"></label><span class="tiny muted">Fotoğraflı ürünler daha çok satar.</span>`}</div><input id="ed-opts" placeholder="Seçenekler: Boy* > Küçük=0 | Boy* > Büyük=40 | Ekstra kaşar=40" style="margin-top:8px" value="${J.esc(ed.opts)}"><div class="tiny muted" style="margin-top:4px">Aynı gruptan tek seçim için "Grup > Seçenek" yazın; grup adının sonuna * koyarsanız seçim zorunlu olur.</div>
     <div class="tiny" style="margin-top:10px"><b>Alerjenler</b> <span class="muted">(müşteriye "İçerir" olarak gösterilir)</span></div><div class="p-chips">${Object.entries(J.ALLERGENS).map(([k,t]) => `<button class="${(ed.alg||[]).includes(k)?'on':''}" data-a="ed-alg" data-id="${k}">${t}</button>`).join('')}</div>
     <div class="p-act"><button class="brand" data-a="ed-save">Kaydet</button><button class="sec" data-a="ed-cancel">Vazgeç</button></div><button class="ghost wide" style="color:var(--bad)" data-a="ed-del">Ürünü sil</button></div>`;
@@ -209,7 +211,7 @@ function tabMenu(b){
     h += `<div class="p-sec">${J.esc(c)}<span class="n">${menu.filter(m => (m.cat||'Diğer')===c).length}</span></div><div class="p-card p-menu">`;
     menu.filter(m => (m.cat||'Diğer')===c).forEach(m => { const on = m.available !== false;
       if(ed && ed.id === m.id){ h += editForm(cats); return; }
-      h += `<div class="it ${on?'':'off'}">${m.photo?`<img class="th" src="${m.photo}" alt="">`:''}<div class="tx"><b>${J.esc(m.name)}</b><span class="small muted">${J.tl(m.price)}${m.desc?' · '+J.esc(m.desc):''}</span>${(m.opts||[]).length?`<span class="p-opts">${m.opts.map(J.optLabel).map(J.esc).join(' · ')}</span>`:''}</div><button class="p-ed" data-a="edit-item" data-id="${m.id}" aria-label="Düzenle">${J.ic('notebook-pen',16)}</button><button class="p-tog ${on?'on':''}" data-a="avail" data-id="${m.id}" aria-label="${on?'Satışta':'Tükendi'}" title="${on?'Satışta':'Tükendi'}"></button></div>`; });
+      h += `<div class="it ${on?'':'off'}">${m.photo?`<img class="th" src="${m.photo}" alt="">`:''}<div class="tx"><b>${J.esc(m.name)}</b><span class="small muted">${J.tl(m.price)}${m.stock != null ? ` · <b style="color:${m.stock<=5?'var(--bad)':'var(--ink)'}">Stok ${m.stock}</b>` : ''}${m.desc?' · '+J.esc(m.desc):''}</span>${(m.opts||[]).length?`<span class="p-opts">${m.opts.map(J.optLabel).map(J.esc).join(' · ')}</span>`:''}</div><button class="p-ed" data-a="edit-item" data-id="${m.id}" aria-label="Düzenle">${J.ic('notebook-pen',16)}</button><button class="p-tog ${on?'on':''}" data-a="avail" data-id="${m.id}" aria-label="${on?'Satışta':'Tükendi'}" title="${on?'Satışta':'Tükendi'}"></button></div>`; });
     h += `</div>`;
   });
   h += `<div class="p-sec">Ürün ekle</div><div class="p-card"><input id="new-name" placeholder="Ürün adı" value="${J.esc(nf.name)}"><div class="p-grid2" style="margin-top:8px"><input id="new-price" inputmode="decimal" placeholder="Fiyat (TL)" value="${J.esc(nf.price)}"><input id="new-cat" placeholder="Kategori" list="cats" value="${J.esc(nf.cat)}"></div><datalist id="cats">${cats.map(c => `<option value="${J.esc(c)}">`).join('')}</datalist><input id="new-desc" placeholder="Kısa açıklama (isteğe bağlı)" style="margin-top:8px" value="${J.esc(nf.desc)}"><input id="new-opts" placeholder="Seçenekler (isteğe bağlı): Ekstra kaşar=40 | Soğansız=0" style="margin-top:8px" value="${J.esc(nf.opts)}"><button class="brand wide" style="margin-top:10px" data-a="add-item">Ekle</button><div class="note">Seçenekleri <b>|</b> ile ayırın; eşittirden sonra ek ücret yazın (ücretsizse 0, indirimse eksi: Yarım porsiyon=-100).</div></div>`;
@@ -389,7 +391,7 @@ document.addEventListener('click', async e => {
     nf = {name:'', price:'', cat:'', desc:'', opts:''};
     J.toast('Ürün eklendi.');
   }
-  if(a==='edit-item' && b){ const m = b.menu.find(x => x.id === id); if(m) ed = {id, name:m.name, price:String(m.price), cat:m.cat||'', desc:m.desc||'', opts:J.optsText(m.opts), photo:m.photo||null, alg:(m.alg||[]).slice()}; }
+  if(a==='edit-item' && b){ const m = b.menu.find(x => x.id === id); if(m) ed = {id, name:m.name, price:String(m.price), cat:m.cat||'', desc:m.desc||'', opts:J.optsText(m.opts), photo:m.photo||null, alg:(m.alg||[]).slice(), stock: m.stock == null ? '' : String(m.stock)}; }
   if(a==='ed-cancel'){ ed = null; }
   if(a==='ed-alg' && ed){ ed.alg = (ed.alg||[]).includes(id) ? ed.alg.filter(x => x !== id) : (ed.alg||[]).concat([id]); }
   if(a==='ed-photo-del' && ed){ ed.photo = null; }
@@ -402,7 +404,7 @@ document.addEventListener('click', async e => {
     const price = parseFloat(String(ed.price).replace(',','.'));
     if(!ed.name.trim() || !(price > 0)){ J.toast('Ürün adı ve fiyat girin.'); return; }
     const opts = J.parseOpts(ed.opts);
-    DB.patch('businesses', b.id, {menu: b.menu.map(m => { if(m.id !== ed.id) return m; const n = Object.assign({}, m, {name:ed.name.trim(), price, cat:ed.cat.trim(), desc:ed.desc.trim()}); if(opts.length) n.opts = opts; else delete n.opts; if(ed.photo) n.photo = ed.photo; else delete n.photo; if(ed.alg && ed.alg.length) n.alg = ed.alg; else delete n.alg; return n; })});
+    DB.patch('businesses', b.id, {menu: b.menu.map(m => { if(m.id !== ed.id) return m; const n = Object.assign({}, m, {name:ed.name.trim(), price, cat:ed.cat.trim(), desc:ed.desc.trim()}); if(opts.length) n.opts = opts; else delete n.opts; if(ed.photo) n.photo = ed.photo; else delete n.photo; if(ed.alg && ed.alg.length) n.alg = ed.alg; else delete n.alg; const st = String(ed.stock||'').trim(); if(st === '') delete n.stock; else { n.stock = Math.max(0, parseInt(st,10) || 0); if(n.stock > 0 && m.stock === 0) n.available = true; if(n.stock === 0) n.available = false; } return n; })});
     ed = null; J.toast('Ürün güncellendi.');
   }
   if(a==='imp-cancel'){ imp = null; }
@@ -472,7 +474,7 @@ document.addEventListener('change', async e => {
 document.addEventListener('input', e => {
   const ap = /^ap-(name|owner|phone|addr|user|pass)$/.exec(e.target.id||''); if(ap && apply){ apply[ap[1]] = e.target.value; return; }
   const m = /^new-(name|price|cat|desc|opts)$/.exec(e.target.id||''); if(m) nf[m[1]] = e.target.value;
-  const k = /^ed-(name|price|cat|desc|opts)$/.exec(e.target.id||''); if(k && ed) ed[k[1]] = e.target.value;
+  const k = /^ed-(name|price|cat|desc|opts|stock)$/.exec(e.target.id||''); if(k && ed) ed[k[1]] = e.target.value;
 });
 // Giriş ekranında veri değişince formu yeniden çizme (yazılanlar silinmesin)
 DB.on(() => { if(bid) render(); });

@@ -237,7 +237,7 @@ function renderMenu(){
     menu.filter(m => (m.cat||'Menü')===c).forEach(m => {
       const av = m.available !== false, hasOpt = (m.opts||[]).length > 0, n = hasOpt ? inCart(m.id) : (cart[m.id] || 0);
       const ctl = !av ? '' : hasOpt ? `<button class="m-add" data-a="opt-open" data-id="${m.id}" aria-label="Seçenekleri gör">+</button>${n?`<span class="m-badge">${n}</span>`:''}` : n ? `<div class="m-step"><button data-a="dec" data-id="${m.id}" aria-label="Azalt">−</button><b>${n}</b><button data-a="inc" data-id="${m.id}" aria-label="Arttır">+</button></div>` : `<button class="m-add" data-a="inc" data-id="${m.id}" aria-label="Sepete ekle">+</button>`;
-      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}${algLine(m)}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}${hasOpt&&av?' <span class="m-optnote">· seçenekli</span>':''}</div></div>${m.photo?`<div class="mph"><img src="${m.photo}" alt="${J.esc(m.name)}" loading="lazy"><div class="act">${ctl}</div></div>`:`<div class="act">${ctl}</div>`}</div>`;
+      h += `<div class="m-item ${av?'':'off'}"><div class="tx"><div class="nm">${J.esc(m.name)}</div>${m.desc?`<div class="ds">${J.esc(m.desc)}</div>`:''}${algLine(m)}<div class="pr">${J.tl(m.price)}${av?'':' · <span style="color:var(--bad)">Tükendi</span>'}${hasOpt&&av?' <span class="m-optnote">· seçenekli</span>':''}${av && m.stock != null && m.stock <= 5 ? ` <span class="m-low">· son ${m.stock} adet</span>` : ''}</div></div>${m.photo?`<div class="mph"><img src="${m.photo}" alt="${J.esc(m.name)}" loading="lazy"><div class="act">${ctl}</div></div>`:`<div class="act">${ctl}</div>`}</div>`;
     });
   });
   if(!menu.length) h += `<div class="m-empty"><div>${J.ic('list',36)}</div>Bu işletme henüz ürün eklemedi.</div>`;
@@ -521,8 +521,9 @@ document.addEventListener('click', e => {
   if(a==='opt-inc' && sheet) sheet.qty = Math.min(50, sheet.qty + 1);
   if(a==='opt-dec' && sheet) sheet.qty = Math.max(1, sheet.qty - 1);
   if(a==='opt-add' && sheet){ const b = DB.get('businesses', curBiz), m = b && (b.menu||[]).find(x => x.id === sheet.mid); const miss = m ? J.optsMissing(m, sheet.sel) : []; if(miss.length){ J.toast(miss[0] + ' seçimi zorunlu.'); return; } }
+  if(a==='opt-add' && sheet){ const b = DB.get('businesses', curBiz), m = b && (b.menu||[]).find(x => x.id === sheet.mid), inCart = Object.keys(cart).filter(k => k.split('|')[0] === sheet.mid).reduce((t,k) => t + cart[k], 0); if(m && m.stock != null && inCart + sheet.qty > m.stock){ J.toast(`Bu üründen en fazla ${m.stock} adet kaldı.`); return; } }
   if(a==='opt-add' && sheet){ const k = J.cartKey(sheet.mid, sheet.sel); cart[k] = (cart[k]||0) + sheet.qty; sheet = null; J.toast('Sepete eklendi.'); }
-  if(a==='inc') cart[id] = (cart[id]||0) + 1;
+  if(a==='inc'){ const b = DB.get('businesses', curBiz), mid = String(id).split('|')[0], m = b && (b.menu||[]).find(x => x.id === mid), inCart = Object.keys(cart).filter(k => k.split('|')[0] === mid).reduce((t,k) => t + cart[k], 0); if(m && m.stock != null && inCart >= m.stock){ J.toast(`Bu üründen en fazla ${m.stock} adet kaldı.`); return; } cart[id] = (cart[id]||0) + 1; }
   if(a==='dec'){ cart[id] = Math.max(0,(cart[id]||0)-1); if(!cart[id]) delete cart[id]; }
   if(a==='reorder'){
     const o = DB.get('orders', id), b = o && DB.get('businesses', o.rid);
@@ -549,6 +550,7 @@ document.addEventListener('click', e => {
     if(J.isFull(b) && !sched){ J.toast('İşletme şu an çok yoğun. Birkaç dakika sonra tekrar dene ya da planlı sipariş ver.'); render(); return; }
     const o = J.placeOrder(b, cart, prof, {note: orderNote.trim(), tip, priority: prio, loyalty: true, sched_at: sched, coupon: cdisc(b, cartSum(b)) ? J.activeCoupon(prof).id : null});
     if(o){ cart = {}; orderNote = ''; tip = 0; tipCustom = false; prio = false; sched = null; trackId = o.id; J.store.set('musteri_takip', o.id); J.beep('ok'); go('takip'); }
+    else J.toast('Sipariş verilemedi. Sepetteki bir ürün tükenmiş ya da işletme yoğun olabilir; sepeti kontrol et.');
   }
   if(a==='prio'){ prio = !prio; }
   if(a==='sched-now'){ sched = null; }

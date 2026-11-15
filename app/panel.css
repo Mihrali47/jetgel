@@ -176,3 +176,12 @@ button.sm{padding:5px 9px;font-size:12px}
 .p-offer .trip{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;background:rgba(255,255,255,.14);border-radius:12px;padding:9px 12px;margin-top:10px;font-size:13.5px}
 .p-offer .trip .tiny{flex-basis:100%;opacity:.8;padding-left:23px}
 .p-sos{display:flex;align-items:center;gap:6px;margin:10px 0 0 auto;background:none;color:var(--bad);font-size:12.5px;font-weight:700;padding:6px 4px}
+/* alış kodu ve QR okuyucu */
+.p-pick{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;background:#f6f5f2;border-radius:12px;padding:10px 12px;margin-top:10px;font-size:13.5px}
+.p-pick b{font-size:20px;letter-spacing:3px;font-variant-numeric:tabular-nums}
+.p-pick .tiny{flex-basis:100%}
+.p-scan{position:fixed;inset:0;z-index:9000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.p-scan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.p-scan .fr{position:relative;width:62vw;max-width:280px;aspect-ratio:1;border:3px solid #fff;border-radius:18px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+.p-scan .tx{position:relative;color:#fff;font-weight:700;margin-top:18px}
+.p-scan button{position:relative;margin-top:18px}

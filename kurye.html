@@ -27,7 +27,7 @@
   <div id="panel"></div>
 </div>
 <div id="ptabs"></div>
-<div id="call"></div>
+<div id="call"></div><div id="scan"></div>
 <script>
 const {DB} = J;
 let cid = J.store.get('kurye_id', null);
@@ -36,7 +36,7 @@ let locMode = (J.store.get('kurye_konum2', 'gps') === 'demo' && /^(localhost|127
 let pos = J.store.get('kurye_pos', {lat:40.98880, lng:29.02830});
 let gpsWatch = null, gpsErr = '', gpsAcc = null;
 let route = null, routeKey = '', routeAt = 0, routing = false, prog = 0;
-let pin = '', pinErr = '';
+let pin = '', pinErr = '', pick = '', pickErr = '';
 let map = null, tab = 'gorev';
 const today = t => new Date(t).toDateString() === new Date().toDateString();
 const me = () => cid ? {type:'kurye', id:cid} : null;
@@ -77,6 +77,30 @@ function sendPos(){
   lastBeat = t; lastSent = Object.assign({}, pos);
   DB.patch('couriers', c.id, {lat:pos.lat, lng:pos.lng, seen_at:t, pos_t:t});
   J.store.set('kurye_pos', pos);
+}
+function doPickup(o, code){
+  const ok = J.checkPick(o, code);
+  if(ok !== true){ pickErr = ok; J.log(`#${o.no} yanlış alış kodu denendi.`, 'warn', o.id); render(); return false; }
+  pick = ''; pickErr = ''; J.pickup(o); J.beep('ok'); route = null; prog = 0; routeKey = ''; render(); return true;
+}
+// Fiş QR'ını telefon kamerasıyla okur (tarayıcının yerleşik QR okuyucusu)
+let scanStream = null, scanTimer = null;
+async function startScan(){
+  const box = document.getElementById('scan'); if(!box) return;
+  try{
+    const det = new BarcodeDetector({formats:['qr_code']});
+    scanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
+    box.innerHTML = `<div class="p-scan"><video playsinline muted></video><div class="fr"></div><div class="tx">Fişteki QR'ı çerçeveye getir</div><button class="sec" data-a="scan-close">Kapat</button></div>`;
+    const v = box.querySelector('video'); v.srcObject = scanStream; await v.play();
+    scanTimer = setInterval(async () => {
+      try{ const r = await det.detect(v); if(r && r.length){ const o = myJob(); const txt = r[0].rawValue; stopScan(); if(o){ if(!doPickup(o, txt)) J.toast(pickErr); } } }catch(e){}
+    }, 300);
+  }catch(e){ stopScan(); J.toast('Kamera açılamadı: ' + (e.name === 'NotAllowedError' ? 'izin verilmedi' : (e.message || 'desteklenmiyor')) + '. Kodu elle girin.'); }
+}
+function stopScan(){
+  if(scanTimer){ clearInterval(scanTimer); scanTimer = null; }
+  if(scanStream){ scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  const box = document.getElementById('scan'); if(box) box.innerHTML = '';
 }
 function stopGps(){ if(gpsWatch != null){ navigator.geolocation.clearWatch(gpsWatch); gpsWatch = null; } }
 function target(o){
@@ -167,7 +191,9 @@ function tabTask(c){
     h += incidentBox(o);
     if(o.del==='isletmeye') h += `<div class="note">İşletmeye gidiyorsun. ${J.ARRIVE_M} m yaklaşınca varış kendiliğinden kaydedilir.</div>`;
     if(o.del==='isletmede') h += o.prep==='hazir'
-      ? `<button class="ok p-big" data-a="pickup">${J.ic('package',18)} Paketi aldım (fiş kontrol edildi)</button>`
+      ? `<div style="margin-top:14px"><b>Paketi al: fişteki kodu gir ya da QR'ı okut</b></div><input id="pick" class="p-pin" inputmode="numeric" maxlength="4" placeholder="••••" value="${J.esc(pick)}" style="margin-top:8px">
+        ${pickErr?`<div class="small" style="color:var(--bad);margin-top:6px">${J.esc(pickErr)}</div>`:''}
+        <div class="p-act">${'BarcodeDetector' in window ? `<button class="sec" data-a="scan">${J.ic('scan-line',17)} QR okut</button>` : ''}<button class="ok" style="flex:2" data-a="pickup">${J.ic('package',18)} Paketi aldım</button></div>`
       : `<div class="p-timer"><span>${J.ic('hourglass',16)} Sipariş hazırlanıyor</span><span>${o.prep_until?`<b data-live="mdown" data-end="${o.prep_until}">…</b> dk`:''}</span></div><div class="tiny muted" style="margin-top:6px">İşletme "hazır" deyince buton açılır.</div>`;
     if(o.del==='yolda') h += `<div class="note">Müşteriye gidiyorsun. Adrese ${J.ARRIVE_M} m yaklaşınca kapıda olduğun kaydedilir.</div>`;
     if(o.del==='kapida'){
@@ -295,7 +321,9 @@ document.addEventListener('click', async e => {
   if(a==='gps-retry'){ stopGps(); startGps(); J.toast('Konum yeniden isteniyor…'); }
   if(a==='accept'){ const o = myOffer(); if(o && c){ await J.courierAccept(c, o); route = null; prog = 0; routeKey = ''; J.alarm('teklif', false); } }
   if(a==='decline'){ const o = myOffer(); if(o && c){ J.courierDecline(c, o, 'teklifi reddetti'); J.alarm('teklif', false); } }
-  if(a==='pickup'){ const o = myJob(); if(o){ J.pickup(o); route = null; prog = 0; routeKey = ''; } }
+  if(a==='pickup'){ const o = myJob(); if(o) doPickup(o, pick); }
+  if(a==='scan'){ startScan(); return; }
+  if(a==='scan-close'){ stopScan(); return; }
   if(a==='pin'){
     const o = myJob(); if(!o) return;
     const d = J.dist(pos, o.customer);
@@ -312,7 +340,7 @@ document.addEventListener('click', async e => {
   if(a==='logout'){ if(c && !myJob()) DB.patch('couriers', c.id, {online:false}); cid = null; J.store.set('kurye_id', null); J.keepAwake(false); J.nativeService(false); }
   render();
 });
-document.addEventListener('input', e => { if(e.target.id==='pin'){ pin = e.target.value.replace(/\D/g,'').slice(0,4); pinErr = ''; } });
+document.addEventListener('input', e => { if(e.target.id==='pick'){ pick = e.target.value.replace(/\D/g,'').slice(0,4); pickErr = ''; } if(e.target.id==='pin'){ pin = e.target.value.replace(/\D/g,'').slice(0,4); pinErr = ''; } });
 document.addEventListener('change', e => { if(e.target.id==='photo' && e.target.files && e.target.files.length){ const o = myJob(); if(o){ DB.patch('orders', o.id, {photo:true}); J.log(`#${o.no} teslimat fotoğrafı eklendi.`, '', o.id); J.toast('Fotoğraf eklendi.'); } } });
 
 /* ---------- Döngü: hareket, varış, sinyal ---------- */
