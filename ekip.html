@@ -37,7 +37,7 @@ ol.howto{padding-left:20px;margin:6px 0 0} ol.howto li{margin-bottom:6px}
 <body>
 <div class="wrap">
   <div class="hero">
-    <div class="row"><span class="pill">Ekip girişi</span><span id="mode"></span></div>
+    <div class="row"><span class="pill">Ekip girişi</span> <span class="pill" id="ver"></span><span id="mode"></span></div>
     <h1 style="margin-top:12px"><span>Jetgel</span></h1>
     <div class="muted">Komisyonsuz, sabit ücretli teslimat. Esnaf yüzde vermez; teslimat ücretinin tamamı kuryeye gider.</div>
     <div class="fair"><div><b>%0</b>komisyon</div><div><b>100 TL</b>kuryeye</div><div><b>SMS yok</b>kodla teslim</div></div>
@@ -75,6 +75,7 @@ J.DB.on(() => { document.getElementById('mode').innerHTML = J.modeBadge(); });
 J.DB.init().then(() => { document.getElementById('mode').innerHTML = J.modeBadge(); });
 document.querySelectorAll('[data-ic]').forEach(el => { el.innerHTML = J.ic(el.dataset.ic, el.classList.contains('e') ? 24 : 16); });
 J.registerSW();
+document.getElementById('ver').textContent = 'Sürüm ' + J.VERSION;
 </script>
 </body>
 </html>

@@ -49,7 +49,9 @@ J.store = {
 /* ===================== VERİ KATMANI =====================
    Demo modu: localStorage + BroadcastChannel (aynı cihazdaki sekmeler).
    Canlı mod: Supabase "kayitlar" tablosu + realtime (tüm cihazlar). */
-const TABLES = ['businesses','couriers','customers','orders','calls','events','settings','applications', 'settlements'];
+const TABLES = ['businesses','couriers','customers','orders','calls','events','settings','applications', 'settlements', 'prova'];
+// Yayındaki sürüm (sw.js önbellek adıyla birlikte artırılır)
+J.VERSION = '44';
 const DB = J.DB = {mode:'demo', status:'baglaniyor', cache:{}, listeners:[]};
 TABLES.forEach(t => DB.cache[t] = new Map());
 DB.rows = t => Array.from(DB.cache[t].values());
@@ -232,6 +234,7 @@ J.placeOrder = function(b, cart, cust, extra){
   if(J.cartLines(b, cart).some(l => J.optsMissing(l.m, l.opts.map(o => (l.m.opts||[]).indexOf(o))).length)) return null;   // zorunlu seçim eksik
   if(b.min_order > 0 && J.cartLines(b, cart).reduce((t,l) => t + l.unit*l.qty, 0) < b.min_order) return null;   // minimum tutar
   if(!J.stockOk(b, items)) return null;   // stok yetmiyor
+  if(J.dist(b, cust) > J.SERVICE_M) return null;   // teslimat bölgesi dışı
   if(extra && J.PAY_METHODS[extra.pay_method] && !J.payAccept(b).includes(extra.pay_method)) return null;
   if(extra && extra.pay_method === 'havale' && !J.hasIban(b)) return null;   // işletme bu ödeme yolunu kabul etmiyor
   const subtotal = items.reduce((s,i) => s + i.price*i.qty, 0);
@@ -810,6 +813,7 @@ J.posReturned = function(c, by){
   if(!c || !c.pos_due) return false;
   const b = DB.get('businesses', c.pos_due.bid);
   DB.patch('couriers', c.id, {pos_due:null});
+  DB.patch('orders', c.pos_due.oid, {pos_returned_at:J.now(), pos_returned_by:by, pos_out_at:c.pos_due.t});
   J.log(`${c.name} POS cihazını ${b ? b.name : 'işletmeye'} geri teslim etti (${by} onayladı).`, 'ok', c.pos_due.oid);
   return true;
 };
@@ -1316,6 +1320,10 @@ J.KIND_COLOR = {'Çiçekçi':'#d6457c', Pideci:'#f4a261', 'Kebapçı':'#e76f51',
 J.KIND_ICON = {'Çiçekçi':'flower-2', Pideci:'pizza', 'Kebapçı':'beef', 'Çorbacı':'soup', Market:'shopping-cart', Burgerci:'sandwich', Kahveci:'coffee', 'Tatlıcı':'cake-slice', 'Dönerci':'drumstick', Manav:'carrot'};
 J.GROUP_ICON = {'Çiçek':'flower-2', Yemek:'utensils', Market:'shopping-cart', 'Kahve & Tatlı':'coffee'};
 J.bizIcon = (b, size) => J.ic(J.KIND_ICON[b && b.kind] || J.GROUP_ICON[J.bizGroup(b||{})] || 'store', size);
+// Etiketler: kategori kısayolları (Pide & Pizza, Kahve, Tatlı, Manav...) isimle değil etiketle eşleşir. İşletme Ayarlar'dan değiştirebilir.
+J.TAGS = {pide:'Pide', pizza:'Pizza', kebap:'Kebap', doner:'Döner', burger:'Burger', corba:'Çorba', ev:'Ev yemeği', kahve:'Kahve', tatli:'Tatlı', firin:'Fırın', manav:'Manav', kasap:'Kasap', sarkuteri:'Şarküteri', cicek:'Çiçek', hediye:'Hediyelik'};
+J.KIND_TAGS = {Pideci:['pide','pizza'], 'Kebapçı':['kebap'], 'Dönerci':['doner'], Burgerci:['burger'], 'Çorbacı':['corba','ev'], Kahveci:['kahve'], 'Tatlıcı':['tatli'], Manav:['manav'], 'Çiçekçi':['cicek','hediye']};
+J.bizTags = b => (b && Array.isArray(b.tags) && b.tags.length) ? b.tags : (J.KIND_TAGS[b && b.kind] || []);
 J.bizGroup = b => J.KIND_GROUP[b.kind] || 'Yemek';
 J.bizColor = b => J.KIND_COLOR[b.kind] || '#e8590c';
 // Tahmini teslim süresi (dk): ortalama hazırlık + yol

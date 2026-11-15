@@ -1,6 +1,6 @@
 // Jetgel service worker: uygulamanın telefona yüklenebilmesi, hızlı açılması ve bildirimler için.
 // Kendi dosyalarımız için önce ağ, ağ yoksa önbellek. Dış servisler (harita, rota, veritabanı) hiç önbelleğe alınmaz.
-const CACHE = 'jetgel-v43';
+const CACHE = 'jetgel-v44';
 const SHELL = [
   './', 'index.html', 'ekip.html', 'yasal.html', 'takip.html', 'musteri.html', 'isletme.html', 'kurye.html', 'yonetim.html',
   'app/app.css', 'app/musteri.css', 'app/panel.css', 'app/core.js', 'app/ikon.js', 'app/excel.js', 'vendor/qrcode/qrcode.js', 'app/config.js',
@@ -18,7 +18,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if(req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); return res; })
+    fetch(req).then(res => { if(res.ok && res.type === 'basic'){ const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); } return res; })   // hata sayfaları önbelleğe alınmaz
       .catch(() => caches.match(req).then(r => r || caches.match('index.html')))
   );
 });

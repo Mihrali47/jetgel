@@ -73,7 +73,13 @@ a{text-decoration:none}
 section{padding:64px 0}
 section h2{font-size:32px;letter-spacing:-.5px;margin:0 0 8px}
 section .lead{color:var(--muted);font-size:16px;margin:0 0 28px;max-width:640px}
-.cats{display:grid;grid-template-columns:repeat(7,1fr);gap:14px}
+.cats-main{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.catm{background:var(--brand);color:#fff;border-radius:20px;padding:22px;display:flex;flex-direction:column;gap:4px;min-height:132px;transition:.15s}
+.catm:hover{transform:translateY(-2px)}
+.catm i{width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.18);display:grid;place-items:center;margin-bottom:8px}
+.catm b{font-size:20px}.catm span{font-size:13.5px;opacity:.85}
+.catm:nth-child(2){background:#2a9d8f}.catm.soon{background:#ece8e1;color:#6b655d;cursor:default}.catm.soon i{background:#fff;color:#8a837a}
+.cats{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
 .cat{background:#f6f5f2;border-radius:18px;padding:20px 12px;text-align:center;color:var(--ink);font-weight:700;transition:.15s}
 .cat:hover{background:var(--brand-soft);transform:translateY(-2px)}
 .cat i{width:58px;height:58px;margin:0 auto 10px;border-radius:50%;background:#fff;color:var(--brand);display:grid;place-items:center}
@@ -121,7 +127,13 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
   .hero h1{font-size:34px}
   .hero p{font-size:16px}
   .phone{transform:scale(.78);transform-origin:top center;margin:-10px auto -110px}
-  .cats{grid-template-columns:repeat(4,1fr)}
+  .cats{grid-template-columns:repeat(5,1fr);gap:8px}
+  .cat{padding:12px 4px;font-size:12px}
+  .cat i{width:44px;height:44px}
+  .cats-main{grid-template-columns:1fr 1fr;gap:10px}
+  .catm{min-height:110px;padding:16px}
+  .catm.soon{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center;gap:10px}
+  .catm.soon i{margin:0}
   .why,.steps3{grid-template-columns:1fr 1fr}
   .compare,.join{grid-template-columns:1fr}
   .app{flex-direction:column;align-items:flex-start}
@@ -173,14 +185,17 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
 
 <section><div class="c">
   <h2>Ne istersin?</h2>
-  <p class="lead">Yemekten markete, kahveden manava; mahallendeki işletmeler tek uygulamada.</p>
+  <p class="lead">Yemekten markete, kahveden çiçeğe; mahallendeki işletmeler tek uygulamada.</p>
+  <div class="cats-main">
+    <a class="catm" href="musteri.html?g=Yemek"><i data-ic="utensils"></i><b>Yemek</b><span>Restoranlar</span></a>
+    <a class="catm" href="musteri.html?g=Market"><i data-ic="shopping-cart"></i><b>Market</b><span>Market ve manav</span></a>
+    <div class="catm soon" aria-disabled="true"><i data-ic="package"></i><b>Kurye ile gönder</b><span>Evrak ve paket · yakında</span></div>
+  </div>
   <div class="cats">
-    <a class="cat" href="musteri.html?g=Yemek"><i data-ic="utensils"></i>Yemek</a>
-    <a class="cat" href="musteri.html?g=Market"><i data-ic="shopping-cart"></i>Market</a>
-    <a class="cat" href="musteri.html?g=Kahve%20%26%20Tatl%C4%B1&q=kahve"><i data-ic="coffee"></i>Kahve</a>
-    <a class="cat" href="musteri.html?g=Kahve%20%26%20Tatl%C4%B1&q=tatl%C4%B1"><i data-ic="cake-slice"></i>Tatlı</a>
-    <a class="cat" href="musteri.html?g=Market&q=manav"><i data-ic="carrot"></i>Manav</a>
-    <a class="cat" href="musteri.html?g=Yemek&q=pide"><i data-ic="pizza"></i>Pide ve pizza</a>
+    <a class="cat" href="musteri.html?t=pide,pizza"><i data-ic="pizza"></i>Pide ve pizza</a>
+    <a class="cat" href="musteri.html?t=kahve"><i data-ic="coffee"></i>Kahve</a>
+    <a class="cat" href="musteri.html?t=tatli"><i data-ic="cake-slice"></i>Tatlı</a>
+    <a class="cat" href="musteri.html?g=Market&t=manav"><i data-ic="carrot"></i>Manav</a>
     <a class="cat" href="musteri.html?g=%C3%87i%C3%A7ek"><i data-ic="flower-2"></i>Çiçek</a>
   </div>
 </div></section>
@@ -189,8 +204,8 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
   <h2>Neden Jetgel?</h2>
   <p class="lead">Teslimatı herkes için adil hale getirmek için kurallarımızı baştan açık yazdık.</p>
   <div class="why">
-    <div><i data-ic="receipt"></i><b>Şeffaf ücret</b><p>Teslimat 50 TL, hizmet bedeli 5 TL. Sepette her kalemi görürsün; sonradan eklenen ücret yok.</p></div>
-    <div><i data-ic="bike"></i><b>Kuryeye tam ücret</b><p>Teslimat başına kuryeye 100 TL. Ödediğin teslimat ücretinden kesinti yapılmaz.</p></div>
+    <div><i data-ic="receipt"></i><b>Şeffaf ücret</b><p>Teslimat <span data-fee="custDel">50 TL</span>, hizmet bedeli <span data-fee="custPlat">5 TL</span>. Sepette her kalemi görürsün; sonradan eklenen ücret yok.</p></div>
+    <div><i data-ic="bike"></i><b>Kuryeye tam ücret</b><p>Teslimat başına kuryeye <span data-fee="courier">100 TL</span>. Ödediğin teslimat ücretinden kesinti yapılmaz.</p></div>
     <div><i data-ic="lock"></i><b>Kodla teslimat</b><p>Sipariş, kapında ekranındaki 4 haneli kodu söylemeden teslim edilmiş sayılmaz.</p></div>
     <div><i data-ic="phone-call"></i><b>Ulaşılabilir işletme</b><p>İşletmeyi uygulamadan, numaran görünmeden ararsın. İşletmeler müşteri aramalarına dönmekle yükümlü.</p></div>
   </div>
@@ -209,21 +224,21 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
 <section class="gray" id="isletme"><div class="c compare">
   <div>
     <h2>İşletmeler için: komisyon yok.</h2>
-    <p class="lead">Sipariş başına sabit 55 TL ödersin; satışından yüzde alınmaz, aidat yok. Kartla ödemelerde para POS'undan doğrudan senin hesabına geçer.</p>
+    <p class="lead">Sipariş başına sabit <span data-fee="biz">55 TL</span> ödersin; satışından yüzde alınmaz, aidat yok. Kartla ödemelerde para POS'undan doğrudan senin hesabına geçer.</p>
     <a class="btnlink" style="background:var(--ink);color:#fff;padding:12px 16px;font-size:14px" href="isletme.html"><span data-ic="store"></span> İşletme paneline git</a>
   </div>
   <div class="bars">
     <div class="t">Örnek karşılaştırma: 400 TL'lik bir siparişte işletmeye kalan</div>
     <div class="r"><div class="l"><span>%35 komisyonlu platform</span><b>260 TL</b></div><div class="b"><i style="width:65%;background:#c9c2b8"></i></div></div>
-    <div class="r"><div class="l"><span><b>Jetgel</b> (sabit 55 TL)</span><b style="color:var(--ok)">345 TL</b></div><div class="b"><i style="width:86.25%;background:var(--ok)"></i></div></div>
-    <div class="tiny muted">Fark: sipariş başına 85 TL; günde 30 siparişte ayda yaklaşık 76.500 TL. %35 komisyon oranı varsayımdır; hesap ürün maliyeti ve diğer giderler hariç bir senaryodur.</div>
+    <div class="r"><div class="l"><span><b>Jetgel</b> (sabit <span data-fee="biz">55 TL</span>)</span><b style="color:var(--ok)" data-fee="jet">345 TL</b></div><div class="b"><i id="jetbar" style="width:86.25%;background:var(--ok)"></i></div></div>
+    <div class="tiny muted">Fark: sipariş başına <span data-fee="diff">85 TL</span>; günde 30 siparişte ayda yaklaşık <span data-fee="month">76.500 TL</span>. %35 komisyon oranı varsayımdır; hesap ürün maliyeti ve diğer giderler hariç bir senaryodur.</div>
   </div>
 </div></section>
 
 <section><div class="c">
   <div class="join">
     <a class="biz" href="isletme.html#basvuru"><i data-ic="store"></i><b>Restoranını ya da marketini ekle</b><p>Menünü tek tek ya da Excel ile toplu yükle. Siparişler panelde sesli uyarıyla düşer, kuryeyi sistem bulur.</p><span class="cta">Başvur <span data-ic="chevron-right"></span></span></a>
-    <a class="cour" href="kurye.html" id="kurye"><i data-ic="bike"></i><b>Jetgel kuryesi ol</b><p>Teslimat başına sabit 100 TL. Teklifi reddetmenin cezası yok; müşteri kapıyı açmasa da ücretini alırsın.</p><span class="cta">Kurye ol <span data-ic="chevron-right"></span></span></a>
+    <a class="cour" href="kurye.html" id="kurye"><i data-ic="bike"></i><b>Jetgel kuryesi ol</b><p>Teslimat başına sabit <span data-fee="courier">100 TL</span>. Teklifi reddetmenin cezası yok; müşteri kapıyı açmasa da ücretin kaybolmaz.</p><span class="cta">Kurye ol <span data-ic="chevron-right"></span></span></a>
   </div>
 </div></section>
 
@@ -244,6 +259,11 @@ footer .cp{grid-column:1/-1;border-top:1px solid rgba(255,255,255,.1);padding-to
 
 <script>
 document.getElementById('yil').textContent = new Date().getFullYear();
+// Ücretler tek kaynaktan (J.FEE) gösterilir; fiyat değişince sayfa kendiliğinden güncellenir
+(() => { const F = J.FEE, biz = F.bizDel + F.bizPlat, ex = 400, jet = ex - biz, com = Math.round(ex*0.65), diff = jet - com;
+  const V = {custDel:F.custDel, custPlat:F.custPlat, courier:F.courier, biz, jet, diff, month:diff*30*30};
+  document.querySelectorAll('[data-fee]').forEach(el => { el.textContent = J.tl(V[el.dataset.fee]); });
+  const bar = document.getElementById('jetbar'); if(bar) bar.style.width = (jet/ex*100) + '%'; })();
 document.querySelectorAll('[data-ic]').forEach(el => {
   const big = el.tagName === 'I' || el.classList.contains('pin') || el.classList.contains('av') || el.classList.contains('call');
   el.innerHTML = J.ic(el.dataset.ic, el.tagName === 'I' ? 26 : big ? 18 : 17);
@@ -252,13 +272,13 @@ document.querySelectorAll('[data-ic]').forEach(el => {
 document.getElementById('find').addEventListener('submit', e => {
   e.preventDefault();
   const v = document.getElementById('adres').value.trim();
-  if(v) J.store.set('adres_taslak', v);
+  if(v){ J.store.set('adres_taslak', v); J.store.set('konum_taslak', null); }   // yeni yazılan adres her zaman haritada yeniden onaylanır
   location.href = 'musteri.html';
 });
 document.getElementById('konum').addEventListener('click', () => {
   if(!navigator.geolocation){ location.href = 'musteri.html'; return; }
   J.toast('Konum alınıyor…');
-  navigator.geolocation.getCurrentPosition(p => { J.store.set('konum_taslak', {lat:p.coords.latitude, lng:p.coords.longitude}); location.href = 'musteri.html'; },
+  navigator.geolocation.getCurrentPosition(p => { J.store.set('adres_taslak', ''); J.store.set('konum_taslak', {lat:p.coords.latitude, lng:p.coords.longitude}); location.href = 'musteri.html'; },
     () => { location.href = 'musteri.html'; }, {enableHighAccuracy:true, timeout:12000});
 });
 J.registerSW();

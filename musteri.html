@@ -54,7 +54,7 @@ const GUEST_VIEWS = ['liste', 'menu', 'sepet', 'giris', 'profil'];
 function needLogin(next, msg){ afterLogin = next; loginErr = ''; showReg = false; J.toast(msg || 'Devam etmek için giriş yap ya da hesap oluştur.'); go('giris'); }
 let view = 'giris', loginErr = '', regErr = '', showReg = false;
 let cart = {}, curBiz = null, trackId = J.store.get('musteri_takip', null), draft = null;
-let gift = {on:false, to:'', msg:'', anon:false}, addrBack = null;   // çiçek: hediye gönderimi
+let gift = {on:false, to:'', msg:'', anon:false}, addrBack = null, tagF = [];   // tagF: etiket filtresi (ör. pide, pizza)   // çiçek: hediye gönderimi
 let q = '', group = 'Hepsi', orderNote = '', tip = 0, tipCustom = false, prio = false, sched = null, payM = 'kart', cashFor = '';
 const TIPS = [0, 10, 20, 30, 50];
 const tipBox = (sel, act, custom) => `<div class="m-tips">${TIPS.map(v => `<button class="${sel===v && !custom?'on':''}" data-a="${act}" data-v="${v}">${v?J.tl(v):'Yok'}</button>`).join('')}<button class="${custom?'on':''}" data-a="${act}" data-v="diger">Diğer</button></div>`;
@@ -63,7 +63,7 @@ const me = () => prof && !prof.guest ? {type:'musteri', id:prof.id, name:prof.na
 const GROUPS = [['Hepsi','layout-dashboard','Hepsi'],['Yemek','utensils','Yemek'],['Market','shopping-cart','Market'],['Kahve & Tatlı','coffee','Kahve'],['Çiçek','flower-2','Çiçek'],['Ücretsiz','gift','Ücretsiz']];
 const TABS = ['liste','siparisler','hesap'];
 
-function ensureMap(){ if(!map){ map = J.Map(document.getElementById('map')); map.onClick(p => { if(view==='profil'){ draft.lat = p.lat; draft.lng = p.lng; draft.src = 'harita'; map._fitted = 'p'+p.lat+','+p.lng; render(); } }); } }
+function ensureMap(){ if(!map){ map = J.Map(document.getElementById('map')); map.onClick(p => { if(view==='profil'){ draft.lat = p.lat; draft.lng = p.lng; draft.src = 'harita'; draft.need_pin = false; map._fitted = 'p'+p.lat+','+p.lng; render(); } }); } }
 // Harita tek bir eleman; çizimden önce evine alınır, sonra sayfadaki #mapslot'a taşınır
 function parkMap(){ const m = document.getElementById('map'); document.getElementById('maphome').appendChild(m); }
 function placeMap(){
@@ -200,6 +200,8 @@ function renderList(){
   if(group==='Ücretsiz') list = list.filter(x => x.b.free_delivery);
   else if(group==='Kupon') list = list.filter(x => x.b.race_join);
   else if(group!=='Hepsi') list = list.filter(x => J.bizGroup(x.b)===group);
+  if(tagF.length) list = list.filter(x => J.bizTags(x.b).some(t => tagF.includes(t)));
+  const tagName = tagF.map(t => J.TAGS[t] || t).join(' & ');
   let prods = [];
   if(qn){
     list.forEach(x => (x.b.menu||[]).forEach(m => { if(J.match(m.name+' '+(m.cat||''), q) && m.available!==false) prods.push({x, m}); }));
@@ -217,11 +219,12 @@ function renderList(){
     if(fl.length && group==='Hepsi') h += `<div class="m-h"><b>Favorilerin</b><span>${fl.length}</span></div><div class="m-row">${fl.map(b => `<div class="m-favc ${bizOpen(b)?'':'off'}" ${bizOpen(b)?`data-a="open-biz" data-id="${b.id}"`:''}><span class="ph" style="${soft(b)}">${J.bizIcon(b,22)}</span><b>${J.esc(b.name)}</b><span class="tiny muted">${bizOpen(b)?etaTxt(b):'Kapalı'}</span></div>`).join('')}</div>`;
   }
   const openN = list.filter(x => x.open).length;
-  h += `<div class="m-h"><b>${qn?'Restoranlar ve marketler':group==='Hepsi'?'Yakınındakiler':group}</b><span>${openN} açık</span></div>`;
+  if(tagF.length) h += `<div class="m-tagf"><span>${J.ic('list',14)} ${J.esc(tagName)}</span><button data-a="tag-clear" aria-label="Filtreyi kaldır">${J.ic('x',14)}</button></div>`;
+  h += `<div class="m-h"><b>${qn?'Restoranlar ve marketler':tagF.length?J.esc(tagName):group==='Hepsi'?'Yakınındakiler':group}</b><span>${openN} açık</span></div>`;
   h += `<div class="m-sort">${SORTS.map(([k,l]) => `<button class="${sort===k?'on':''}" data-a="sort" data-id="${k}">${l}</button>`).join('')}</div>`;
   const anyNear = J.businesses().some(b => !b.suspended && J.isTestId(b.id) === (prof && prof.id === 'm_test') && J.dist(b, prof) < J.SERVICE_M);
   if(!anyNear) h += `<div class="m-empty"><div>${J.ic('map-pin',36)}</div><b>Bu adrese henüz hizmet vermiyoruz</b><div class="small" style="margin-top:6px">Jetgel şimdilik sınırlı bir bölgede çalışıyor. Başka bir adres seçebilirsin.</div><button class="sec" style="margin-top:12px" data-a="addr-pick">Adresi değiştir</button></div>`;
-  else if(!list.length) h += `<div class="m-empty"><div>${J.ic('search',36)}</div>${qn?'Aramana uygun sonuç yok.':'Yakınında bu türde işletme yok.'}</div>`;
+  else if(!list.length) h += `<div class="m-empty"><div>${J.ic('search',36)}</div><b>${qn ? 'Aramana uygun sonuç yok' : `Yakınında ${J.esc(tagF.length ? tagName : group==='Hepsi' ? 'açık' : group)} işletmesi yok`}</b><div class="btns" style="justify-content:center;margin-top:12px"><button class="sec" data-a="show-all">Tüm işletmeler</button><button class="ghost" data-a="addr-pick">Başka adres</button></div></div>`;
   list.forEach(x => h += restCard(x));
   if(J.notifPermission()==='default') h += `<div class="m-box small"><b>${J.ic('bell',15)} Kurye kapına gelince haber verelim mi?</b><div class="muted">Zorunlu değil.</div><div class="btns"><button class="sm brand" data-a="notif">Bildirimleri aç</button></div></div>`;
   return h + `</div>`;
@@ -312,7 +315,7 @@ function renderTrack(){
   if(o.state==='aktif'){
     let mins = null;
     if(o.del==='kapida'){ v = 'Kuryen kapında'; sub = 'Teslimat kodunu kuryeye söyle'; }
-    else if(o.del==='yolda' && c){ mins = ride(c); const ag = Math.round((J.now() - (c.pos_t || c.seen_at || 0))/1000); sub = 'Kuryen siparişini getiriyor · ' + (ag <= 15 ? '<span class="m-live">canlı konum</span>' : ag < 120 ? `konum ${ag} sn önce` : `konum ${Math.round(ag/60)} dk önce`); }
+    else if(o.del==='yolda' && c){ const ag = Math.round((J.now() - (c.pos_t || c.seen_at || 0))/1000); mins = ag > 120 ? null : ride(c); if(ag > 120) v = 'Yolda'; sub = 'Kuryen siparişini getiriyor · ' + (ag <= 15 ? '<span class="m-live">canlı konum</span>' : ag < 120 ? `konum ${ag} sn önce` : `konum ${Math.round(ag/60)} dk önce`); }
     else if(J.isHeld(o)){ v = 'Planlı sipariş'; sub = J.fmtSched(o.sched_at) + ' teslim edilecek'; }
     else if(o.pay==='havale_bekliyor'){ v = 'Ödeme bekleniyor'; sub = o.transfer_sent ? 'Çiçekçi ödemeni kontrol ediyor' : 'Havaleni yap; bilgiler aşağıda'; }
     else if(o.prep==='bekliyor'){ v = 'Onay bekleniyor'; sub = 'İşletme siparişini birazdan onaylayacak'; }
@@ -498,15 +501,16 @@ document.addEventListener('click', e => {
   if(a==='gps'){
     if(!navigator.geolocation){ J.toast('Bu tarayıcı konum desteklemiyor.'); return; }
     J.toast('Konum alınıyor…');
-    navigator.geolocation.getCurrentPosition(p => { draft.lat = p.coords.latitude; draft.lng = p.coords.longitude; draft.src = 'gps'; render(); }, err => J.toast('Konum alınamadı: ' + (err.message||'izin verilmedi')), {enableHighAccuracy:true, timeout:15000});
+    navigator.geolocation.getCurrentPosition(p => { draft.lat = p.coords.latitude; draft.lng = p.coords.longitude; draft.src = 'gps'; draft.need_pin = false; render(); }, err => J.toast('Konum alınamadı: ' + (err.message||'izin verilmedi')), {enableHighAccuracy:true, timeout:15000});
     return;
   }
   if(a==='jump'){ const t = document.getElementById(id); if(t) t.scrollIntoView({behavior:'smooth', block:'start'}); return; }
   if(a==='geo'){ const t = (document.getElementById('p-search').value || '').trim(); geoQ = t; if(!t) return; geoMsg = {t:'Aranıyor…'}; render();
-    J.geocode(t, draft).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; if(!draft.note) draft.note = t; geoMsg = {t:'Bulundu: ' + r.label.split(',').slice(0,3).join(',')}; map._fitted = null; } else geoMsg = {t:'Adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; render(); }); return; }
+    J.geocode(t, draft).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; draft.need_pin = false; if(!draft.note) draft.note = t; geoMsg = {t:'Bulundu: ' + r.label.split(',').slice(0,3).join(',')}; map._fitted = null; } else { geoMsg = {t:'Adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; draft.need_pin = true; } render(); }); return; }
+  if(a==='save-prof' && draft && draft.need_pin){ J.toast('Adres bulunamadı; haritaya dokunarak teslimat noktanı işaretle.'); return; }
   if(a==='save-prof' && isGuest()){
     draft.note = document.getElementById('p-note').value.trim();
-    J.store.set('misafir_konum', {lat:draft.lat, lng:draft.lng, note:draft.note || 'Seçilen adres', label:draft.addr_label || 'Ev'}); J.store.set('adres_taslak', ''); J.store.set('konum_taslak', null);
+    J.store.set('misafir_konum', {lat:draft.lat, lng:draft.lng, note:draft.note || 'Seçilen adres', label:draft.addr_label || 'Ev', verified:true, t:J.now()}); J.store.set('adres_taslak', ''); J.store.set('konum_taslak', null);
     draft = null; geoQ = ''; geoMsg = null; const nx = addrBack; addrBack = null; go(nx || 'liste'); render(); return;
   }
   if(a==='save-prof'){
@@ -583,6 +587,8 @@ document.addEventListener('click', e => {
     go(cartCount() ? 'sepet' : 'menu');
   }
   if(a==='paym'){ payM = id; }
+  if(a==='tag-clear') tagF = [];
+  if(a==='show-all'){ tagF = []; group = 'Hepsi'; q = ''; }
   if(a==='transfer-sent'){ if(J.transferSent(DB.get('orders', trackId))) J.toast('Çiçekçiye bildirildi.'); }
   if(a==='iban-copy'){ const o = DB.get('orders', trackId), hb = o && DB.get('businesses', o.rid); if(hb){ try{ navigator.clipboard.writeText(hb.iban.replace(/\s/g,'')); J.toast('IBAN kopyalandı.'); }catch(e){ prompt('IBAN', hb.iban); } } return; }
   if(a==='gift-addr'){ addrBack = 'sepet'; draft = Object.assign({}, prof, {addr_id:null, addr_label:'Diğer', note:''}); go('profil'); render(); return; }
@@ -653,7 +659,7 @@ function applyDraftAddr(){
   if(k && k.lat != null){ patch.lat = k.lat; patch.lng = k.lng; patch.loc_src = 'gps'; J.autoRelocate(k); }
   if(a && !(k && k.lat != null)){   // yalnızca yazılı adres: haritada onaylat
     draft = Object.assign({}, prof, {note:a, addr_id:null}); geoQ = a; geoMsg = {t:'Aranıyor…'}; view = 'profil';
-    J.geocode(a, prof).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; geoMsg = {t:'Adresin haritada işaretlendi. Doğruysa kaydet.'}; } else geoMsg = {t:'Yazdığın adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; if(map) map._fitted = null; render(); });
+    J.geocode(a, prof).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; draft.need_pin = false; geoMsg = {t:'Adresin haritada işaretlendi. Doğruysa kaydet.'}; } else { geoMsg = {t:'Yazdığın adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; draft.need_pin = true; } if(map) map._fitted = null; render(); });
   } else if(a && (!prof.note || prof.note === 'Test adresi')) patch.note = a;
   if(Object.keys(patch).length) DB.patch('customers', prof.id, patch);
   J.store.set('konum_taslak', null); J.store.set('adres_taslak', '');
@@ -706,10 +712,11 @@ DB.init().then(() => {
   const P = new URLSearchParams(location.search);
   if(P.get('g') && GROUPS.some(g => g[0] === P.get('g'))) group = P.get('g');
   if(P.get('q')) q = P.get('q');
+  if(P.get('t')) tagF = P.get('t').split(',').filter(t => J.TAGS[t]);
   const typed = J.store.get('adres_taslak', ''), hasPos = J.store.get('misafir_konum', null) || J.store.get('konum_taslak', null);
   if(!cuid){
     view = 'liste'; loadProf();
-    if(typed && !hasPos){ draft = Object.assign({}, prof, {note:typed}); geoQ = typed; view = 'profil'; geoMsg = {t:'Aranıyor…'}; J.geocode(typed).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; geoMsg = {t:'Adresin haritada işaretlendi. Doğruysa onayla.'}; } else geoMsg = {t:'Yazdığın adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; map && (map._fitted = null); render(); }); }
+    if(typed){ draft = Object.assign({}, prof, {note:typed}); geoQ = typed; view = 'profil'; geoMsg = {t:'Aranıyor…'}; J.geocode(typed).then(r => { if(r){ draft.lat = r.lat; draft.lng = r.lng; draft.src = 'harita'; draft.need_pin = false; geoMsg = {t:'Adresin haritada işaretlendi. Doğruysa onayla.'}; } else { geoMsg = {t:'Yazdığın adres bulunamadı. Haritaya dokunarak işaretle.', bad:true}; draft.need_pin = true; } map && (map._fitted = null); render(); }); }
     else if(!hasPos) setTimeout(guestLocate, 400);
     openPendingBiz();
   }

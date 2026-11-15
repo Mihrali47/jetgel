@@ -124,6 +124,35 @@ function perfHtml(){
     <div class="card"><h3>İşletmeler</h3>${bz.length ? `<div style="overflow-x:auto"><table><tr><th>İşletme</th><th>Sipariş</th><th>Teslim</th><th>Red</th><th>İptal</th><th>Ort. hazırlık</th><th>Geciken hazırlık</th><th>Puan</th><th>İkaz</th></tr>${bz.map(x => `<tr><td>${J.esc(x.b.name)}</td><td>${x.n}</td><td>${x.done}</td><td style="${x.red?'color:var(--bad)':''}">${x.red}</td><td>${x.cx}</td><td>${x.prep!=null?x.prep+' dk':'—'}</td><td>${x.late}</td><td>${rt(x.r)}</td><td>${(x.b.strikes||[]).filter(s => !s.removed).length}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Bu dönemde sipariş yok.</div>'}</div>
     <div class="card"><h3>Kuryeler</h3>${cs.length ? `<div style="overflow-x:auto"><table><tr><th>Kurye</th><th>Teslimat</th><th>Ort. yol süresi</th><th>Ulaşılamadı</th><th>Sorun bildirimi</th><th>Kazanç</th><th>Puan</th></tr>${cs.map(x => `<tr><td>${J.esc(x.c.name)}</td><td>${x.n}</td><td>${x.ride!=null?x.ride+' dk':'—'}</td><td>${x.un}</td><td>${x.inc}</td><td>${J.tl(x.earn)}</td><td>${rt(x.r)}</td></tr>`).join('')}</table></div>` : '<div class="small muted">Bu dönemde teslimat yok.</div>'}</div>`;
 }
+// Prova kaydı: akşam provası senaryoları, geçti/kaldı, sipariş no, not, saat, sürüm, cihaz
+const PROVA = [
+  ['Kurulum', [['roller','Dört rol ayrı cihaz/oturumda açıldı (müşteri, işletme, kurye Android, yönetim)'],['apk','Android uygulaması indirildi, kuruldu, sürüm etiketi kontrol edildi']]],
+  ['Katalog ve konum', [['k_yemek','Yemek kartı restoranları getiriyor'],['k_market','Market kartı marketleri getiriyor'],['k_pide','Pide ve pizza kartı doğru işletmeleri getiriyor'],['k_cicek','Çiçek kartı çiçekçileri getiriyor'],['a_elle','Elle yazılan adres haritada doğrulandı'],['a_gpsred','Konum izni reddedilince elle seçim çalıştı'],['a_yanlis','Bulunamayan adreste haritada işaretleme istendi'],['a_ikinci','İkinci (B) adres yeniden onaylandı, eski koordinat kullanılmadı'],['a_kapsam','Kapsam dışı noktada açık mesaj göründü'],['a_kapali','Kapalı işletme sipariş almadı']]],
+  ['Başarılı işlem', [['s_nakit','400 TL sepet · kapıda nakit · kodla teslim'],['s_pos','400 TL sepet · işletme POS\'u · kodla teslim, POS geri teslim edildi'],['s_tutar','Müşteri toplamı, işletme, kurye ve platform hareketleri eşleşti']]],
+  ['Hata ve kurtarma', [['h_isred','İşletme reddi (gerekçe müşteriye gitti)'],['h_kurred','Kurye reddi / teklif zaman aşımı, sıradaki kuryeye geçti'],['h_baglanti','Bağlantı kopup gelince durumlar eşleşti'],['h_kod','Yanlış teslim kodu kabul edilmedi, tutar çift kaydedilmedi'],['h_ulas','Ulaşılamayan müşteri: borç yazıldı'],['h_pos','POS arızası: nakite çevrildi, çift çekim yok'],['h_bildirim','Ekran kilitliyken bildirim geldi']]],
+];
+const provaRow = k => DB.get('prova', k) || {};
+const device = () => { const u = navigator.userAgent; return /Android/.test(u) ? 'Android' : /iPhone|iPad/.test(u) ? 'iOS' : /Windows/.test(u) ? 'Windows' : /Mac/.test(u) ? 'Mac' : 'Diğer'; };
+function renderProva(){
+  const all = PROVA.flatMap(g => g[1]), done = all.filter(([k]) => provaRow(k).r), ok = all.filter(([k]) => provaRow(k).r === 'gecti'), bad = all.filter(([k]) => provaRow(k).r === 'kaldi');
+  const crit = ['s_nakit','s_pos','s_tutar','h_kod','h_kurred'], critOk = crit.every(k => provaRow(k).r === 'gecti');
+  let h = `<div class="card"><div class="row"><h3 style="margin:0">Prova kaydı · sürüm ${J.VERSION}</h3><button class="sec sm" data-a="prova-csv">${J.ic('download',14)} CSV indir</button></div>
+    <div class="adm-kpi"><div><span class="tiny muted">Denenen</span><b>${done.length} / ${all.length}</b></div><div><span class="tiny muted">Geçti</span><b style="color:var(--ok)">${ok.length}</b></div><div><span class="tiny muted">Kaldı</span><b style="color:var(--bad)">${bad.length}</b></div><div><span class="tiny muted">Karar</span><b style="color:${critOk && !bad.length ? 'var(--ok)' : 'var(--bad)'}">${critOk && !bad.length ? 'Kapalı prova başarılı' : 'Açık madde var'}</b></div></div>
+    <div class="tiny muted" style="margin-top:6px">Her senaryoda sipariş numarasını ve gözlemi yazıp Geçti/Kaldı'ya basın. Kayıt saat, sürüm ve cihazla saklanır. Başarılı işlem, tutar eşleşmesi, yanlış kod ve kurye reddi geçmeden gerçek sipariş kabulü açılmamalı.</div></div>`;
+  PROVA.forEach(([title, list]) => {
+    h += `<div class="card"><h3>${title}</h3>${list.map(([k, t]) => { const r = provaRow(k);
+      return `<div class="prv ${r.r||''}"><div class="t"><b>${J.esc(t)}</b>${r.t ? `<span class="tiny muted">${new Date(r.t).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'})} · sürüm ${J.esc(r.v||'')} · ${J.esc(r.d||'')}</span>` : ''}</div>
+        <input id="rsn-pno-${k}" placeholder="Sipariş no" value="${J.esc(r.no||'')}"><input id="rsn-pnt-${k}" placeholder="Gözlem / sonuç" value="${J.esc(r.note||'')}">
+        <div class="b"><button class="${r.r==='gecti'?'ok':'sec'} sm" data-a="prv" data-id="${k}" data-v="gecti">Geçti</button><button class="${r.r==='kaldi'?'bad':'sec'} sm" data-a="prv" data-id="${k}" data-v="kaldi">Kaldı</button></div></div>`; }).join('')}</div>`;
+  });
+  return h;
+}
+function provaCsv(){
+  const q = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
+  const lines = [['Bölüm','Senaryo','Sonuç','Sipariş no','Gözlem','Saat','Sürüm','Cihaz'].map(q).join(';')];
+  PROVA.forEach(([g, list]) => list.forEach(([k, t]) => { const r = provaRow(k); lines.push([g, t, r.r==='gecti'?'Geçti':r.r==='kaldi'?'Kaldı':'', r.no, r.note, r.t ? new Date(r.t).toLocaleString('tr-TR') : '', r.v, r.d].map(q).join(';')); }));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], {type:'text/csv;charset=utf-8'})); a.download = 'prova-kaydi.csv'; a.click();
+}
 function finCsv(){
   const q = v => '"' + String(v).replace(/"/g,'""') + '"';
   const lines = [['Sipariş','Tarih','İşletme','Kurye','Durum','Ödeme yolu','Tahsil','İşletme payı','Kurye payı','Platform','İndirim','İade','İptal/red nedeni','Kurye atama (dk)','Toplam süre (dk)','Söz verilen (dk)','Gecikme (dk)','Sorun bildirimi','Destek talebi'].map(q).join(';')];
@@ -174,7 +203,7 @@ function renderCalls(){
 
 function renderSettings(){
   const s = J.settings();
-  return `<div class="card"><div class="row"><h3 style="margin:0">Oturum</h3><button class="sec sm" data-a="adm-out">Bu cihazda yönetimden çık</button></div></div><div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
+  return `<div class="card"><div class="row"><h3 style="margin:0">Oturum · sürüm ${J.VERSION}</h3><button class="sec sm" data-a="adm-out">Bu cihazda yönetimden çık</button></div></div><div class="card"><h3>Bağlantı</h3><div class="small">${DB.mode==='canli' ? `Canlı mod: tüm cihazlar Supabase veritabanına bağlı. Durum: <b>${J.esc(DB.status)}</b>${DB.lastError?` · <span style="color:var(--bad)">${J.esc(DB.lastError)}</span>`:''}` : 'Demo modu: veriler sadece bu cihazın tarayıcısında. Aynı cihazdaki sekmeler birbirini görür.'}</div>
     ${DB.mode!=='canli' && window.JETGEL_CONFIG.supabaseUrl ? `<div class="btns"><button class="sm sec" data-a="force-live">Canlı moda dön</button></div>` : ''}</div>
     <div class="card"><h3>Sesli arama · aktarma sunucusu (TURN)</h3>
       <div class="small muted">Telefonlar birbirine doğrudan bağlanamadığında (mobil veri, bazı modemler) sesi bu sunucu taşır. Metered panelinde <b>TURN Server → Add Credential → Show ICE Servers Array</b> ile çıkan metnin tamamını buraya yapıştırıp kaydedin. Tüm telefonlar otomatik kullanır.</div>
@@ -263,11 +292,11 @@ function render(){
   }
   document.getElementById('ahead').innerHTML = header();
   const nA = pendingApps().length, nC = J.openHelps().length + pendingClaims().length + J.businesses().reduce((t,b) => t + (b.strikes||[]).filter(s => s.appeal==='beklemede').length, 0);
-  document.getElementById('tabs').innerHTML = [['genel','Genel',new Set(J.orderAlerts().map(x => x.o.id)).size],['finans','Finans'],['sikayet','Destek',nC],['basvuru','Başvurular',nA],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l,n]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}${n?` <span class="cnt">${n}</span>`:''}</button>`).join('');
+  document.getElementById('tabs').innerHTML = [['genel','Genel',new Set(J.orderAlerts().map(x => x.o.id)).size],['finans','Finans'],['prova','Prova'],['sikayet','Destek',nC],['basvuru','Başvurular',nA],['isletmeler','İşletmeler'],['kuryeler','Kuryeler'],['aramalar','Aramalar'],['ayarlar','Ayarlar']].map(([k,l,n]) => `<button class="${tab===k?'on':''}" data-a="tab" data-id="${k}">${l}${n?` <span class="cnt">${n}</span>`:''}</button>`).join('');
   const showMap = tab==='genel' || tab==='isletmeler';
   document.getElementById('genel-grid').style.display = showMap ? '' : 'none';
   J.render(document.getElementById('side'), tab==='isletmeler' ? renderBiz() : renderSide());
-  J.render(document.getElementById('panel'), tab==='genel' ? renderGenel() : tab==='kuryeler' ? renderCour() : tab==='aramalar' ? renderCalls() : tab==='ayarlar' ? renderSettings() : tab==='basvuru' ? renderApps() : tab==='sikayet' ? renderClaims() : tab==='finans' ? renderFin() : '');
+  J.render(document.getElementById('panel'), tab==='genel' ? renderGenel() : tab==='kuryeler' ? renderCour() : tab==='aramalar' ? renderCalls() : tab==='ayarlar' ? renderSettings() : tab==='basvuru' ? renderApps() : tab==='sikayet' ? renderClaims() : tab==='finans' ? renderFin() : tab==='prova' ? renderProva() : '');
   if(showMap){ map.invalidate(); drawMap(); }
 }
 
@@ -363,6 +392,9 @@ document.addEventListener('click', async e => {
   if(a==='clear-turn'){ DB.patch('settings','ayar',{turn:[]}); J.log('Aktarma sunucusu kaldırıldı.', 'warn'); }
   if(a==='force-demo'){ J.store.set('force_demo', true); location.reload(); return; }
   if(a==='tests-toggle'){ const v = !J.settings().tests_closed; if(DB.get('settings','ayar')) DB.patch('settings','ayar',{tests_closed:v}); else DB.put('settings','ayar',{tests_closed:v}); J.log(`Test girişleri ${v?'kapatıldı':'açıldı'}.`, 'warn'); }
+  if(a==='prv'){ const no = document.getElementById('rsn-pno-' + id), nt = document.getElementById('rsn-pnt-' + id);
+    DB.put('prova', id, {r:el.dataset.v, no: no ? no.value.trim() : '', note: nt ? nt.value.trim() : '', t:J.now(), v:J.VERSION, d:device()}); }
+  if(a==='prova-csv'){ provaCsv(); return; }
   if(a==='adm-out'){ J.store.set('yonetim_ok', ''); render(); return; }
   if(a==='force-live'){ J.store.set('force_demo', false); location.reload(); return; }
   if(a==='reset') confirmReset = true;

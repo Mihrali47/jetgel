@@ -188,3 +188,11 @@ button.sm{padding:5px 9px;font-size:12px}
 .p-collect{margin-top:14px;background:#fff8e6;border:1.5px solid #f2d27a;border-radius:14px;padding:12px}
 .p-collect.on{background:var(--ok-soft,#e8f6ee);border-color:#9bd3b0}
 .p-collect b{font-size:20px}
+/* prova kaydı */
+.prv{display:grid;grid-template-columns:1.6fr .7fr 1.4fr auto;gap:8px;align-items:center;padding:10px 0;border-top:1px solid #efebe4}
+.prv:first-of-type{border-top:0}
+.prv .t{display:flex;flex-direction:column;gap:2px}
+.prv input{padding:7px 9px;font-size:13px}
+.prv .b{display:flex;gap:6px}
+.prv.gecti .t b{color:var(--ok)}.prv.kaldi .t b{color:var(--bad)}
+@media (max-width:760px){ .prv{grid-template-columns:1fr 1fr} .prv .t{grid-column:1/-1} .prv .b{grid-column:1/-1} }

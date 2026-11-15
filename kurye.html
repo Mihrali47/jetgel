@@ -342,7 +342,7 @@ document.addEventListener('click', async e => {
   if(a==='pickup'){ const o = myJob(); if(o) doPickup(o, pick); }
   if(a==='scan'){ startScan(); return; }
   if(a==='scan-close'){ stopScan(); return; }
-  if(a==='pos-fail'){ const o = myJob(); if(o && o.pay_method==='kart'){ DB.patch('orders', o.id, {pay_method:'nakit', pos_fail:true}); J.log(`#${o.no} POS çalışmadı; müşteri nakit ödüyor.`, 'warn', o.id); J.toast('Ödeme nakite çevrildi. Müşterinin nakdi yoksa "Sorun bildir" ile destek iste.'); } }
+  if(a==='pos-fail'){ const o = myJob(); if(o && o.pay_method==='kart'){ DB.patch('orders', o.id, {pay_method:'nakit', pos_fail:true}); J.log(`#${o.no} POS çalışmadı; müşteri nakit ödüyor.`, 'warn', o.id); J.toast('Ödeme nakite çevrildi. Önce POS ekranında önceki çekimin gerçekleşmediğini kontrol et; müşteriden iki kez ödeme alınmasın.'); } }
   if(a==='collect'){ const o = myJob(); if(o) collected = collected === o.id ? null : o.id; }
   if(a==='pin'){
     const o = myJob(); if(!o) return;

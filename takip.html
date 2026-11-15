@@ -30,7 +30,8 @@ const {DB} = J, P = new URLSearchParams(location.search), oid = P.get('o'), key 
 let map = null;
 function render(){
   const o = oid && DB.get('orders', oid);
-  if(!o || !o.share_key || o.share_key !== key){ J.render(document.getElementById('panel'), `<div class="m-body"><div class="m-empty"><div>${J.ic('search',36)}</div><b>Takip bağlantısı geçersiz</b><div class="small">Bağlantının süresi dolmuş ya da yanlış kopyalanmış olabilir.</div></div></div>`); document.getElementById('tmap').style.display = 'none'; return; }
+  const expired = o && o.state !== 'aktif' && J.now() - (o.delivered_at || o.cancelled_at || o.created_at) > 6*3600e3;   // kapanan siparişin bağlantısı 6 saat sonra geçersiz
+  if(!o || !o.share_key || o.share_key !== key || expired){ J.render(document.getElementById('panel'), `<div class="m-body"><div class="m-empty"><div>${J.ic('search',36)}</div><b>Takip bağlantısı geçersiz</b><div class="small">Bağlantının süresi dolmuş ya da yanlış kopyalanmış olabilir.</div></div></div>`); document.getElementById('tmap').style.display = 'none'; return; }
   const b = DB.get('businesses', o.rid), c = o.courier_id && DB.get('couriers', o.courier_id);
   const steps = ['Onay','Hazırlık','Yolda','Teslim'];
   const done = [o.prep!=='bekliyor', o.prep==='hazir' || ['yolda','kapida','teslim'].includes(o.del), ['kapida','teslim'].includes(o.del) || o.state==='teslim', o.state==='teslim'];
@@ -39,7 +40,7 @@ function render(){
   if(o.state==='teslim'){ v = 'Teslim edildi'; sub = new Date(o.delivered_at || J.now()).toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'}); }
   else if(o.state!=='aktif'){ v = 'Sipariş kapandı'; sub = ''; }
   else if(o.del==='kapida'){ v = 'Kurye kapıda'; }
-  else if(o.del==='yolda' && c){ v = Math.max(1, Math.round(J.dist(c, o.customer)*1.3/J.M_PER_MIN)) + ' dk'; sub = 'Kurye yolda'; }
+  else if(o.del==='yolda' && c){ const ag = (J.now() - (c.pos_t || c.seen_at || 0))/1000; if(ag > 120){ v = 'Yolda'; sub = 'Kuryenin konumu ' + Math.round(ag/60) + ' dk önce güncellendi'; } else { v = Math.max(1, Math.round(J.dist(c, o.customer)*1.3/J.M_PER_MIN)) + ' dk'; sub = 'Kurye yolda'; } }
   else if(o.prep==='bekliyor'){ v = 'Onay bekleniyor'; }
   else { v = 'Hazırlanıyor'; sub = o.courier_id ? 'Kurye atandı' : 'Kurye aranıyor'; }
   J.render(document.getElementById('panel'), `<div class="m-body"><div class="m-eta" style="margin:0 0 12px"><div class="k">${J.esc(o.rname)} · #${J.esc(o.no)}</div><div class="v">${v}</div><div class="s">${J.esc(sub)}</div>
