@@ -209,9 +209,13 @@ function renderApps(){
     ${a.state==='beklemede'?`<input id="rsn-${a.id}" placeholder="Red sebebi (reddederseniz işletme görür)" style="margin-top:10px"><div class="p-act"><button class="ok" data-a="app-ok" data-id="${a.id}">Onayla ve işletmeyi aç</button><button class="sec" data-a="app-no" data-id="${a.id}">Reddet</button></div>`:a.reason?`<div class="tiny muted" style="margin-top:6px">Sebep: ${J.esc(a.reason)}</div>`:''}</div>`).join('');
 }
 function doorBlocks(){
-  const cs = DB.rows('customers').filter(c => c.door_block);
-  if(!cs.length) return '';
-  return `<div class="p-sec">Kapıda ödemesi kapatılan müşteriler<span class="n">${cs.length}</span></div>` + cs.map(c => `<div class="p-card"><div class="row"><div><b>${J.esc(c.name||'Müşteri')}</b><div class="tiny muted">#${J.esc(c.door_block_order||'')} siparişinde ulaşılamadı · ${c.door_block_t ? new Date(c.door_block_t).toLocaleString('tr-TR') : ''}</div></div><button class="sec sm" data-a="door-open" data-id="${c.id}">Kapıda ödemeyi aç</button></div></div>`).join('');
+  const cs = DB.rows('customers').filter(c => c.door_block), debtors = DB.rows('customers').filter(c => c.debt > 0);
+  const due = J.orders().filter(o => o.pay === 'borc_tahsil' && o.shares);
+  let h = '';
+  if(debtors.length) h += `<div class="p-sec">Müşteri borçları<span class="n">${debtors.length}</span></div>` + debtors.map(c => `<div class="p-card"><div class="row"><div><b>${J.esc(c.name||'Müşteri')}</b><div class="tiny muted">${(c.debts||[]).filter(d => !d.paid).map(d => '#' + J.esc(d.no) + ' · ' + J.tl(d.amt)).join(', ')}</div></div><b style="color:var(--bad)">−${J.tl(c.debt)}</b></div><div class="tiny muted" style="margin-top:4px">Sonraki kapıda ödemeli siparişte kurye tahsil eder; kartlı ödeme açılınca karttan çekilir.</div></div>`).join('');
+  if(due.length) h += `<div class="p-sec">Tahsil edilen borçlardan ödenecekler<span class="n hot">${due.length}</span></div>` + due.map(o => `<div class="p-card"><div class="row"><b>#${J.esc(o.no)} · ${J.esc(o.rname)}</b><span class="tiny muted">#${J.esc(o.debt_via||'')} ile tahsil edildi</span></div><div class="small">İşletmeye <b>${J.tl(o.shares.business)}</b> · ${J.esc(o.cname||'Kuryeye')} <b>${J.tl(o.shares.courier)}</b></div><div class="p-act"><button class="ok" data-a="debt-paid" data-id="${o.id}">Ödendi olarak işaretle</button></div></div>`).join('');
+  if(!cs.length) return h;
+  return h + `<div class="p-sec">Kapıda ödemesi kapatılan müşteriler<span class="n">${cs.length}</span></div>` + cs.map(c => `<div class="p-card"><div class="row"><div><b>${J.esc(c.name||'Müşteri')}</b><div class="tiny muted">Borcu varken #${J.esc(c.door_block_order||'')} siparişinde de ulaşılamadı · ${c.door_block_t ? new Date(c.door_block_t).toLocaleString('tr-TR') : ''}</div></div><button class="sec sm" data-a="door-open" data-id="${c.id}">Kapıda ödemeyi aç</button></div></div>`).join('');
 }
 function renderClaims(){
   const esc = pendingClaims(), appeals = J.businesses().flatMap(b => (b.strikes||[]).filter(s => s.appeal==='beklemede').map(s => ({b,s})));
@@ -254,6 +258,7 @@ document.addEventListener('click', async e => {
   { const el0 = e.target.closest('[data-a]'); if(el0){ const a0 = el0.dataset.a, id0 = el0.dataset.id;
     if(a0==='cour-ok'){ const c = DB.get('couriers', id0); DB.patch('couriers', id0, {approved:true, approved_t:J.now()}); J.log(`Kurye onaylandı: ${c ? c.name : ''}.`, 'ok'); render(); return; }
     if(a0==='cour-no'){ const inp = document.getElementById('rsn-'+id0); DB.patch('couriers', id0, {rejected:true, reject_reason:(inp && inp.value.trim()) || ''}); J.log('Bir kurye başvurusu reddedildi.', 'warn'); render(); return; }
+    if(a0==='debt-paid'){ DB.patch('orders', id0, {pay:'borc_odendi', debt_settled_t:J.now()}); J.log('Tahsil edilen borçtan işletme ve kurye payları ödendi.', 'pay', id0); render(); return; }
     if(a0==='door-open'){ DB.patch('customers', id0, {door_block:false}); J.log('Bir müşterinin kapıda ödeme hakkı yeniden açıldı.', 'ok'); render(); return; }
     if(a0==='settle-plat'){ J.settle(id0, 'platform', +el0.dataset.v, 'yonetim'); render(); return; }
     if(a0==='inc-ok'){ J.resolveIncident(DB.get('orders', id0)); render(); return; }

@@ -272,7 +272,8 @@ function renderCart(){
       ${cdisc(b, sub)?`<div class="row" style="color:var(--ok)"><span>Başkan kuponu<small>İşletmenin katkısı</small></span><span class="money">−${J.tl(cdisc(b, sub))}</span></div>`:''}
       ${prio?`<div class="row"><span>Hızlı teslimat<small>Tamamı kuryeye gider</small></span><span class="money">${J.tl(J.FEE.priority)}</span></div>`:''}
       ${tip?`<div class="row"><span>Kurye bahşişi<small>Tamamı kuryeye gider</small></span><span class="money">${J.tl(tip)}</span></div>`:''}
-      <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, sub)-ldisc(b, sub))}</b></div></div>
+      ${prof.debt > 0 ? `<div class="row" style="color:var(--bad)"><span>Önceki borcun<small>Ulaşılamayan siparişten · kapıda bu siparişle birlikte alınır</small></span><span class="money">${J.tl(prof.debt)}</span></div>` : ''}
+      <div class="row tot"><b>Toplam</b><b class="money">${J.tl(sub+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, sub)-ldisc(b, sub)+(prof.debt>0?prof.debt:0))}</b></div></div>
     <div class="m-fair"><i>${J.ic('handshake',22)}</i><div><b>Komisyon yok.</b> ${b.free_delivery?'Bu işletme teslimat ücretini senin yerine ödüyor.':'İşletme de bu sipariş için sabit ücret öder; ürün fiyatlarına yüzde eklenmez.'}</div></div>
     <div class="note" style="margin-bottom:12px">Ödemeyi siparişin kapına geldiğinde kuryeye yaparsın. İşletme siparişi reddederse hiçbir ödeme yapmazsın.</div></div>`;
 }
@@ -319,7 +320,7 @@ function renderTrack(){
     h += `<div class="m-box"><h3>${J.ic('message-square',16)} Mesajlar</h3>${J.msgBox(o, 'musteri', 'qm')}</div>`;
     J.msgNotify(o, 'musteri');
   }
-  if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. Kurallar gereği bu siparişte iade yapılmaz.</div>`;
+  if(o.state==='ulasilamadi') h += `<div class="card bad small">Kurye adresinde bekledi ve seni aradı, ulaşamadı. ${J.isDoor(o) ? `Sipariş tutarı <b>${J.tl(o.debt_amt || J.custPaid(o))}</b> hesabına borç olarak yazıldı; bir sonraki kapıda ödemeli siparişinde ya da kartlı ödeme açıldığında kartından tahsil edilir.` : 'Kurallar gereği bu siparişte iade yapılmaz.'}</div>`;
   if(o.state==='red') h += `<div class="card bad small"><b>${J.esc(J.REJECT_REASONS[o.reject_reason] || J.REJECT_REASONS.diger)}.</b>${o.reject_items && o.reject_items.length ? ` Tükenen: ${o.reject_items.map(J.esc).join(', ')}.` : ''} İşletme siparişi kabul edemedi. ${J.isDoor(o) ? 'Herhangi bir ödeme yapmana gerek yok.' : 'Kartındaki blokaj kaldırıldı, para çekilmedi.'}</div>`;
   if(o.state==='aktif' && o.prep==='hazirlaniyor' && o.prep_ext) h += `<div class="card small">${J.ic('clock',15)} İşletme siparişin için ${o.prep_ext_min} dk ek süre istedi; tahmini teslim saati güncellendi.</div>`;
   if(o.state==='iptal') h += `<div class="card bad small">Sipariş destek ekibimiz tarafından iptal edildi${o.cancel_reason ? ' (' + J.esc(o.cancel_reason) + ')' : ''}. ${J.isDoor(o) ? 'Herhangi bir ödeme yapmana gerek yok.' : o.pay==='iade' ? 'Ödediğin tutarın tamamı kartına iade edildi.' : 'Kartındaki blokaj kaldırıldı, para çekilmedi.'}</div>`;
@@ -332,7 +333,7 @@ function renderTrack(){
     ${o.tip||o.tip_after?`<div class="row"><span>Kurye bahşişi</span><span class="money">${J.tl((o.tip||0)+(o.tip_after||0))}</span></div>`:''}
     ${o.refund?`<div class="row" style="color:var(--ok)"><span>İade (işletme ikazı)</span><span class="money">−${J.tl(o.refund)}</span></div>`:''}
     <div class="row tot"><b>Toplam</b><b class="money">${J.tl(o.subtotal + o.fees.cust + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0) - (o.refund||0) - (o.claim_refund||0))}</b></div>
-    ${J.isDoor(o) ? `<div class="row"><span>Ödeme</span><span>${J.payPill(o)}</span></div>${o.state==='aktif' ? `<div class="tiny muted" style="margin-top:6px">Kapıda ödeyeceğin tutar: <b>${J.tl(J.custPaid(o))}</b>${o.cash_for ? ` · ${J.tl(o.cash_for)} ile ödeyeceğini kuryeye ilettik` : ''}. Teslimat kodunu ödemeden sonra söyle.</div>` : ''}${(o.refund || o.claim_refund) && o.state==='teslim' ? `<div class="tiny muted" style="margin-top:6px">İade tutarı sana destek ekibimiz tarafından ödenecek.</div>` : ''}` : ''}
+    ${J.isDoor(o) ? `<div class="row"><span>Ödeme</span><span>${J.payPill(o)}</span></div>${o.state==='aktif' ? `<div class="tiny muted" style="margin-top:6px">Kapıda ödeyeceğin tutar: <b>${J.tl(J.doorAmount(o))}</b>${o.prev_debt ? ` (önceki ${J.tl(o.prev_debt)} borcun dahil)` : ''}${o.cash_for ? ` · ${J.tl(o.cash_for)} ile ödeyeceğini kuryeye ilettik` : ''}. Teslimat kodunu ödemeden sonra söyle.</div>` : ''}${(o.refund || o.claim_refund) && o.state==='teslim' ? `<div class="tiny muted" style="margin-top:6px">İade tutarı sana destek ekibimiz tarafından ödenecek.</div>` : ''}` : ''}
     ${o.note?`<div class="tiny muted" style="margin-top:8px">Not: ${J.esc(o.note)}</div>`:''}<div style="margin-top:10px">${J.payPill(o)}</div></div>`;
   if(o.state==='teslim') h += claimBox(o);
   if(o.state==='teslim' && !o.rated){
@@ -387,7 +388,7 @@ function renderOrders(){
 function renderAccount(){
   showMap(false);
   const n = J.notifPermission();
-  return topBar('Hesabım') + `<div class="m-body">
+  return topBar('Hesabım') + `<div class="m-body">${prof.debt > 0 ? `<div class="card bad small"><b>Bakiyen: −${J.tl(prof.debt)}</b><div>Ulaşılamayan siparişten kalan borç. Bir sonraki kapıda ödemeli siparişinde kuryeye ödersin; kartlı ödeme açıldığında kartından tahsil edilir.</div></div>` : ''}
     <div class="m-box m-person"><div class="av">${J.ic('user',22)}</div><div class="tx"><b>${J.esc(prof.name)}</b><span class="small muted">${J.esc(prof.login ? prof.login.user : '')}</span></div></div>
     <div class="m-list">
       <button data-a="addr-acc"><i>${J.ic('map-pin',19)}</i><span class="x">Adreslerim<div class="tiny muted">${J.esc(prof.note||'Konumun')}</div></span>›</button>
@@ -415,7 +416,7 @@ function renderBar(){
     const b = DB.get('businesses', curBiz);
     const short = b && b.min_order > 0 ? b.min_order - cartSum(b) : 0;
     if(b && cartCount() && short > 0) h = `<div class="m-bar"><button disabled style="opacity:.6"><span>Minimum sipariş ${J.tl(b.min_order)}</span><span class="money">${J.tl(short)} daha ekle</span></button></div>`;
-    else if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order" ${placing?'disabled':''}><span>${placing?'Gönderiliyor…':sched?'Siparişi planla':'Siparişi onayla'}</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b))-ldisc(b, cartSum(b)))}</span></button></div>`; }
+    else if(b && cartCount()){ const f = fees(b); h = `<div class="m-bar"><button data-a="order" ${placing?'disabled':''}><span>${placing?'Gönderiliyor…':sched?'Siparişi planla':'Siparişi onayla'}</span><span class="money">${J.tl(cartSum(b)+f.del+f.plat+tip+(prio?J.FEE.priority:0)-cdisc(b, cartSum(b))-ldisc(b, cartSum(b))+(prof && prof.debt>0?prof.debt:0))}</span></button></div>`; }
   } else if(TABS.includes(view) || view==='takip'){
     const t = view==='takip' ? 'siparisler' : view, act = activeOrders().length;
     h = `<nav class="m-tabs">${[['liste','house','Keşfet'],['siparisler','receipt','Siparişlerim'],['hesap','user','Hesabım']].map(([id,ic,l]) => `<button class="${t===id?'on':''}" data-a="tab" data-id="${id}"><i>${J.ic(ic,22)}</i>${l}${id==='siparisler'&&act?'<span class="dot"></span>':''}</button>`).join('')}</nav>`;

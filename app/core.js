@@ -170,7 +170,7 @@ J.partyName = function(p){
 J.ONLINE_PAY = false;   // ödeme kuruluşu bağlanınca true
 J.PAY_METHODS = {kart:'Kapıda kartla (POS)', nakit:'Kapıda nakit'};
 J.isDoor = o => o && (o.pay_method === 'kart' || o.pay_method === 'nakit');
-J.PAY_TXT = {kapida:'Kapıda ödenecek', yok:'Ödeme alınmadı', blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi', iade:'Tamamı iade edildi'};
+J.PAY_TXT = {kapida:'Kapıda ödenecek', yok:'Ödeme alınmadı', borc:'Müşteriye borç yazıldı', borc_tahsil:'Borç tahsil edildi · paylar ödenecek', borc_odendi:'Borç tahsil edildi · paylar ödendi', blokaj:'Kartta bloke (çekilmedi)', bekletiliyor:'Çekildi · teslimata kadar bekletiliyor', dagitildi:'Dağıtıldı', kalkti:'Blokaj kaldırıldı · para çekilmedi', iade:'Tamamı iade edildi'};
 J.payPill = o => `<span class="pill ${o.pay==='dagitildi'?'ok':(o.pay==='kalkti'||o.pay==='yok')?'bad':o.pay==='bekletiliyor'?'blue':'warn'}">${J.ic(o.pay_method==='nakit'?'banknote':'credit-card',12)} ${J.isDoor(o) && o.pay==='dagitildi' ? (o.pay_method==='nakit'?'Kapıda nakit tahsil edildi':'Kapıda kartla tahsil edildi') : J.isDoor(o) && o.pay==='kapida' ? J.PAY_METHODS[o.pay_method] : (J.PAY_TXT[o.pay]||o.pay)}</span>`;
 function payout(o){
   const tip = o.tip || 0;   // bahşişin tamamı kuryeye
@@ -234,7 +234,7 @@ J.placeOrder = function(b, cart, cust, extra){
   const id = J.uid('o');
   const o = {
     id, no: String(Date.now()).slice(-5), rid:b.id, rname:b.name, items, subtotal, fees,
-    state:'aktif', prep:'bekliyor', del:'yok', pay: J.PAY_METHODS[extra && extra.pay_method] ? 'kapida' : 'blokaj', pay_method: J.PAY_METHODS[extra && extra.pay_method] ? extra.pay_method : 'online', cash_for: extra && extra.pay_method === 'nakit' ? Math.max(0, parseInt(extra.cash_for,10) || 0) : 0, refund:0,
+    state:'aktif', prep:'bekliyor', del:'yok', pay: J.PAY_METHODS[extra && extra.pay_method] ? 'kapida' : 'blokaj', pay_method: J.PAY_METHODS[extra && extra.pay_method] ? extra.pay_method : 'online', cash_for: extra && extra.pay_method === 'nakit' ? Math.max(0, parseInt(extra.cash_for,10) || 0) : 0, prev_debt: J.PAY_METHODS[extra && extra.pay_method] && cust.debt > 0 ? cust.debt : 0, refund:0,
     customer:{id:cust.id, name:cust.name, lat:cust.lat, lng:cust.lng, note:cust.note||'', mahalle:cust.mahalle||''},
     note: String((extra && extra.note) || '').slice(0, 200),
     tip: Math.max(0, Math.min(J.TIP_MAX, Math.round(+((extra && extra.tip) || 0)))),
@@ -536,6 +536,8 @@ J.tripEstimate = function(from, o){
   const wait = Math.max(0, prepLeft - toB);
   return {toB:Math.round(toB), wait:Math.round(wait), ride:Math.round(ride), total:Math.max(3, Math.round(toB + wait + ride + 2)), km:(J.dist(from, b) + J.dist(b, o.customer))/1000};
 };
+// Kapıda alınacak tutar: sipariş + müşterinin önceki borcu
+J.doorAmount = o => J.custPaid(o) + (o.prev_debt || 0);
 J.custPaid = o => o.subtotal + (o.fees ? o.fees.cust : 0) + (o.tip||0) + (o.tip_after||0) + (o.prio_fee||0) - (o.discount||0) - (o.loyalty_disc||0);
 /* ===================== SORUN BİLDİRİMİ VE İADE =====================
    Müşteri teslimden sonra 24 saat içinde eksik/yanlış/bozuk ürünü (isteğe bağlı fotoğrafla) bildirir, siparişte bir kez.
@@ -717,10 +719,19 @@ J.unreachable = function(c, o){
   DB.patch('orders', o.id, {state:'ulasilamadi', del:'ulasilamadi'});
   finishCourier(c, o);
   if(J.isDoor(o)){
-    // Kapıda ödemede para alınamadı: müşterinin kapıda ödeme hakkı kapanır, durum yönetime düşer
-    DB.patch('orders', o.id, {pay:'yok'});
-    const cu = DB.get('customers', o.customer.id); if(cu) DB.patch('customers', cu.id, {door_block:true, door_block_t:J.now(), door_block_order:o.no});
-    J.log(`#${o.no} müşteriye ulaşılamadı; kapıda ödeme alınamadı. Müşterinin kapıda ödeme hakkı kapatıldı.`, 'bad', o.id);
+    // Kapıda ödemede para alınamadı: tutar müşterinin bakiyesine borç (eksi) yazılır.
+    // Sonraki kapıda ödemede kurye borcu da tahsil eder; kartlı ödeme gelince karttan çekilir.
+    // Borcu varken bir kez daha ulaşılamazsa kapıda ödeme hakkı kapanır.
+    const amt = J.custPaid(o), cu = DB.get('customers', o.customer.id);
+    payout(o);   // işletme ve kurye payları hesaplanır; borç tahsil edilince platform öder
+    DB.patch('orders', o.id, {pay:'borc', debt_amt:amt});
+    if(cu){
+      const repeat = (cu.debt||0) > 0;
+      const patch = {debt:(cu.debt||0) + amt, debts:(cu.debts||[]).concat([{oid:o.id, no:o.no, amt, t:J.now()}])};
+      if(repeat) Object.assign(patch, {door_block:true, door_block_t:J.now(), door_block_order:o.no});
+      DB.patch('customers', cu.id, patch);
+    }
+    J.log(`#${o.no} müşteriye ulaşılamadı; ${J.tl(amt)} müşterinin bakiyesine borç yazıldı.`, 'bad', o.id);
     return;
   }
   J.log(`#${o.no} müşteriye ulaşılamadı (kurye bekledi ve aradı). Kurallar gereği iade yok.`, 'bad', o.id);
@@ -733,12 +744,22 @@ J.doorLedger = function(){
   const get = cid => L[cid] = L[cid] || {biz:{}, plat:0, refund:0, collected:0, keep:0, paidBiz:{}, paidPlat:0};
   J.orders().filter(o => J.isDoor(o) && o.state === 'teslim' && o.shares && o.courier_id).forEach(o => {
     const x = get(o.courier_id), sh = o.shares;
-    x.collected += o.collected || J.custPaid(o); x.keep += sh.courier;
+    x.collected += o.collected || J.doorAmount(o); x.keep += sh.courier;
+    x.plat += (o.prev_debt || 0);   // tahsil edilen eski borç platforma teslim edilir, platform ilgili işletme ve kuryeye öder
     x.biz[o.rid] = (x.biz[o.rid]||0) + sh.business;   // sorun bildirimi iadesi düşülmüş pay
     x.plat += sh.platform; x.refund += (sh.refund||0) + (o.claim_refund||0);   // müşteriye geri verilecekler platform üzerinden ödenir
   });
   J.settlements().forEach(s => { const x = get(s.cid); if(s.to === 'platform') x.paidPlat += s.amount; else x.paidBiz[s.to] = (x.paidBiz[s.to]||0) + s.amount; });
   return L;
+};
+// Kurye kapıda borcu da tahsil edince müşterinin borcu kapanır; borçlu siparişler "platformdan ödenecek" olur
+J.clearDebt = function(o){
+  if(!(o.prev_debt > 0)) return;
+  const cu = DB.get('customers', o.customer.id); if(!cu) return;
+  const open = (cu.debts||[]).filter(d => !d.paid);
+  DB.patch('customers', cu.id, {debt:Math.max(0, (cu.debt||0) - o.prev_debt), debts:(cu.debts||[]).map(d => d.paid ? d : Object.assign({}, d, {paid:J.now(), via:o.no}))});
+  open.forEach(d => DB.patch('orders', d.oid, {pay:'borc_tahsil', debt_paid_t:J.now(), debt_via:o.no}));
+  J.log(`#${o.no} ile müşterinin önceki ${J.tl(o.prev_debt)} borcu tahsil edildi.`, 'pay', o.id);
 };
 J.settle = function(cid, to, amount, by){
   if(!(amount > 0)) return false;
